@@ -1,0 +1,10 @@
+package com.josecjuniors.logossrv.adapters.out.regradistribuicaoatividade.jpa;
+
+import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
+import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividadeId;
+import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.repository.RegraDistribuicaoAtividadeRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface RegraDistribuicaoAtividadeJpaRepository extends RegraDistribuicaoAtividadeRepository, JpaRepository<RegraDistribuicaoAtividade, RegraDistribuicaoAtividadeId> {}
