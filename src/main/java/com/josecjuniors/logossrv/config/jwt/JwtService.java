@@ -35,10 +35,10 @@ public class JwtService {
 
     private String buildToken(UserDetails userDetails, long expiration) {
         return Jwts.builder()
-                .setSubject(userDetails.getUsername())
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSignInKey())
+                .subject(userDetails.getUsername()) // Modern API
+                .issuedAt(new Date(System.currentTimeMillis())) // Modern API
+                .expiration(new Date(System.currentTimeMillis() + expiration)) // Modern API
+                .signWith(getSignInKey()) // A API moderna infere o algoritmo da chave
                 .compact();
     }
 

@@ -20,5 +20,8 @@ public interface JogadorJpaRepository extends JogadorRepository, JpaRepository<J
     @Override
     Optional<Jogador> findByUserEmail(String email);
 
+    @Override
+    boolean existsByApelidoAndIdNot(String apelido, JogadorId id);
+
     Optional<Jogador> findByUser_Id(AppUserId appUserId);
 }

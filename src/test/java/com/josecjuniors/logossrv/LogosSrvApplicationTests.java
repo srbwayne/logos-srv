@@ -1,9 +1,9 @@
 package com.josecjuniors.logossrv;
 
+import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+@IntegrationTest
 class LogosSrvApplicationTests {
 
     @Test
