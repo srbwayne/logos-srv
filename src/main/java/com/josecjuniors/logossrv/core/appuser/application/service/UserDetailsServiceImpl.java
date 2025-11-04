@@ -4,9 +4,8 @@ import com.josecjuniors.logossrv.core.appuser.domain.repository.AppUserRepositor
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Service;
 
-@Service
+// A anotação @Service foi removida. A criação deste bean agora é gerenciada pela SecurityConfig.
 public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final AppUserRepository appUserRepository;

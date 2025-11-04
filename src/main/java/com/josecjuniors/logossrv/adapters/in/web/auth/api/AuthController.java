@@ -41,7 +41,7 @@ public class AuthController {
                 result.user().getId().getValue().toString(),
                 result.jogador().getId().getValue().toString(),
                 result.user().getEmail(),
-                result.jogador().getNomeExibicao()
+                result.jogador().getApelido()
         );
         return ResponseEntity.ok(response);
     }

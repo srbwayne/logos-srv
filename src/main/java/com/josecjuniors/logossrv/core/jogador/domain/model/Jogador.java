@@ -1,13 +1,15 @@
 package com.josecjuniors.logossrv.core.jogador.domain.model;
 
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUser;
-import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
+import com.josecjuniors.logossrv.core.jogador.application.port.in.UpdatePerfilJogadorCommand;
+import com.josecjuniors.logossrv.core.jogador.domain.model.enums.EnderecoEstado;
+import com.josecjuniors.logossrv.core.jogador.domain.model.enums.Sexo;
+import com.josecjuniors.logossrv.core.jogador.domain.model.enums.StatusPerfilJogador;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
 import jakarta.persistence.*;
 
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
+import java.time.LocalDate;
+import java.time.Period;
 
 @Entity
 public class Jogador extends AbstractDomainAggregate<JogadorId> {
@@ -16,44 +18,81 @@ public class Jogador extends AbstractDomainAggregate<JogadorId> {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private AppUser user;
 
+    @Column(nullable = false, unique = true)
+    private String apelido;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String nomeExibicao;
+    private StatusPerfilJogador statusPerfil;
 
-    @OneToMany(mappedBy = "jogador", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<AtributoJogador> atributosJogador = new HashSet<>();
+    private String nomeCompleto;
+    private LocalDate dataNascimento;
+    private String cpf;
+    private String numeroTelefone;
+    private Integer idade;
+    @Enumerated(EnumType.STRING)
+    private Sexo sexo;
+    @Lob
+    private String descricao;
+    private String enderecoPais;
+    @Enumerated(EnumType.STRING)
+    private EnderecoEstado enderecoEstado;
+    private String enderecoCidade;
+    private String enderecoDescricao;
+    private String enderecoComplemento;
+    private String enderecoCep;
 
-    // Construtor para JPA
     protected Jogador() {
         super();
     }
 
-    public Jogador(JogadorId id, AppUser user, String nomeExibicao) {
+    public Jogador(JogadorId id, AppUser user, String apelido) {
         super(id);
         this.user = user;
-        this.nomeExibicao = nomeExibicao;
+        this.apelido = apelido;
+        this.statusPerfil = StatusPerfilJogador.INCOMPLETO;
     }
 
-    public AppUser getUser() {
-        return user;
+    public void atualizarPerfil(UpdatePerfilJogadorCommand command) {
+        this.nomeCompleto = command.nomeCompleto();
+        this.dataNascimento = command.dataNascimento();
+        this.cpf = command.cpf();
+        this.numeroTelefone = command.numeroTelefone();
+        this.sexo = command.sexo();
+        this.descricao = command.descricao();
+        this.enderecoPais = command.enderecoPais();
+        this.enderecoEstado = command.enderecoEstado();
+        this.enderecoCidade = command.enderecoCidade();
+        this.enderecoDescricao = command.enderecoDescricao();
+        this.enderecoComplemento = command.enderecoComplemento();
+        this.enderecoCep = command.enderecoCep();
+        
+        if (command.dataNascimento() != null) {
+            this.idade = Period.between(command.dataNascimento(), LocalDate.now()).getYears();
+        }
+
+        this.statusPerfil = StatusPerfilJogador.COMPLETO;
     }
 
-    public String getNomeExibicao() {
-        return nomeExibicao;
-    }
+    // Getters
+    public AppUser getUser() { return user; }
+    public String getApelido() { return apelido; }
+    public StatusPerfilJogador getStatusPerfil() { return statusPerfil; }
+    public String getNomeCompleto() { return nomeCompleto; }
+    public LocalDate getDataNascimento() { return dataNascimento; }
+    public String getCpf() { return cpf; }
+    public String getNumeroTelefone() { return numeroTelefone; }
+    public Integer getIdade() { return idade; }
+    public Sexo getSexo() { return sexo; }
+    public String getDescricao() { return descricao; }
+    public String getEnderecoPais() { return enderecoPais; }
+    public EnderecoEstado getEnderecoEstado() { return enderecoEstado; }
+    public String getEnderecoCidade() { return enderecoCidade; }
+    public String getEnderecoDescricao() { return enderecoDescricao; }
+    public String getEnderecoComplemento() { return enderecoComplemento; }
+    public String getEnderecoCep() { return enderecoCep; }
 
-    public Set<AtributoJogador> getAtributosJogador() {
-        return atributosJogador;
-    }
-
-    /**
-     * Adiciona um novo atributo ao jogador, se ainda não existir.
-     * @param atributo O atributo global a ser associado.
-     * @return O objeto AtributoJogador criado ou existente.
-     */
-    public AtributoJogador adicionarAtributo(Atributo atributo) {
-        Optional<AtributoJogador> existente = this.atributosJogador.stream()
-                .filter(aj -> aj.getAtributo().equals(atributo))
-                .findFirst();
-        return existente.orElseGet(() -> new AtributoJogador(this, atributo));
+    public void atualizarApelido(String apelido) {
+        this.apelido = apelido;
     }
 }
