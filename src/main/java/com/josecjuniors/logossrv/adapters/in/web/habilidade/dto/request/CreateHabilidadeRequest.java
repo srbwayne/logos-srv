@@ -1,3 +1,3 @@
 package com.josecjuniors.logossrv.adapters.in.web.habilidade.dto.request;
 
-public record CreateHabilidadeRequest(String nome) {}
+public record CreateHabilidadeRequest(String nome, String descricao) {}

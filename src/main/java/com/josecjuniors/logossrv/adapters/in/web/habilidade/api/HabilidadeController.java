@@ -33,7 +33,7 @@ public class HabilidadeController {
 
     @PostMapping
     public ResponseEntity<HabilidadeResponse> createHabilidade(@RequestBody CreateHabilidadeRequest request) {
-        CreateHabilidadeCommand command = new CreateHabilidadeCommand(request.nome());
+        CreateHabilidadeCommand command = new CreateHabilidadeCommand(request.nome(), request.descricao());
         HabilidadeDto habilidadeDto = createHabilidadeUseCase.createHabilidade(command);
         return ResponseEntity.ok(toResponse(habilidadeDto));
     }
@@ -54,7 +54,8 @@ public class HabilidadeController {
 
         UpdateHabilidadeCommand command = new UpdateHabilidadeCommand(
                 new HabilidadeId(id),
-                request.nome()
+                request.nome(),
+                request.descricao()
         );
 
         HabilidadeDto habilidadeDto = updateHabilidadeUseCase.updateHabilidade(command);

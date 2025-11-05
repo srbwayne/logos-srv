@@ -26,7 +26,7 @@ public class CreateAtributoService implements CreateAtributoUseCase {
             throw new AtributoJaExisteException(command.nome());
         }
 
-        Atributo novoAtributo = new Atributo(new AtributoId(), command.nome());
+        Atributo novoAtributo = new Atributo(new AtributoId(), command.nome(), command.descricao());
         Atributo atributoSalvo = atributoRepository.save(novoAtributo);
 
         return toDto(atributoSalvo);
@@ -35,7 +35,8 @@ public class CreateAtributoService implements CreateAtributoUseCase {
     private AtributoDto toDto(Atributo atributo) {
         return new AtributoDto(
                 atributo.getId().getValue().toString(),
-                atributo.getNome()
+                atributo.getNome(),
+                atributo.getDescricao()
         );
     }
 }

@@ -8,5 +8,9 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface HabilidadeJpaRepository extends HabilidadeRepository, JpaRepository<Habilidade, HabilidadeId> {
+    @Override
+    boolean existsByNome(String nome);
 
+    @Override
+    boolean existsByNomeAndIdNot(String nome, HabilidadeId id);
 }
