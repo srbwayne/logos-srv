@@ -30,7 +30,8 @@ public class GetAllHabilidadesService implements GetAllHabilidadesUseCase {
     private HabilidadeDto toDto(Habilidade habilidade) {
         return new HabilidadeDto(
                 habilidade.getId().getValue().toString(),
-                habilidade.getNome()
+                habilidade.getNome(),
+                habilidade.getDescricao()
         );
     }
 }

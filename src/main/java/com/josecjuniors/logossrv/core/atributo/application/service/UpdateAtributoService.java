@@ -23,13 +23,14 @@ public class UpdateAtributoService implements UpdateAtributoUseCase {
     @Override
     public AtributoDto updateAtributo(UpdateAtributoCommand command) {
         Atributo atributo = atributoRepository.findById(command.atributoId())
-                .orElseThrow(() -> new AtributoNaoEncontradoException(command.atributoId()));
+                .orElseThrow(AtributoNaoEncontradoException::new);
 
         if (atributoRepository.existsByNomeAndIdNot(command.novoNome(), command.atributoId())) {
             throw new AtributoJaExisteException(command.novoNome());
         }
 
         atributo.atualizarNome(command.novoNome());
+        atributo.atualizarDescricao(command.novaDescricao());
         Atributo atributoAtualizado = atributoRepository.save(atributo);
 
         return toDto(atributoAtualizado);
@@ -38,7 +39,8 @@ public class UpdateAtributoService implements UpdateAtributoUseCase {
     private AtributoDto toDto(Atributo atributo) {
         return new AtributoDto(
                 atributo.getId().getValue().toString(),
-                atributo.getNome()
+                atributo.getNome(),
+                atributo.getDescricao()
         );
     }
 }

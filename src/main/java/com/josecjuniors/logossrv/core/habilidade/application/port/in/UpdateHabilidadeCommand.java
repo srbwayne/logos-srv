@@ -4,5 +4,6 @@ import com.josecjuniors.logossrv.core.habilidade.domain.model.HabilidadeId;
 
 public record UpdateHabilidadeCommand(
         HabilidadeId habilidadeId,
-        String novoNome
+        String novoNome,
+        String novaDescricao
 ) {}

@@ -3,6 +3,7 @@ package com.josecjuniors.logossrv.core.habilidade.application.service;
 import com.josecjuniors.logossrv.core.habilidade.application.dto.HabilidadeDto;
 import com.josecjuniors.logossrv.core.habilidade.application.port.in.CreateHabilidadeCommand;
 import com.josecjuniors.logossrv.core.habilidade.application.port.in.CreateHabilidadeUseCase;
+import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeJaExisteException;
 import com.josecjuniors.logossrv.core.habilidade.domain.model.Habilidade;
 import com.josecjuniors.logossrv.core.habilidade.domain.model.HabilidadeId;
 import com.josecjuniors.logossrv.core.habilidade.domain.repository.HabilidadeRepository;
@@ -21,8 +22,11 @@ public class CreateHabilidadeService implements CreateHabilidadeUseCase {
 
     @Override
     public HabilidadeDto createHabilidade(CreateHabilidadeCommand command) {
-        // A lógica de buscar o jogador foi removida, pois Habilidade agora é uma entidade de configuração.
-        Habilidade novaHabilidade = new Habilidade(new HabilidadeId(), command.nome());
+        if (habilidadeRepository.existsByNome(command.nome())) {
+            throw new HabilidadeJaExisteException(command.nome());
+        }
+
+        Habilidade novaHabilidade = new Habilidade(new HabilidadeId(), command.nome(), command.descricao());
         Habilidade habilidadeSalva = habilidadeRepository.save(novaHabilidade);
 
         return toDto(habilidadeSalva);
@@ -31,7 +35,8 @@ public class CreateHabilidadeService implements CreateHabilidadeUseCase {
     private HabilidadeDto toDto(Habilidade habilidade) {
         return new HabilidadeDto(
                 habilidade.getId().getValue().toString(),
-                habilidade.getNome()
+                habilidade.getNome(),
+                habilidade.getDescricao()
         );
     }
 }
