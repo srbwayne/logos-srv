@@ -1,21 +1,26 @@
 package com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.model;
 
-import com.josecjuniors.logossrv.core.habilidadejogador.domain.model.HabilidadeJogador;
-import com.josecjuniors.logossrv.core.jogador.domain.model.AtributoJogador;
+import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
+import com.josecjuniors.logossrv.core.habilidade.domain.model.Habilidade;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "regra_distribuicao_habilidade")
 public class RegraDistribuicaoHabilidade extends AbstractDomainAggregate<RegraDistribuicaoHabilidadeId> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "habilidade_jogador_id", referencedColumnName = "id", nullable = false)
-    private HabilidadeJogador habilidadeJogador;
+    @JoinColumn(name = "habilidade_id", nullable = false)
+    private Habilidade habilidade;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "atributo_jogador_id", referencedColumnName = "id", nullable = false)
-    private AtributoJogador atributoJogador;
+    @JoinColumn(name = "atributo_id", nullable = false)
+    private Atributo atributo;
 
     @Column(nullable = false)
     private Double pesoDistribuicao; // Ex: 0.7 para 70%
@@ -24,15 +29,15 @@ public class RegraDistribuicaoHabilidade extends AbstractDomainAggregate<RegraDi
         super();
     }
 
-    public RegraDistribuicaoHabilidade(RegraDistribuicaoHabilidadeId id, HabilidadeJogador habilidadeJogador, AtributoJogador atributoJogador, Double pesoDistribuicao) {
+    public RegraDistribuicaoHabilidade(RegraDistribuicaoHabilidadeId id, Habilidade habilidade, Atributo atributo, Double pesoDistribuicao) {
         super(id);
-        this.habilidadeJogador = habilidadeJogador;
-        this.atributoJogador = atributoJogador;
+        this.habilidade = habilidade;
+        this.atributo = atributo;
         this.pesoDistribuicao = pesoDistribuicao;
     }
 
     // Getters
-    public HabilidadeJogador getHabilidadeJogador() { return habilidadeJogador; }
-    public AtributoJogador getAtributoJogador() { return atributoJogador; }
+    public Habilidade getHabilidade() { return habilidade; }
+    public Atributo getAtributo() { return atributo; }
     public Double getPesoDistribuicao() { return pesoDistribuicao; }
 }
