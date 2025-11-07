@@ -12,6 +12,10 @@ public class AtividadeConfig extends AbstractDomainAggregate<AtividadeConfigId> 
 
     private Integer estresseBase;
 
+    // Campos para a futura funcionalidade de penalidade por inatividade
+    private Integer diasParaPenalidade; // Ex: 7 (dias)
+
+    private Integer xpPerdaPorCiclo;    // Ex: -10 (XP)
 
     // Construtor para JPA
     protected AtividadeConfig() {
@@ -25,15 +29,10 @@ public class AtividadeConfig extends AbstractDomainAggregate<AtividadeConfigId> 
         this.estresseBase = estresseBase;
     }
 
-    public String getNome() {
-        return nome;
-    }
-
-    public Integer getXpBase() {
-        return xpBase;
-    }
-
-    public Integer getEstresseBase() {
-        return estresseBase;
-    }
+    // Getters
+    public String getNome() { return nome; }
+    public Integer getXpBase() { return xpBase; }
+    public Integer getEstresseBase() { return estresseBase; }
+    public Integer getDiasParaPenalidade() { return diasParaPenalidade; }
+    public Integer getXpPerdaPorCiclo() { return xpPerdaPorCiclo; }
 }
