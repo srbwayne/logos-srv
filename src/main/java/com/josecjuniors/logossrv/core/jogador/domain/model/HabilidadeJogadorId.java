@@ -1,4 +1,4 @@
-package com.josecjuniors.logossrv.core.habilidadejogador.domain.model;
+package com.josecjuniors.logossrv.core.jogador.domain.model;
 
 import com.josecjuniors.logossrv.core.util.domain.DomainObjectId;
 import jakarta.persistence.Embeddable;
