@@ -1,8 +1,11 @@
 package com.josecjuniors.logossrv.adapters.out.jogador.jpa;
 
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
+import com.josecjuniors.logossrv.core.jogador.domain.model.HabilidadeJogador;
+import com.josecjuniors.logossrv.core.jogador.domain.model.HabilidadeJogadorId;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
+import com.josecjuniors.logossrv.core.jogador.domain.repository.HabilidadeJogadorRepository;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -24,4 +27,7 @@ public interface JogadorJpaRepository extends JogadorRepository, JpaRepository<J
     boolean existsByApelidoAndIdNot(String apelido, JogadorId id);
 
     Optional<Jogador> findByUser_Id(AppUserId appUserId);
+
+    @Repository
+    interface HabilidadeJogadorJpaRepository extends HabilidadeJogadorRepository, JpaRepository<HabilidadeJogador, HabilidadeJogadorId> {}
 }

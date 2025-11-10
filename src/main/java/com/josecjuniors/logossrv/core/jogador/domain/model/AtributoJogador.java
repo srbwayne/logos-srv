@@ -1,12 +1,19 @@
 package com.josecjuniors.logossrv.core.jogador.domain.model;
 
 import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
+import com.josecjuniors.logossrv.core.common.domain.Nivelavel;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "atributo_jogador")
-public class AtributoJogador extends AbstractDomainAggregate<AtributoJogadorId> {
+public class AtributoJogador extends AbstractDomainAggregate<AtributoJogadorId> implements Nivelavel {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jogador_id", nullable = false)
@@ -23,30 +30,53 @@ public class AtributoJogador extends AbstractDomainAggregate<AtributoJogadorId> 
     private Integer nivelAtual;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "atributo_penalizador_id") // Pode ser nulo
+    @JoinColumn(name = "atributo_penalizador_id")
     private AtributoJogador atributoPenalizador;
 
     protected AtributoJogador() {
         super();
     }
 
-    public AtributoJogador(Jogador jogador, Atributo atributo) {
-        super(AtributoJogadorId.generate());
+    public AtributoJogador(AtributoJogadorId id, Jogador jogador, Atributo atributo) {
+        super(id);
         this.jogador = jogador;
         this.atributo = atributo;
         this.xpTotal = 0L;
         this.nivelAtual = 1;
     }
 
+    @Override
     public void adicionarExperiencia(Long xpGanha) {
         this.xpTotal += xpGanha;
-        // TODO: Implementar lógica para verificar se o nível deve aumentar
     }
 
     // Getters
-    public Jogador getJogador() { return jogador; }
-    public Atributo getAtributo() { return atributo; }
-    public Long getXpTotal() { return xpTotal; }
-    public Integer getNivelAtual() { return nivelAtual; }
-    public AtributoJogador getAtributoPenalizador() { return atributoPenalizador; }
+    public Jogador getJogador() {
+        return jogador;
+    }
+
+    public Atributo getAtributo() {
+        return atributo;
+    }
+
+    @Override
+    public Long getXpTotal() {
+        return xpTotal;
+    }
+
+    @Override
+    public Integer getNivelAtual() {
+        return nivelAtual;
+    }
+
+    // Setters da Interface
+    @Override
+    public void setNivelAtual(Integer nivel) {
+        this.nivelAtual = nivel;
+    }
+
+    @Override
+    public void setXpTotal(Long xp) {
+        this.xpTotal = xp;
+    }
 }

@@ -1,13 +1,18 @@
-package com.josecjuniors.logossrv.core.habilidadejogador.domain.model;
+package com.josecjuniors.logossrv.core.jogador.domain.model;
 
+import com.josecjuniors.logossrv.core.common.domain.Nivelavel;
 import com.josecjuniors.logossrv.core.habilidade.domain.model.Habilidade;
-import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "habilidade_jogador")
-public class HabilidadeJogador extends AbstractDomainAggregate<HabilidadeJogadorId> {
+public class HabilidadeJogador extends AbstractDomainAggregate<HabilidadeJogadorId> implements Nivelavel {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jogador_id", nullable = false)
@@ -35,9 +40,22 @@ public class HabilidadeJogador extends AbstractDomainAggregate<HabilidadeJogador
         this.nivelAtual = 1;
     }
 
+    @Override
+    public void adicionarExperiencia(Long xpGanha) {
+        this.xpTotal += xpGanha;
+    }
+
     // Getters
     public Jogador getJogador() { return jogador; }
     public Habilidade getHabilidade() { return habilidade; }
+    @Override
     public Long getXpTotal() { return xpTotal; }
+    @Override
     public Integer getNivelAtual() { return nivelAtual; }
+
+    // Setters da Interface
+    @Override
+    public void setNivelAtual(Integer nivel) { this.nivelAtual = nivel; }
+    @Override
+    public void setXpTotal(Long xp) { this.xpTotal = xp; }
 }
