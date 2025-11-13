@@ -11,10 +11,11 @@ import java.util.Optional;
 public interface AtributoRepository {
     Atributo save(Atributo atributo);
     Optional<Atributo> findById(AtributoId id);
-    List<Atributo> findAll();
+    Page<Atributo> findByNomeContainingIgnoreCase(String nome, Pageable pageable);
     boolean existsByNome(String nome);
     boolean existsByNomeAndIdNot(String nome, AtributoId id);
-    Page<Atributo> findByNomeContainingIgnoreCase(String nome, Pageable pageable);
-
-    void saveAll(List<Atributo> atributos);
+    void deleteById(AtributoId id);
+    void deleteAll();
+    List<Atributo> findAll();
+    List<Atributo> saveAll(List<Atributo> atributos); // Adicionado
 }

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface AtributoJpaRepository extends AtributoRepository, JpaRepository<Atributo, AtributoId> {
@@ -17,16 +18,28 @@ public interface AtributoJpaRepository extends AtributoRepository, JpaRepository
     Atributo save(Atributo atributo);
 
     @Override
+    Optional<Atributo> findById(AtributoId id);
+
+    @Override
+    Page<Atributo> findByNomeContainingIgnoreCase(String nome, Pageable pageable);
+
+    @Override
     boolean existsByNome(String nome);
 
     @Override
     boolean existsByNomeAndIdNot(String nome, AtributoId id);
 
     @Override
-    Page<Atributo> findByNomeContainingIgnoreCase(String nome, Pageable pageable);
+    void deleteById(AtributoId id);
 
     @Override
-    default void saveAll(List<Atributo> atributos){
-        saveAllAndFlush(atributos);
+    void deleteAll();
+
+    @Override
+    List<Atributo> findAll();
+
+    @Override
+    default List<Atributo> saveAll(List<Atributo> atributos){
+        return saveAllAndFlush(atributos);
     };
 }

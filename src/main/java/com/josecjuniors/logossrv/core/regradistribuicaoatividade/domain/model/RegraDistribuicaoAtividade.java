@@ -36,6 +36,13 @@ public class RegraDistribuicaoAtividade extends AbstractDomainAggregate<RegraDis
         this.pesoPercentual = pesoPercentual;
     }
 
+    public void atualizarPeso(Double novoPeso) {
+        if (novoPeso != null && novoPeso >= 0) {
+            this.pesoPercentual = novoPeso;
+        }
+    }
+
+    // Getters
     public AtividadeConfig getAtividadeConfig() { return atividadeConfig; }
     public Atributo getAtributo() { return atributo; }
     public Double getPesoPercentual() { return pesoPercentual; }
