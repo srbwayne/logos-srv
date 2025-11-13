@@ -26,6 +26,8 @@ public class RegraFatorEstresse extends AbstractDomainAggregate<RegraFatorEstres
     @Column(nullable = false)
     private Double pontoCorteMin;
 
+    private Double pontoCorteMax; // Pode ser nulo
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TipoFatorEstresse tipo;
@@ -34,11 +36,12 @@ public class RegraFatorEstresse extends AbstractDomainAggregate<RegraFatorEstres
         super();
     }
 
-    public RegraFatorEstresse(RegraFatorEstresseId id, RegraDistribuicaoAtividade regraDistribuicaoAtividade, Double pesoMultiplicador, Double pontoCorteMin, TipoFatorEstresse tipo) {
+    public RegraFatorEstresse(RegraFatorEstresseId id, RegraDistribuicaoAtividade regraDistribuicaoAtividade, Double pesoMultiplicador, Double pontoCorteMin, Double pontoCorteMax, TipoFatorEstresse tipo) {
         super(id);
         this.regraDistribuicaoAtividade = regraDistribuicaoAtividade;
         this.pesoMultiplicador = pesoMultiplicador;
         this.pontoCorteMin = pontoCorteMin;
+        this.pontoCorteMax = pontoCorteMax;
         this.tipo = tipo;
     }
 
@@ -46,5 +49,6 @@ public class RegraFatorEstresse extends AbstractDomainAggregate<RegraFatorEstres
     public RegraDistribuicaoAtividade getRegraDistribuicaoAtividade() { return regraDistribuicaoAtividade; }
     public Double getPesoMultiplicador() { return pesoMultiplicador; }
     public Double getPontoCorteMin() { return pontoCorteMin; }
+    public Double getPontoCorteMax() { return pontoCorteMax; }
     public TipoFatorEstresse getTipo() { return tipo; }
 }
