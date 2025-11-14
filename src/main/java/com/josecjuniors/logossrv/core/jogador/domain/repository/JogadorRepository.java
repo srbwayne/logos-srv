@@ -12,4 +12,5 @@ public interface JogadorRepository {
     Optional<Jogador> findByAppUserId(AppUserId appUserId);
     Optional<Jogador> findByUserEmail(String email);
     boolean existsByApelidoAndIdNot(String apelido, JogadorId id);
+    void deleteAll();
 }

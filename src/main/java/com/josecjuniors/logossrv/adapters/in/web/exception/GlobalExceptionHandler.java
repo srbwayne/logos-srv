@@ -1,6 +1,7 @@
 package com.josecjuniors.logossrv.adapters.in.web.exception;
 
 import com.josecjuniors.logossrv.core.appuser.domain.exception.EmailJaCadastradoException;
+import com.josecjuniors.logossrv.core.atividadeagendada.domain.exception.AtividadeAgendadaNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigJaExisteException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoJaExisteException;
@@ -12,6 +13,7 @@ import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeNaoE
 import com.josecjuniors.logossrv.core.jogador.domain.exception.ApelidoJaEmUsoException;
 import com.josecjuniors.logossrv.core.jogador.domain.exception.JogadorNaoEncontradoException;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.exception.RegraDistribuicaoNaoEncontradaException;
+import com.josecjuniors.logossrv.core.regrafatorestresse.domain.exception.RegraFatorEstresseNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.exception.RegraFatorXPNaoEncontradaException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +24,21 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(RegraFatorEstresseNaoEncontradaException.class)
+    public ResponseEntity<Map<String, String>> handleRegraFatorEstresseNaoEncontrada(RegraFatorEstresseNaoEncontradaException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(AtividadeAgendadaNaoEncontradaException.class)
+    public ResponseEntity<Map<String, String>> handleAtividadeAgendadaNaoEncontrada(AtividadeAgendadaNaoEncontradaException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.BAD_REQUEST);
+    }
 
     @ExceptionHandler(RegraFatorXPNaoEncontradaException.class)
     public ResponseEntity<Map<String, String>> handleRegraFatorXPNaoEncontrada(RegraFatorXPNaoEncontradaException ex) {

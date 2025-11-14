@@ -6,5 +6,20 @@ import com.josecjuniors.logossrv.core.regrafatorestresse.domain.repository.Regra
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
-public interface RegraFatorEstresseJpaRepository extends RegraFatorEstresseRepository, JpaRepository<RegraFatorEstresse, RegraFatorEstresseId> {}
+public interface RegraFatorEstresseJpaRepository extends RegraFatorEstresseRepository, JpaRepository<RegraFatorEstresse, RegraFatorEstresseId> {
+
+    @Override
+    RegraFatorEstresse save(RegraFatorEstresse regra);
+
+    @Override
+    Optional<RegraFatorEstresse> findById(RegraFatorEstresseId id);
+
+    @Override
+    void deleteById(RegraFatorEstresseId id);
+
+    @Override
+    void deleteAll();
+}

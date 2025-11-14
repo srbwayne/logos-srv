@@ -26,6 +26,9 @@ public interface JogadorJpaRepository extends JogadorRepository, JpaRepository<J
     @Override
     boolean existsByApelidoAndIdNot(String apelido, JogadorId id);
 
+    @Override
+    void deleteAll();
+
     Optional<Jogador> findByUser_Id(AppUserId appUserId);
 
     @Repository

@@ -66,7 +66,7 @@ class JogadorControllerTest {
         appUserRepository.deleteAll();
         AppUser testAppUser = new AppUser(new AppUserId(), "perfil.test@email.com", passwordEncoder.encode("password"));
         appUserRepository.save(testAppUser);
-        testJogador = new Jogador(new JogadorId(), testAppUser, "Testador");
+        testJogador = new Jogador(JogadorId.generate(), testAppUser, "Testador");
         jogadorRepository.save(testJogador);
         jwtToken = jwtService.generateToken(testAppUser);
     }
@@ -123,7 +123,7 @@ class JogadorControllerTest {
     void updateMeuApelido_whenApelidoIsTaken_shouldReturn409Conflict() throws Exception {
         AppUser anotherUser = new AppUser(new AppUserId(), "another@email.com", passwordEncoder.encode("password"));
         appUserRepository.save(anotherUser);
-        jogadorRepository.save(new Jogador(new JogadorId(), anotherUser, "ApelidoOcupado"));
+        jogadorRepository.save(new Jogador(JogadorId.generate(), anotherUser, "ApelidoOcupado"));
         UpdateApelidoRequest request = new UpdateApelidoRequest("ApelidoOcupado");
         mockMvc.perform(patch("/api/jogadores/meu-perfil/apelido")
                         .header("Authorization", "Bearer " + jwtToken)

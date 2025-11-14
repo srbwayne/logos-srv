@@ -10,6 +10,10 @@ import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormulario;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormularioId;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.AtividadeFormularioJson;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.repository.AtividadeFormularioRepository;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,13 +22,11 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.ArrayList;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -38,6 +40,8 @@ class AtividadeConfigControllerTest {
     @Autowired
     private AtividadeConfigRepository atividadeConfigRepository;
     @Autowired
+    private AtividadeFormularioRepository atividadeFormularioRepository;
+    @Autowired
     private AppUserJpaRepository appUserRepository;
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -48,6 +52,7 @@ class AtividadeConfigControllerTest {
 
     @BeforeEach
     void setUp() {
+        atividadeFormularioRepository.deleteAll();
         atividadeConfigRepository.deleteAll();
         appUserRepository.deleteAll();
         AppUser testAppUser = new AppUser(new AppUserId(), "atividade.test@email.com", passwordEncoder.encode("password"));
@@ -143,5 +148,27 @@ class AtividadeConfigControllerTest {
         mockMvc.perform(delete("/api/atividades-config/{id}", atividade.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void getFormulario_whenFormularioExists_shouldReturn200AndFormularioJson() throws Exception {
+        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Ler um livro", 50, -10, null, null));
+        AtividadeFormularioJson json = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(), atividade.getDescricao(), new ArrayList<>());
+        atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, json));
+
+        mockMvc.perform(get("/api/atividades-config/{id}/formulario", atividade.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.atividadeConfigId").value(atividade.getId().getValue().toString()))
+                .andExpect(jsonPath("$.nomeAtividade").value("Leitura"));
+    }
+
+    @Test
+    void getFormulario_whenFormularioDoesNotExist_shouldReturn404() throws Exception {
+        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Ler um livro", 50, -10, null, null));
+
+        mockMvc.perform(get("/api/atividades-config/{id}/formulario", atividade.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken))
+                .andExpect(status().isNotFound());
     }
 }
