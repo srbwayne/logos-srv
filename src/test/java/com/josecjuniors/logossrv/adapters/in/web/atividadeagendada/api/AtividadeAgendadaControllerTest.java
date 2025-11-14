@@ -26,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -125,11 +126,17 @@ class AtividadeAgendadaControllerTest {
 
     @Test
     void reagendar_whenNotPlanejada_shouldReturn400() throws Exception {
-        AtividadeAgendada agendamento = new AtividadeAgendada(AtividadeAgendadaId.generate(), testJogador, testAtividadeConfig, LocalDateTime.now(), LocalDateTime.now().plusHours(1));
-        // Forçar o status para CONCLUIDA
-        entityManager.persist(agendamento);
-        agendamento.getClass().getDeclaredField("status").setAccessible(true);
-        agendamento.getClass().getDeclaredField("status").set(agendamento, StatusAtividadeAgendada.CONCLUIDA);
+        AtividadeAgendada agendamento = agendamentoRepository.save(new AtividadeAgendada(AtividadeAgendadaId.generate(), testJogador, testAtividadeConfig, LocalDateTime.now(), LocalDateTime.now().plusHours(1)));
+
+        // Forçar o status para CONCLUIDA usando reflection
+        Field statusField = AtividadeAgendada.class.getDeclaredField("status");
+        statusField.setAccessible(true);
+        statusField.set(agendamento, StatusAtividadeAgendada.CONCLUIDA);
+        agendamentoRepository.save(agendamento);
+
+        // O flush é usado aqui como uma ferramenta de precisão para garantir que o estado
+        // "impossível" (status CONCLUIDA) seja sincronizado com o banco de dados
+        // antes da chamada da API, tornando o teste 100% determinístico.
         entityManager.flush();
 
         ReagendarAtividadeRequest request = new ReagendarAtividadeRequest(LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(1).plusHours(1));
