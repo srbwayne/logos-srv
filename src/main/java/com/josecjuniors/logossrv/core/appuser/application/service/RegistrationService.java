@@ -42,7 +42,7 @@ public class RegistrationService implements RegistrationUseCase {
         AppUser savedUser = appUserRepository.save(newUser);
 
         Jogador novoJogador = new Jogador(
-                new JogadorId(),
+                JogadorId.generate(),
                 savedUser,
                 command.nomeExibicao()
         );

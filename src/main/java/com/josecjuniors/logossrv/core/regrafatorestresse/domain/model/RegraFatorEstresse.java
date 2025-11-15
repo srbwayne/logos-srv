@@ -45,6 +45,13 @@ public class RegraFatorEstresse extends AbstractDomainAggregate<RegraFatorEstres
         this.tipo = tipo;
     }
 
+    public void atualizar(Double pesoMultiplicador, Double pontoCorteMin, Double pontoCorteMax, TipoFatorEstresse tipo) {
+        this.pesoMultiplicador = pesoMultiplicador;
+        this.pontoCorteMin = pontoCorteMin;
+        this.pontoCorteMax = pontoCorteMax;
+        this.tipo = tipo;
+    }
+
     // Getters
     public RegraDistribuicaoAtividade getRegraDistribuicaoAtividade() { return regraDistribuicaoAtividade; }
     public Double getPesoMultiplicador() { return pesoMultiplicador; }
