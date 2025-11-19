@@ -15,4 +15,8 @@ public class EstresseGlobalId extends DomainObjectId {
     public EstresseGlobalId(UUID value) {
         super(value);
     }
+
+    public static EstresseGlobalId generate() {
+        return new EstresseGlobalId(UUID.randomUUID());
+    }
 }

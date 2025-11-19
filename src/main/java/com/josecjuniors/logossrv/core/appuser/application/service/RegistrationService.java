@@ -7,6 +7,8 @@ import com.josecjuniors.logossrv.core.appuser.domain.exception.EmailJaCadastrado
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUser;
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
 import com.josecjuniors.logossrv.core.appuser.domain.repository.AppUserRepository;
+import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobal;
+import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobalId;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
@@ -41,11 +43,21 @@ public class RegistrationService implements RegistrationUseCase {
         );
         AppUser savedUser = appUserRepository.save(newUser);
 
+        // 1. Cria o Jogador
         Jogador novoJogador = new Jogador(
                 JogadorId.generate(),
                 savedUser,
                 command.nomeExibicao()
         );
+
+        // 2. Cria o EstresseGlobal e associa-o ao Jogador
+        EstresseGlobal estresseGlobal = new EstresseGlobal(
+                EstresseGlobalId.generate(),
+                novoJogador
+        );
+        novoJogador.setEstresseGlobal(estresseGlobal);
+
+        // 3. Salva o Jogador (a cascata persistirá o EstresseGlobal)
         Jogador savedJogador = jogadorRepository.save(novoJogador);
 
         return new RegistrationResult(savedUser, savedJogador);

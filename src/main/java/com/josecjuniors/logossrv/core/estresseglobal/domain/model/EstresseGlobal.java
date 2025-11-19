@@ -37,6 +37,9 @@ public class EstresseGlobal extends AbstractDomainAggregate<EstresseGlobalId> {
     // Métodos de negócio para manipular o estresse
     public void adicionarEstresse(int valor) {
         this.pontuacaoAtual += valor;
+        if (this.pontuacaoAtual < 0) {
+            this.pontuacaoAtual = 0;
+        }
     }
 
     public void reduzirEstresse(int valor) {

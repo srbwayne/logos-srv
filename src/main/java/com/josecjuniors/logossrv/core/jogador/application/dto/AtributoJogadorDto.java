@@ -15,7 +15,7 @@ public record AtributoJogadorDto(
                 domain.getAtributo().getNome(),
                 domain.getAtributo().getDescricao(),
                 domain.getXpTotal(),
-                nivelXPService.getXpParaProximoNivel(domain.getNivelAtual()),
+                nivelXPService.calcularXpParaProximoNivel(domain.getNivelAtual()),
                 domain.getNivelAtual()
         );
     }

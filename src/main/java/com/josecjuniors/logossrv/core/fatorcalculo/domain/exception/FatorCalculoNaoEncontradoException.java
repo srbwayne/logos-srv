@@ -1,11 +1,13 @@
 package com.josecjuniors.logossrv.core.fatorcalculo.domain.exception;
 
+import java.text.MessageFormat;
+
 public class FatorCalculoNaoEncontradoException extends RuntimeException {
-    
-    /**
-     * Construtor padrão com mensagem genérica para não vazar informações.
-     */
     public FatorCalculoNaoEncontradoException() {
         super("Fator de Cálculo não encontrado.");
+    }
+
+    public FatorCalculoNaoEncontradoException(String valor) {
+        super(MessageFormat.format("Fator de Cálculo, {0}, não encontrado.", valor));
     }
 }

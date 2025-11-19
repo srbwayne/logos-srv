@@ -14,7 +14,7 @@ public record ResumoJogadorDto(
                 jogador.getApelido(),
                 jogador.getNivelAtual(),
                 jogador.getXpTotal(),
-                nivelXPService.getXpParaProximoNivel(jogador.getNivelAtual())
+                nivelXPService.calcularXpParaProximoNivel(jogador.getNivelAtual())
         );
     }
 }
