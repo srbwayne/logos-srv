@@ -15,4 +15,8 @@ public class AtividadeConfigId extends DomainObjectId {
     public AtividadeConfigId(UUID value) {
         super(value);
     }
+
+    public static AtividadeConfigId generate() {
+        return new AtividadeConfigId(UUID.randomUUID());
+    }
 }

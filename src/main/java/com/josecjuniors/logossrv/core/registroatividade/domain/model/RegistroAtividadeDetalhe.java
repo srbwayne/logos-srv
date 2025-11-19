@@ -1,7 +1,6 @@
-package com.josecjuniors.logossrv.core.registroatividadedetalhe.domain.model;
+package com.josecjuniors.logossrv.core.registroatividade.domain.model;
 
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
-import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividade;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,13 +22,13 @@ public class RegistroAtividadeDetalhe extends AbstractDomainAggregate<RegistroAt
     private FatorCalculo fatorCalculo;
 
     @Column(nullable = false)
-    private Double valorRegistrado;
+    private String valorRegistrado;
 
     protected RegistroAtividadeDetalhe() {
         super();
     }
 
-    public RegistroAtividadeDetalhe(RegistroAtividadeDetalheId id, RegistroAtividade registroAtividade, FatorCalculo fatorCalculo, Double valorRegistrado) {
+    public RegistroAtividadeDetalhe(RegistroAtividadeDetalheId id, RegistroAtividade registroAtividade, FatorCalculo fatorCalculo, String valorRegistrado) {
         super(id);
         this.registroAtividade = registroAtividade;
         this.fatorCalculo = fatorCalculo;
@@ -39,5 +38,5 @@ public class RegistroAtividadeDetalhe extends AbstractDomainAggregate<RegistroAt
     // Getters
     public RegistroAtividade getRegistroAtividade() { return registroAtividade; }
     public FatorCalculo getFatorCalculo() { return fatorCalculo; }
-    public Double getValorRegistrado() { return valorRegistrado; }
+    public String getValorRegistrado() { return valorRegistrado; }
 }

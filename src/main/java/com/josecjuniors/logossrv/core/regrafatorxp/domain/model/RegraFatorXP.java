@@ -3,6 +3,7 @@ package com.josecjuniors.logossrv.core.regrafatorxp.domain.model;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -18,7 +19,7 @@ public class RegraFatorXP extends AbstractDomainAggregate<RegraFatorXPId> {
     @JoinColumn(name = "regra_distribuicao_atividade_id", nullable = false)
     private RegraDistribuicaoAtividade regraDistribuicaoAtividade;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "fator_calculo_id", nullable = false)
     private FatorCalculo fatorCalculo;
 

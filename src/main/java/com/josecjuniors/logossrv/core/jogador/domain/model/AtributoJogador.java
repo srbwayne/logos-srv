@@ -19,7 +19,7 @@ public class AtributoJogador extends AbstractDomainAggregate<AtributoJogadorId> 
     @JoinColumn(name = "jogador_id", nullable = false)
     private Jogador jogador;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne()
     @JoinColumn(name = "atributo_id", nullable = false)
     private Atributo atributo;
 
@@ -43,6 +43,11 @@ public class AtributoJogador extends AbstractDomainAggregate<AtributoJogadorId> 
         this.atributo = atributo;
         this.xpTotal = 0L;
         this.nivelAtual = 1;
+    }
+
+    @Override
+    public Jogador getJogadorAssociado() {
+        return this.jogador;
     }
 
     @Override

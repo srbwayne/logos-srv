@@ -25,6 +25,11 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(FatorCalculoNaoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleFatorCalculoNaoEncontrado(FatorCalculoNaoEncontradoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(RegraFatorEstresseNaoEncontradaException.class)
     public ResponseEntity<Map<String, String>> handleRegraFatorEstresseNaoEncontrada(RegraFatorEstresseNaoEncontradaException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
@@ -63,11 +68,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(FatorCalculoJaExisteException.class)
     public ResponseEntity<Map<String, String>> handleFatorCalculoJaExiste(FatorCalculoJaExisteException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
-    }
-
-    @ExceptionHandler(FatorCalculoNaoEncontradoException.class)
-    public ResponseEntity<Map<String, String>> handleFatorCalculoNaoEncontrado(FatorCalculoNaoEncontradoException ex) {
-        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(HabilidadeJaExisteException.class)

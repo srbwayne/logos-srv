@@ -41,6 +41,11 @@ public class HabilidadeJogador extends AbstractDomainAggregate<HabilidadeJogador
     }
 
     @Override
+    public Jogador getJogadorAssociado() {
+        return this.jogador;
+    }
+
+    @Override
     public void adicionarExperiencia(Long xpGanha) {
         this.xpTotal += xpGanha;
     }

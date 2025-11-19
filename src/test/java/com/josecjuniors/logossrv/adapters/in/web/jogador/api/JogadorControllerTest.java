@@ -12,6 +12,8 @@ import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
 import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
 import com.josecjuniors.logossrv.core.atributo.domain.model.AtributoId;
 import com.josecjuniors.logossrv.core.atributo.domain.repository.AtributoRepository;
+import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobal;
+import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobalId;
 import com.josecjuniors.logossrv.core.jogador.domain.model.AtributoJogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.AtributoJogadorId;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
@@ -67,6 +69,7 @@ class JogadorControllerTest {
         AppUser testAppUser = new AppUser(new AppUserId(), "perfil.test@email.com", passwordEncoder.encode("password"));
         appUserRepository.save(testAppUser);
         testJogador = new Jogador(JogadorId.generate(), testAppUser, "Testador");
+        testJogador.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), testJogador));
         jogadorRepository.save(testJogador);
         jwtToken = jwtService.generateToken(testAppUser);
     }

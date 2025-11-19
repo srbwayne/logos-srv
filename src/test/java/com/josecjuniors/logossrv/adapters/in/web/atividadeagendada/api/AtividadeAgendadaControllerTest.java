@@ -14,6 +14,8 @@ import com.josecjuniors.logossrv.core.atividadeagendada.domain.repository.Ativid
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
+import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobal;
+import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobalId;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
@@ -71,7 +73,9 @@ class AtividadeAgendadaControllerTest {
         appUserRepository.save(testAppUser);
         jwtToken = jwtService.generateToken(testAppUser);
 
-        testJogador = jogadorRepository.save(new Jogador(JogadorId.generate(), testAppUser, "Agendador"));
+        testJogador = new Jogador(JogadorId.generate(), testAppUser, "Testador");
+        testJogador.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), testJogador));
+        jogadorRepository.save(testJogador);
         testAtividadeConfig = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Trabalho", null, 0, 0, null, null));
     }
 

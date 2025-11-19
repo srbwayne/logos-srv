@@ -27,4 +27,8 @@ public enum TipoInput {
     public Class<?> getTipoJava() {
         return tipoJava;
     }
+
+    public boolean ehValorNumerico() {
+        return this == NUMERICO;
+    }
 }

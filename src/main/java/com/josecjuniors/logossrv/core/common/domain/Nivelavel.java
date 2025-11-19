@@ -1,5 +1,7 @@
 package com.josecjuniors.logossrv.core.common.domain;
 
+import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
+
 /**
  * Interface para entidades que possuem um sistema de nível e experiência.
  */
@@ -12,4 +14,6 @@ public interface Nivelavel {
     void setXpTotal(Long xp);
 
     void adicionarExperiencia(Long xpGanha);
+
+    Jogador getJogadorAssociado();
 }

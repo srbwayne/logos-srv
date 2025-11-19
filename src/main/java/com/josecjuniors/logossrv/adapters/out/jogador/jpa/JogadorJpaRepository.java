@@ -16,6 +16,12 @@ import java.util.Optional;
 public interface JogadorJpaRepository extends JogadorRepository, JpaRepository<Jogador, JogadorId> {
 
     @Override
+    Jogador save(Jogador jogador);
+
+    @Override
+    Optional<Jogador> findById(JogadorId id);
+
+    @Override
     default Optional<Jogador> findByAppUserId(AppUserId appUserId){
         return findByUser_Id(appUserId);
     }
@@ -31,6 +37,4 @@ public interface JogadorJpaRepository extends JogadorRepository, JpaRepository<J
 
     Optional<Jogador> findByUser_Id(AppUserId appUserId);
 
-    @Repository
-    interface HabilidadeJogadorJpaRepository extends HabilidadeJogadorRepository, JpaRepository<HabilidadeJogador, HabilidadeJogadorId> {}
 }

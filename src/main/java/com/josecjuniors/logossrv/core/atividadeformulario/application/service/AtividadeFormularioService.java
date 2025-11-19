@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -39,12 +40,12 @@ public class AtividadeFormularioService {
 
     @Async
     @TransactionalEventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onAtividadeConfigSalva(AtividadeConfigSalvaEvent event) {
         logger.info("Recebido evento para gerar formulário para a atividade ID: {}", event.atividadeConfigId().getValue());
         this.generateAndSaveFormulario(event);
     }
 
-    @Transactional
     public void generateAndSaveFormulario(AtividadeConfigSalvaEvent event) {
         AtividadeConfig atividadeConfig = atividadeConfigRepository.findById(event.atividadeConfigId())
                 .orElseThrow(() -> new IllegalStateException("AtividadeConfig não encontrada para o evento. ID: " + event.atividadeConfigId().getValue()));
