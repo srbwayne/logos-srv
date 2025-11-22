@@ -148,7 +148,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    // --- PUT /api/atividades-config/{atividadeId}/regras-distribuicao/{regraId} ---
+    // --- PUT /api/atividades-config/{atividadeId}/regras-distribuicao/{regraDistribuicaoHabilidadeId} ---
     @Test
     void update_withValidData_shouldReturn200() throws Exception {
         RegraDistribuicaoAtividade regra = regraRepository.save(new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), testAtividade, testAtributo, 0.5));
@@ -184,7 +184,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    // --- DELETE /api/atividades-config/{atividadeId}/regras-distribuicao/{regraId} ---
+    // --- DELETE /api/atividades-config/{atividadeId}/regras-distribuicao/{regraDistribuicaoHabilidadeId} ---
     @Test
     void delete_whenRegraExists_shouldReturn204() throws Exception {
         RegraDistribuicaoAtividade regra = regraRepository.save(new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), testAtividade, testAtributo, 0.5));

@@ -18,55 +18,48 @@ public class HabilidadeRequisito extends AbstractDomainAggregate<HabilidadeRequi
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "habilidade_id", nullable = false)
-    private Habilidade habilidade; // A habilidade que SERÁ desbloqueada
+    private Habilidade habilidade;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TipoRequisito tipoRequisito;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "atributo_requisito_id") // Pode ser nulo
+    @JoinColumn(name = "atributo_requisito_id")
     private Atributo atributoRequisito;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "habilidade_requisito_id") // Pode ser nulo
+    @JoinColumn(name = "habilidade_requisito_id")
     private Habilidade habilidadeRequisito;
 
     @Column(nullable = false)
     private Integer nivelMinimo;
 
-    // Construtor protegido para JPA
     protected HabilidadeRequisito() {
         super();
     }
 
-    // Construtor para requisito de Atributo
-    public HabilidadeRequisito(HabilidadeRequisitoId id, Habilidade habilidade, Atributo atributoRequisito, Integer nivelMinimo) {
+    private HabilidadeRequisito(HabilidadeRequisitoId id, Habilidade habilidade, TipoRequisito tipo, Atributo atributo, Habilidade habilidadeReq, Integer nivel) {
         super(id);
         this.habilidade = habilidade;
-        this.tipoRequisito = TipoRequisito.ATRIBUTO;
-        this.atributoRequisito = atributoRequisito;
-        this.nivelMinimo = nivelMinimo;
+        this.tipoRequisito = tipo;
+        this.atributoRequisito = atributo;
+        this.habilidadeRequisito = habilidadeReq;
+        this.nivelMinimo = nivel;
     }
 
-    // Construtor para requisito de Habilidade
-    public HabilidadeRequisito(HabilidadeRequisitoId id, Habilidade habilidade, Habilidade habilidadeRequisito, Integer nivelMinimo) {
-        super(id);
-        this.habilidade = habilidade;
-        this.tipoRequisito = TipoRequisito.HABILIDADE;
-        this.habilidadeRequisito = habilidadeRequisito;
-        this.nivelMinimo = nivelMinimo;
+    public static HabilidadeRequisito paraAtributo(Habilidade habilidade, Atributo atributoRequisito, Integer nivelMinimo) {
+        return new HabilidadeRequisito(HabilidadeRequisitoId.generate(), habilidade, TipoRequisito.ATRIBUTO, atributoRequisito, null, nivelMinimo);
     }
 
-    // Métodos de fábrica estáticos que agora usam os construtores corretos
-    public static HabilidadeRequisito paraAtributo(HabilidadeRequisitoId id, Habilidade habilidade, Atributo atributoRequisito, Integer nivelMinimo) {
-        return new HabilidadeRequisito(id, habilidade, atributoRequisito, nivelMinimo);
+    public static HabilidadeRequisito paraHabilidade(Habilidade habilidade, Habilidade habilidadeRequisito, Integer nivelMinimo) {
+        return new HabilidadeRequisito(HabilidadeRequisitoId.generate(), habilidade, TipoRequisito.HABILIDADE, null, habilidadeRequisito, nivelMinimo);
     }
 
-    public static HabilidadeRequisito paraHabilidade(HabilidadeRequisitoId id, Habilidade habilidade, Habilidade habilidadeRequisito, Integer nivelMinimo) {
-        return new HabilidadeRequisito(id, habilidade, habilidadeRequisito, nivelMinimo);
+    public static HabilidadeRequisito paraJogador(Habilidade habilidade, Integer nivelMinimo) {
+        return new HabilidadeRequisito(HabilidadeRequisitoId.generate(), habilidade, TipoRequisito.JOGADOR, null, null, nivelMinimo);
     }
-
+    
     // Getters
     public Habilidade getHabilidade() { return habilidade; }
     public TipoRequisito getTipoRequisito() { return tipoRequisito; }

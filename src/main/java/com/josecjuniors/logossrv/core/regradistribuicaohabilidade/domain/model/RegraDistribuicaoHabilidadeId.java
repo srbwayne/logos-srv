@@ -14,4 +14,8 @@ public class RegraDistribuicaoHabilidadeId extends DomainObjectId {
     public RegraDistribuicaoHabilidadeId(UUID value) {
         super(value);
     }
+
+    public static RegraDistribuicaoHabilidadeId generate() {
+        return new RegraDistribuicaoHabilidadeId(UUID.randomUUID());
+    }
 }

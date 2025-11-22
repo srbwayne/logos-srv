@@ -15,4 +15,8 @@ public class HabilidadeId extends DomainObjectId {
     public HabilidadeId(UUID value) {
         super(value);
     }
+
+    public static HabilidadeId generate() {
+        return new HabilidadeId(UUID.randomUUID());
+    }
 }

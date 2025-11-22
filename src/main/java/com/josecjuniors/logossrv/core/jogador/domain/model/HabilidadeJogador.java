@@ -1,6 +1,5 @@
 package com.josecjuniors.logossrv.core.jogador.domain.model;
 
-import com.josecjuniors.logossrv.core.common.domain.Nivelavel;
 import com.josecjuniors.logossrv.core.habilidade.domain.model.Habilidade;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
 import jakarta.persistence.Column;
@@ -12,7 +11,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "habilidade_jogador")
-public class HabilidadeJogador extends AbstractDomainAggregate<HabilidadeJogadorId> implements Nivelavel {
+public class HabilidadeJogador extends AbstractDomainAggregate<HabilidadeJogadorId> {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jogador_id", nullable = false)
@@ -21,9 +20,6 @@ public class HabilidadeJogador extends AbstractDomainAggregate<HabilidadeJogador
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "habilidade_id", nullable = false)
     private Habilidade habilidade;
-
-    @Column(nullable = false)
-    private Long xpTotal;
 
     @Column(nullable = false)
     private Integer nivelAtual;
@@ -36,31 +32,15 @@ public class HabilidadeJogador extends AbstractDomainAggregate<HabilidadeJogador
         super(id);
         this.jogador = jogador;
         this.habilidade = habilidade;
-        this.xpTotal = 0L;
-        this.nivelAtual = 1;
+        this.nivelAtual = 1; // Habilidades sempre começam no nível 1
     }
 
-    @Override
-    public Jogador getJogadorAssociado() {
-        return this.jogador;
-    }
-
-    @Override
-    public void adicionarExperiencia(Long xpGanha) {
-        this.xpTotal += xpGanha;
+    public void evoluirNivel() {
+        this.nivelAtual++;
     }
 
     // Getters
     public Jogador getJogador() { return jogador; }
     public Habilidade getHabilidade() { return habilidade; }
-    @Override
-    public Long getXpTotal() { return xpTotal; }
-    @Override
     public Integer getNivelAtual() { return nivelAtual; }
-
-    // Setters da Interface
-    @Override
-    public void setNivelAtual(Integer nivel) { this.nivelAtual = nivel; }
-    @Override
-    public void setXpTotal(Long xp) { this.xpTotal = xp; }
 }

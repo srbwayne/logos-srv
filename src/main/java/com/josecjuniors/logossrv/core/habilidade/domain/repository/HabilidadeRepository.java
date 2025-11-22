@@ -12,4 +12,6 @@ public interface HabilidadeRepository {
     List<Habilidade> findAll();
     boolean existsByNome(String nome);
     boolean existsByNomeAndIdNot(String nome, HabilidadeId id);
+
+    void deleteAll();
 }

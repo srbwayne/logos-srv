@@ -82,7 +82,9 @@ class JogadorControllerTest {
                 .andExpect(jsonPath("$.apelido").value("Testador"))
                 .andExpect(jsonPath("$.nivelAtual").value(1))
                 .andExpect(jsonPath("$.xpTotal").value(0))
-                .andExpect(jsonPath("$.xpParaProximoNivel").value(150)); // (1*1 * 100) + 50
+                .andExpect(jsonPath("$.xpParaProximoNivel").value(150))
+                .andExpect(jsonPath("$.estresseAtual").value(0))
+                .andExpect(jsonPath("$.pontosHabilidade").value(1));
     }
 
     @Test

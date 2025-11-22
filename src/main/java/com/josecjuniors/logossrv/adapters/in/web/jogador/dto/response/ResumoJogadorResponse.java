@@ -6,14 +6,18 @@ public record ResumoJogadorResponse(
         String apelido,
         Integer nivelAtual,
         Long xpTotal,
-        Long xpParaProximoNivel
+        Long xpParaProximoNivel,
+        Integer estresseAtual,
+        Integer pontosHabilidade
 ) {
     public static ResumoJogadorResponse fromDto(ResumoJogadorDto dto) {
         return new ResumoJogadorResponse(
                 dto.apelido(),
                 dto.nivelAtual(),
                 dto.xpTotal(),
-                dto.xpParaProximoNivel()
+                dto.xpParaProximoNivel(),
+                dto.estresseAtual(),
+                dto.pontosHabilidade()
         );
     }
 }

@@ -1,5 +1,6 @@
 package com.josecjuniors.logossrv.core.habilidade.domain.model;
 
+import com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.model.RegraDistribuicaoHabilidade;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -22,6 +23,9 @@ public class Habilidade extends AbstractDomainAggregate<HabilidadeId> {
 
     @OneToMany(mappedBy = "habilidade", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<HabilidadeRequisito> requisitos = new HashSet<>();
+
+    @OneToMany(mappedBy = "habilidade", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private Set<RegraDistribuicaoHabilidade> regrasDistribuicao = new HashSet<>();
 
     protected Habilidade() {
         super();
@@ -47,4 +51,5 @@ public class Habilidade extends AbstractDomainAggregate<HabilidadeId> {
     public String getNome() { return nome; }
     public String getDescricao() { return descricao; }
     public Set<HabilidadeRequisito> getRequisitos() { return requisitos; }
+    public Set<RegraDistribuicaoHabilidade> getRegrasDistribuicao() { return regrasDistribuicao; }
 }
