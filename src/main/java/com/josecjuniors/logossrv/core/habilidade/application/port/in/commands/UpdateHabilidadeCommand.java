@@ -1,4 +1,4 @@
-package com.josecjuniors.logossrv.core.habilidade.application.port.in;
+package com.josecjuniors.logossrv.core.habilidade.application.port.in.commands;
 
 import com.josecjuniors.logossrv.core.habilidade.domain.model.HabilidadeId;
 

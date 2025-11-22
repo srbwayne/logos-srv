@@ -7,14 +7,18 @@ public record ResumoJogadorDto(
         String apelido,
         Integer nivelAtual,
         Long xpTotal,
-        Long xpParaProximoNivel
+        Long xpParaProximoNivel,
+        Integer estresseAtual,
+        Integer pontosHabilidade
 ) {
     public static ResumoJogadorDto fromDomain(Jogador jogador, NivelXPService nivelXPService) {
         return new ResumoJogadorDto(
                 jogador.getApelido(),
                 jogador.getNivelAtual(),
                 jogador.getXpTotal(),
-                nivelXPService.calcularXpParaProximoNivel(jogador.getNivelAtual())
+                nivelXPService.calcularXpParaProximoNivel(jogador.getNivelAtual()),
+                jogador.getEstresseGlobal().getPontuacaoAtual(),
+                jogador.getPontosHabilidade()
         );
     }
 }

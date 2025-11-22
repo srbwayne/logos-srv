@@ -26,6 +26,17 @@ public interface HabilidadeRequisitoJpaRepository extends HabilidadeRequisitoRep
     @Query("SELECT hr FROM HabilidadeRequisito hr " +
            "LEFT JOIN FETCH hr.atributoRequisito " +
            "LEFT JOIN FETCH hr.habilidadeRequisito " +
-           "WHERE hr.id = :requisitoId")
-    Optional<HabilidadeRequisito> findById(@Param("requisitoId") HabilidadeRequisitoId requisitoId);
+           "WHERE hr.id = :habilidadeRequisitoId")
+    Optional<HabilidadeRequisito> findById(@Param("habilidadeRequisitoId") HabilidadeRequisitoId habilidadeRequisitoId);
+
+    @Override
+    default void saveAll(List<HabilidadeRequisito> habilidadeRequisitos){
+        saveAllAndFlush(habilidadeRequisitos);
+    }
+
+    @Override
+    void deleteAll();
+
+    @Override
+    void deleteById(HabilidadeRequisitoId habilidadeRequisitoId);
 }

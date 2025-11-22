@@ -11,4 +11,9 @@ public interface HabilidadeRequisitoRepository {
     HabilidadeRequisito save(HabilidadeRequisito requisito);
     List<HabilidadeRequisito> findByHabilidadeId(HabilidadeId habilidadeId);
     Optional<HabilidadeRequisito> findById(HabilidadeRequisitoId requisitoId);
+    void saveAll(List<HabilidadeRequisito> habilidadeRequisitos);
+
+    void deleteAll();
+
+    void deleteById(HabilidadeRequisitoId habilidadeRequisitoId);
 }

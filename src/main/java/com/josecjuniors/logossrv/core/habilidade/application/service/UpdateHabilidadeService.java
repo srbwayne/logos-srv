@@ -1,7 +1,7 @@
 package com.josecjuniors.logossrv.core.habilidade.application.service;
 
 import com.josecjuniors.logossrv.core.habilidade.application.dto.HabilidadeDto;
-import com.josecjuniors.logossrv.core.habilidade.application.port.in.UpdateHabilidadeCommand;
+import com.josecjuniors.logossrv.core.habilidade.application.port.in.commands.UpdateHabilidadeCommand;
 import com.josecjuniors.logossrv.core.habilidade.application.port.in.UpdateHabilidadeUseCase;
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeJaExisteException;
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeNaoEncontradaException;

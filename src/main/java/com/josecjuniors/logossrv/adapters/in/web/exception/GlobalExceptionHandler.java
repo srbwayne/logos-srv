@@ -10,6 +10,7 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculo
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoNaoEncontradoException;
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeJaExisteException;
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeNaoEncontradaException;
+import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeRequisitoNaoEncontradoException;
 import com.josecjuniors.logossrv.core.jogador.domain.exception.ApelidoJaEmUsoException;
 import com.josecjuniors.logossrv.core.jogador.domain.exception.JogadorNaoEncontradoException;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.exception.RegraDistribuicaoNaoEncontradaException;
@@ -24,6 +25,11 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(HabilidadeRequisitoNaoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleHabilidadeRequisitoNaoEncontrado(HabilidadeRequisitoNaoEncontradoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
 
     @ExceptionHandler(FatorCalculoNaoEncontradoException.class)
     public ResponseEntity<Map<String, String>> handleFatorCalculoNaoEncontrado(FatorCalculoNaoEncontradoException ex) {

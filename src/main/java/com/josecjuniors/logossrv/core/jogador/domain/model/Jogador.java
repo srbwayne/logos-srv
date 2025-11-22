@@ -70,6 +70,9 @@ public class Jogador extends AbstractDomainAggregate<JogadorId> implements Nivel
     @OneToMany(mappedBy = "jogador", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<AtributoJogador> atributos = new HashSet<>();
 
+    @OneToMany(mappedBy = "jogador", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<HabilidadeJogador> habilidades = new HashSet<>();
+
     private Integer pontosHabilidade;
 
 
@@ -202,6 +205,10 @@ public class Jogador extends AbstractDomainAggregate<JogadorId> implements Nivel
 
     public Set<AtributoJogador> getAtributos() {
         return atributos;
+    }
+
+    public Set<HabilidadeJogador> getHabilidades() {
+        return habilidades;
     }
 
     public AtributoJogador getAtributo(Atributo atributo) {

@@ -36,6 +36,12 @@ public class RegraDistribuicaoHabilidade extends AbstractDomainAggregate<RegraDi
         this.pesoDistribuicao = pesoDistribuicao;
     }
 
+    public void atualizar(Double pesoDistribuicao) {
+        if (pesoDistribuicao != null) {
+            this.pesoDistribuicao = pesoDistribuicao;
+        }
+    }
+
     // Getters
     public Habilidade getHabilidade() { return habilidade; }
     public Atributo getAtributo() { return atributo; }
