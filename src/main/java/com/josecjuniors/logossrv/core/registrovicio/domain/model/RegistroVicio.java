@@ -1,9 +1,14 @@
 package com.josecjuniors.logossrv.core.registrovicio.domain.model;
 
-import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
-import com.josecjuniors.logossrv.core.regravicio.domain.model.RegraVicio;
+import com.josecjuniors.logossrv.core.jogador.domain.model.VicioJogador;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 
@@ -11,32 +16,29 @@ import java.time.LocalDateTime;
 @Table(name = "registro_vicio")
 public class RegistroVicio extends AbstractDomainAggregate<RegistroVicioId> {
 
-    @ManyToOne
-    @JoinColumn(name = "jogador_id", referencedColumnName = "id")
-    private Jogador jogador;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vicio_jogador_id", nullable = false)
+    private VicioJogador vicioJogador;
 
-    @ManyToOne
-    @JoinColumn(name = "regra_vicio_id", referencedColumnName = "id")
-    private RegraVicio regraVicio;
-
+    @Column(nullable = false)
     private LocalDateTime dataHora;
 
-    private Boolean estaAtivo;
+    @Lob
+    private String observacao;
 
     protected RegistroVicio() {
         super();
     }
 
-    public RegistroVicio(RegistroVicioId id, Jogador jogador, RegraVicio regraVicio, LocalDateTime dataHora, Boolean estaAtivo) {
+    public RegistroVicio(RegistroVicioId id, VicioJogador vicioJogador, LocalDateTime dataHora, String observacao) {
         super(id);
-        this.jogador = jogador;
-        this.regraVicio = regraVicio;
+        this.vicioJogador = vicioJogador;
         this.dataHora = dataHora;
-        this.estaAtivo = estaAtivo;
+        this.observacao = observacao;
     }
 
-    public Jogador getJogador() { return jogador; }
-    public RegraVicio getRegraVicio() { return regraVicio; }
+    // Getters
+    public VicioJogador getVicioJogador() { return vicioJogador; }
     public LocalDateTime getDataHora() { return dataHora; }
-    public Boolean getEstaAtivo() { return estaAtivo; }
+    public String getObservacao() { return observacao; }
 }
