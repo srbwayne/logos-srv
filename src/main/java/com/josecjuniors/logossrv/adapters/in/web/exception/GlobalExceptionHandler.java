@@ -6,6 +6,8 @@ import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.Atividade
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoJaExisteException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoNaoEncontradoException;
+import com.josecjuniors.logossrv.core.debuff.domain.exception.DebuffJaExisteException;
+import com.josecjuniors.logossrv.core.debuff.domain.exception.DebuffNaoEncontradoException;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoJaExisteException;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoNaoEncontradoException;
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeJaExisteException;
@@ -16,6 +18,9 @@ import com.josecjuniors.logossrv.core.jogador.domain.exception.JogadorNaoEncontr
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.exception.RegraDistribuicaoNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.exception.RegraFatorEstresseNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.exception.RegraFatorXPNaoEncontradaException;
+import com.josecjuniors.logossrv.core.vicio.domain.exception.RegraVicioNaoEncontradaException;
+import com.josecjuniors.logossrv.core.vicio.domain.exception.VicioJaExisteException;
+import com.josecjuniors.logossrv.core.vicio.domain.exception.VicioNaoEncontradoException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -25,6 +30,31 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(VicioJaExisteException.class)
+    public ResponseEntity<Map<String, String>> handleVicioJaExiste(VicioJaExisteException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(VicioNaoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleVicioNaoEncontrado(VicioNaoEncontradoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(RegraVicioNaoEncontradaException.class)
+    public ResponseEntity<Map<String, String>> handleRegraVicioNaoEncontrada(RegraVicioNaoEncontradaException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(DebuffJaExisteException.class)
+    public ResponseEntity<Map<String, String>> handleDebuffJaExiste(DebuffJaExisteException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(DebuffNaoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleDebuffNaoEncontrado(DebuffNaoEncontradoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
 
     @ExceptionHandler(HabilidadeRequisitoNaoEncontradoException.class)
     public ResponseEntity<Map<String, String>> handleHabilidadeRequisitoNaoEncontrado(HabilidadeRequisitoNaoEncontradoException ex) {
