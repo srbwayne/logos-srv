@@ -3,7 +3,12 @@ package com.josecjuniors.logossrv.core.appuser.domain.model;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Table;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
@@ -20,6 +25,9 @@ public class AppUser extends AbstractDomainAggregate<AppUserId> implements UserD
     @Column(nullable = false)
     private String password;
 
+    @OneToMany(mappedBy = "appUser", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<ConexaoExterna> conexoes = new HashSet<>();
+
     // Construtor para JPA
     protected AppUser() {
         super();
@@ -29,6 +37,20 @@ public class AppUser extends AbstractDomainAggregate<AppUserId> implements UserD
         super(id);
         this.email = email;
         this.password = password;
+    }
+
+    public void adicionarConexao(ConexaoExterna conexao) {
+        this.conexoes.add(conexao);
+    }
+
+    public Optional<ConexaoExterna> getConexaoPorProvedor(ProvedorIntegracao provedor) {
+        return conexoes.stream()
+                .filter(c -> c.getProvedor() == provedor && c.isAtivo())
+                .findFirst();
+    }
+
+    public Set<ConexaoExterna> getConexoes() {
+        return Collections.unmodifiableSet(conexoes);
     }
 
     @Override

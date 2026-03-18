@@ -27,6 +27,9 @@ public class VicioJogador extends AbstractDomainAggregate<VicioJogadorId> {
 
     private Integer nivelAtual;
 
+    @Column(nullable = false)
+    private Integer diasSemVicio;
+
     protected VicioJogador() {
         super();
     }
@@ -39,6 +42,15 @@ public class VicioJogador extends AbstractDomainAggregate<VicioJogadorId> {
         this.dataInicio = LocalDateTime.now();
         this.nivelAtual = 1;
         this.xpTotal = 0L;
+        this.diasSemVicio = 0;
+    }
+
+    public void registrarRecaida() {
+        this.diasSemVicio = 0;
+    }
+
+    public void registrarDiaDeSucesso() {
+        this.diasSemVicio++;
     }
 
     // Getters
@@ -48,4 +60,9 @@ public class VicioJogador extends AbstractDomainAggregate<VicioJogadorId> {
     public LocalDateTime getDataInicio() { return dataInicio; }
     public Long getXpTotal() { return xpTotal; }
     public Integer getNivelAtual() { return nivelAtual; }
+    public Integer getDiasSemVicio() { return diasSemVicio; }
+
+    // Setters
+    public void setXpTotal(Long xpTotal) { this.xpTotal = xpTotal; }
+    public void setNivelAtual(Integer nivelAtual) { this.nivelAtual = nivelAtual; }
 }

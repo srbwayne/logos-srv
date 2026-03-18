@@ -6,5 +6,17 @@ import com.josecjuniors.logossrv.core.registrovicio.domain.repository.RegistroVi
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
-public interface RegistroVicioJpaRepository extends RegistroVicioRepository, JpaRepository<RegistroVicio, RegistroVicioId> {}
+public interface RegistroVicioJpaRepository extends RegistroVicioRepository, JpaRepository<RegistroVicio, RegistroVicioId> {
+    @Override
+    RegistroVicio save(RegistroVicio registroVicio);
+
+    @Override
+    void deleteAll();
+
+    @Override
+    Optional<RegistroVicio> findById(RegistroVicioId id);
+
+}

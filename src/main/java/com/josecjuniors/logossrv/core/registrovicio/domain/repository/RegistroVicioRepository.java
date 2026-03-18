@@ -1,7 +1,14 @@
 package com.josecjuniors.logossrv.core.registrovicio.domain.repository;
 
 import com.josecjuniors.logossrv.core.registrovicio.domain.model.RegistroVicio;
+import com.josecjuniors.logossrv.core.registrovicio.domain.model.RegistroVicioId;
+
+import java.util.Optional;
 
 public interface RegistroVicioRepository {
-    // O método save() é herdado implicitamente do JpaRepository no adaptador.
+    RegistroVicio save(RegistroVicio registroVicio);
+
+    void deleteAll();
+
+    Optional<RegistroVicio> findById(RegistroVicioId id);
 }

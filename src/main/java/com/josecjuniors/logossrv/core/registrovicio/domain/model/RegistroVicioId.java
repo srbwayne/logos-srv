@@ -14,4 +14,8 @@ public class RegistroVicioId extends DomainObjectId {
     public RegistroVicioId(UUID value) {
         super(value);
     }
+
+    public static RegistroVicioId generate() {
+        return new RegistroVicioId(UUID.randomUUID());
+    }
 }

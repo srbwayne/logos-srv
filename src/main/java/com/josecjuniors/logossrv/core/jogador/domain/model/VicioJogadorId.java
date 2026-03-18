@@ -14,4 +14,8 @@ public class VicioJogadorId extends DomainObjectId {
     public VicioJogadorId(UUID value) {
         super(value);
     }
+
+    public static VicioJogadorId generate() {
+        return new VicioJogadorId(UUID.randomUUID());
+    }
 }
