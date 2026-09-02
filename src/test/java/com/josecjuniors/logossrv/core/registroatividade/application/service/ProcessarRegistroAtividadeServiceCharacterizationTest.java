@@ -142,6 +142,30 @@ class ProcessarRegistroAtividadeServiceCharacterizationTest {
     }
 
     @Test
+    void distribuiXpEntreDoisAtributosSemAlterarTotalGlobal() {
+        Jogador jogador = jogador();
+        Atributo forca = atributo("Forca");
+        Atributo foco = atributo("Foco");
+        AtividadeConfig atividade = atividade(100, 0);
+        FatorCalculo fator = fator("peso");
+        RegraDistribuicaoAtividade distribuicaoForca = distribuicao(atividade, forca, .5);
+        RegraDistribuicaoAtividade distribuicaoFoco = distribuicao(atividade, foco, .5);
+        distribuicaoForca.adicionarRegraFatorXPS(regraXp(distribuicaoForca, fator, 1.0, null, null));
+        distribuicaoFoco.adicionarRegraFatorXPS(regraXp(distribuicaoFoco, fator, 1.0, null, null));
+        atividade.adicionarRegraDistribuicao(distribuicaoForca);
+        atividade.adicionarRegraDistribuicao(distribuicaoFoco);
+        RegistroAtividade registro = registro(jogador, atividade);
+        registro.adicionarDetalhe(fator, "1");
+
+        processar(registro);
+
+        assertThat(registro.getXpGanhoFinal()).isEqualTo(100);
+        assertThat(jogador.getAtributo(forca).getXpTotal()).isEqualTo(50);
+        assertThat(jogador.getAtributo(foco).getXpTotal()).isEqualTo(50);
+        assertThat(jogador.getXpTotal()).isEqualTo(100);
+    }
+
+    @Test
     void somaFatoresDeEstressePositivosENegativosEAoPersistirMarcaORegistroProcessado() {
         Jogador jogador = jogador();
         Atributo atributo = atributo("Forca");
