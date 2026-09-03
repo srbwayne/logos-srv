@@ -1,5 +1,15 @@
 # Migration Log
 
+### 2026-09-02 - TASK-007 Expose Internal Progression HTTP Adapter - BLOCKED
+
+- Baseline commit: `1bf8522`; prior checkpoints: `4dac8a3`, `207b300`, `01b8caf`, `185916d`, `44df0a3`.
+- Result: caminho B da tarefa; nenhum endpoint HTTP foi criado.
+- Evidence: `ProgressionInput` combina fatos (`details`) com configuraÃ§Ã£o (`baseXp`, `baseStress`, `attributeDistributions`, regras XP/stress e bÃ´nus). O fluxo atual obtÃ©m toda essa configuraÃ§Ã£o de `RegistroAtividade.getAtividadeConfig()` e habilidades do jogador.
+- Blocker: nÃ£o existe hoje uma porta para resolver configuraÃ§Ã£o por uma identidade de atividade/configuraÃ§Ã£o sem recebÃª-la integralmente do caller. Expor o input atual permitiria arbitrar regras de progressÃ£o.
+- Options: (1) novo identificador de configuraÃ§Ã£o no request e resolver configuraÃ§Ã£o persistida no Logos; (2) contrato de fatos associado a uma atividade/configuraÃ§Ã£o existente, com adapter interno de montagem; (3) aceitar regras no request, rejeitado por transferir autoridade de regras ao caller.
+- Recommendation: opÃ§Ã£o 2, aproveitando o fluxo atual de `AtividadeConfig` e mantendo regras no Logos; requer decisÃ£o/contrato antes do endpoint.
+- Tests: baseline direcionado executado, 21 testes verdes; nenhuma alteraÃ§Ã£o de regra, API, schema, autenticaÃ§Ã£o ou vÃ­cios.
+
 ### 2026-09-02 - TASK-006 Establish Stateful Progression Service Boundary
 
 - Baseline commit: `4dac8a3`; prior checkpoints: `207b300`, `01b8caf`, `185916d`, `44df0a3`.
