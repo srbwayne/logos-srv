@@ -1,5 +1,17 @@
 # Migration Log
 
+### 2026-09-02 - TASK-004 Establish Progression Profile Boundary
+
+- Baseline commit: `01b8caf`; checkpoints: `185916d` and `44df0a3`.
+- Objective: explicit progression state boundary independent of the persistent `Jogador` aggregate.
+- Progression state: global XP/level, stress, skill points, attribute progressions, and skill state.
+- Components: immutable `ProgressionProfile`, pure `ProgressionLevelCalculator`, and `ProgressionProfileMapper` at the application boundary.
+- Behavior preserved: formulas, truncation, stress floor, level transitions, points, and persistence remain unchanged.
+- Dependencies eliminated from profile/engine: JPA, Spring, repositories, HTTP, authentication, and LifeOS.
+- Dependencies remaining: mapper/orchestrator know current `Jogador`/JPA; `NivelXPService` remains external to the engine.
+- Tests: profile, engine, characterization, service, and persistence-focused tests pass with the known resource-copy workaround.
+- Risks: ID-derived keys, stress-factor association debt, raw/effective XP distinction, idempotency, and non-progression responsibilities in `Jogador`.
+
 Append one entry per completed slice.
 
 ## Template

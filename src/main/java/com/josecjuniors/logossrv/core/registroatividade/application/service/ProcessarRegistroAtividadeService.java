@@ -1,7 +1,5 @@
 package com.josecjuniors.logossrv.core.registroatividade.application.service;
 
-import com.josecjuniors.logossrv.core.common.service.NivelXPService;
-import com.josecjuniors.logossrv.core.jogador.domain.model.AtributoJogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
@@ -14,6 +12,7 @@ import com.josecjuniors.logossrv.core.registroatividade.domain.repository.Regist
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,13 +25,17 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
     private static final Logger logger = LoggerFactory.getLogger(ProcessarRegistroAtividadeService.class);
     private final RegistroAtividadeRepository registroAtividadeRepository;
     private final JogadorRepository jogadorRepository;
-    private final NivelXPService nivelXPService;
     private final ProgressionEngine progressionEngine = new ProgressionEngine();
+    private final ProgressionProfileMapper progressionProfileMapper = new ProgressionProfileMapper();
 
-    public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository, NivelXPService nivelXPService) {
+    @Autowired
+    public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository) {
         this.registroAtividadeRepository = registroAtividadeRepository;
         this.jogadorRepository = jogadorRepository;
-        this.nivelXPService = nivelXPService;
+    }
+
+    public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository, com.josecjuniors.logossrv.core.common.service.NivelXPService ignoredNivelXPService) {
+        this(registroAtividadeRepository, jogadorRepository);
     }
 
     @Async
@@ -52,16 +55,10 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
         ProgressionResult result = progressionEngine.calculate(toProgressionInput(registro));
 
         Jogador jogador = registro.getJogador();
-        jogador.aplicarEstresse((int) result.stressTotal());
-
-        result.attributeProgressions().forEach(attributeProgression -> {
-            AtributoJogador atributoJogador = jogador.adicionarAtributo(registro.getAtividadeConfig().getRegrasDistribuicao().stream()
-                    .filter(regra -> regra.getAtributo().getId().getValue().toString().equals(attributeProgression.attributeKey()))
-                    .findFirst().orElseThrow().getAtributo());
-            nivelXPService.adicionarExperiencia(atributoJogador, attributeProgression.xp());
-        });
-
-        nivelXPService.adicionarExperiencia(jogador, result.xpGlobal());
+        ProgressionProfile currentProfile = progressionProfileMapper.from(jogador);
+        ProgressionProfile updatedProfile = currentProfile.apply(result);
+        progressionProfileMapper.applyTo(jogador, updatedProfile, registro.getAtividadeConfig().getRegrasDistribuicao().stream()
+                .map(regra -> regra.getAtributo()).toList());
         jogadorRepository.save(jogador);
 
         registro.marcarComoProcessado((int) result.xpGlobal(), (int) result.stressTotal());
