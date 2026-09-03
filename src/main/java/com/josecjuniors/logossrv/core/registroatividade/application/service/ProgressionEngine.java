@@ -1,21 +1,11 @@
 package com.josecjuniors.logossrv.core.registroatividade.application.service;
 
-import com.josecjuniors.logossrv.core.jogador.domain.model.AtributoJogador;
-import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
-import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
-import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividade;
-import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividadeDetalhe;
-import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
-import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
-import org.springframework.stereotype.Service;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Compõe os cálculos de progressão sem acessar persistência, eventos ou infraestrutura. */
-@Service
+/** Motor determinístico de progressão; recebe somente o contrato de cálculo interno. */
 public class ProgressionEngine {
 
     private final XpCalculator xpCalculator;
@@ -32,40 +22,33 @@ public class ProgressionEngine {
         this.skillBonusCalculator = skillBonusCalculator;
     }
 
-    public ProgressionResult calculate(RegistroAtividade registro) {
-        int xpBase = registro.getAtividadeConfig().getXpBase();
-        int estresseBase = registro.getAtividadeConfig().getEstresseBase();
-        Map<RegraDistribuicaoAtividade, Double> xpPorRegra = new HashMap<>();
-        double estresseAcumulado = estresseBase;
+    public ProgressionResult calculate(ProgressionInput input) {
+        Map<ProgressionInput.AttributeDistribution, Double> xpPorDistribuicao = new HashMap<>();
+        double stressTotal = input.baseStress();
 
-        var detalhesCalculaveis = registro.getDetalhes().stream()
-                .filter(detalhe -> detalhe.getFatorCalculo().getTipoInput().ehValorNumerico())
-                .toList();
-        for (RegistroAtividadeDetalhe detalhe : detalhesCalculaveis) {
-            double valorDetalhe = Double.parseDouble(detalhe.getValorRegistrado());
-            for (RegraDistribuicaoAtividade regraDist : registro.getAtividadeConfig().getRegrasDistribuicao()) {
-                for (RegraFatorXP regraXP : regraDist.getRegraFatorXPS()) {
-                    if (regraXP.getFatorCalculo().equals(detalhe.getFatorCalculo())) {
-                        double xpCalculado = xpCalculator.calculate(regraXP, valorDetalhe, xpBase, regraDist.getPesoPercentual());
-                        xpPorRegra.merge(regraDist, xpCalculado, Double::sum);
+        for (ProgressionInput.Detail detail : input.details()) {
+            for (ProgressionInput.AttributeDistribution distribution : input.attributeDistributions()) {
+                for (ProgressionInput.XpRule xpRule : distribution.xpRules()) {
+                    if (xpRule.factorKey().equals(detail.factorKey())) {
+                        double xp = xpCalculator.calculate(xpRule, detail.value(), input.baseXp(), distribution.weight());
+                        xpPorDistribuicao.merge(distribution, xp, Double::sum);
                     }
                 }
-                for (RegraFatorEstresse regraEstresse : regraDist.getRegraFatorEstresses()) {
-                    estresseAcumulado += stressCalculator.calculate(regraEstresse, valorDetalhe, estresseBase);
+                for (ProgressionInput.StressRule stressRule : distribution.stressRules()) {
+                    stressTotal += stressCalculator.calculate(stressRule, detail.value(), input.baseStress());
                 }
             }
         }
 
-        long xpTotal = xpPorRegra.isEmpty() ? xpBase : xpPorRegra.values().stream().mapToLong(Double::longValue).sum();
-        Jogador jogador = registro.getJogador();
+        long xpGlobal = xpPorDistribuicao.isEmpty()
+                ? input.baseXp()
+                : xpPorDistribuicao.values().stream().mapToLong(Double::longValue).sum();
         List<ProgressionResult.AttributeProgression> attributeProgressions = new ArrayList<>();
-        xpPorRegra.forEach((regra, xp) -> {
-            AtributoJogador atributoJogador = jogador.getAtributo(regra.getAtributo());
-            double bonusXP = skillBonusCalculator.calculate(jogador, regra.getAtributo());
+        xpPorDistribuicao.forEach((distribution, xp) -> {
+            double bonus = skillBonusCalculator.calculate(input.skillBonuses(), distribution.attributeKey());
             attributeProgressions.add(new ProgressionResult.AttributeProgression(
-                    atributoJogador == null ? regra.getAtributo() : atributoJogador.getAtributo(),
-                    xp.longValue() + (long) bonusXP));
+                    distribution.attributeKey(), xp.longValue() + (long) bonus));
         });
-        return new ProgressionResult(xpTotal, estresseAcumulado, attributeProgressions);
+        return new ProgressionResult(xpGlobal, stressTotal, attributeProgressions);
     }
 }

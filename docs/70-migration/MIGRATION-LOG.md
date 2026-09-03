@@ -27,3 +27,16 @@ Append one entry per completed slice.
 - Decisions: manter `NivelXPService` como responsável pela progressão de nível; preservar truncamento, pesos e semântica de cortes existentes.
 - Remaining risks: regras de estresse não possuem associação explícita a fator no modelo e são avaliadas por detalhe; XP bruto persistido difere do XP líquido usado para transição; suíte completa continua limitada pelos erros de vícios e pela codificação de `application.properties` já modificados.
 - Next recommended slice: revisar, com decisão explícita, o contrato interno do motor e a idempotência do processamento antes de qualquer integração externa.
+
+### 2026-09-02 — TASK-003 Decouple Progression Engine Input
+
+- Baseline commit: `185916d` (`refactor: extract progression calculation model`); behavioral checkpoint: `44df0a3`.
+- Objective: estabelecer uma entrada própria para o cálculo e remover `RegistroAtividade` do núcleo do engine.
+- Input contract: `ProgressionInput` imutável com bases, detalhes numéricos, distribuições/regras e bônus de habilidade, identificados por chaves escalares.
+- Mapping: `ProcessarRegistroAtividadeService.toProgressionInput`; somente o mapper conhece `RegistroAtividade` e entidades JPA.
+- Dependencies eliminated: `ProgressionEngine` não depende mais de RegistroAtividade, entidades JPA, repositories ou Spring.
+- Dependencies remaining: o mapper e o serviço de aplicação continuam acoplados às entidades atuais; `NivelXPService` permanece externo ao engine.
+- Behavior preserved/changed: fórmulas, cortes, pesos, truncamento, acumulação, bônus, nível e persistência preservados.
+- Tests executed: 2 testes diretos do engine, 3 de `NivelXPService`, 7 de caracterização e 2 de integração/persistência; 14 testes direcionados verdes.
+- Remaining risks: chaves são derivadas dos IDs atuais; regras de estresse seguem sem fator explícito; mutabilidade das entidades e idempotência permanecem fora desta fatia.
+- Next recommended slice: avaliar se o resultado deve ser aplicado por um componente separado, sem antecipar integração LifeOS.
