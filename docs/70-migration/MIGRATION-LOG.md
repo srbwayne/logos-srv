@@ -1,5 +1,17 @@
 # Migration Log
 
+### 2026-09-02 - TASK-006 Establish Stateful Progression Service Boundary
+
+- Baseline commit: `4dac8a3`; prior checkpoints: `207b300`, `01b8caf`, `185916d`, `44df0a3`.
+- Decision: Logos owns canonical progression state; consumers provide subject identity and progression facts, not the full current state.
+- Subject: `SubjectId(UUID)` is an opaque value object independent of LifeOS/JWT; it temporarily maps to the existing `AppUserId` UUID through `Jogador.user_id`.
+- Repository boundary: `ProgressionProfileRepository` exposes only `SubjectId` and `ProgressionProfile`; `JpaProgressionProfileRepository` adapts current repositories and mapper.
+- Stateful use case: `ExecuteSubjectProgressionUseCase` and `StatefulProgressionApplicationService` load, delegate, save, and return `ProgressionOutcome`.
+- Missing state: `NOT_FOUND` semantics via `IllegalStateException`; current registration provides no evidence for automatic profile creation.
+- Persistence: no migration was necessary; existing transaction behavior was preserved.
+- Tests: 21 targeted tests pass with the existing resource-copy workaround.
+- Risks: temporary UUID mapping is not general external identity mapping; lost updates, idempotency, raw/effective XP, stress association, and profile lifecycle remain debts.
+
 ### 2026-09-02 - TASK-005 Establish Progression Application Contract
 
 - Baseline commit: `207b300`; architectural checkpoints: `01b8caf`, `185916d`; behavioral checkpoint: `44df0a3`.
