@@ -6,9 +6,13 @@ import com.josecjuniors.logossrv.core.progression.application.port.out.Progressi
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
 import com.josecjuniors.logossrv.core.progression.domain.model.SubjectId;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfile;
+import org.springframework.stereotype.Service;
 
 /** Orquestra facts e configuraÃ§Ã£o resolvida antes de delegar a progressÃ£o stateful. */
+@Service
 public class ConfiguredStatefulProgressionApplicationService implements ExecuteConfiguredSubjectProgressionUseCase {
 
     private final ProgressionProfileRepository profileRepository;
@@ -31,9 +35,9 @@ public class ConfiguredStatefulProgressionApplicationService implements ExecuteC
     public ProgressionOutcome execute(SubjectId subjectId, ProgressionConfigurationReference configurationReference,
                                       ProgressionFact fact) {
         ProgressionProfile profile = profileRepository.findBySubjectId(subjectId)
-                .orElseThrow(() -> new IllegalStateException("Estado de progressÃ£o nÃ£o encontrado para o subject."));
+                .orElseThrow(ProgressionSubjectNotFoundException::new);
         var configuration = configurationResolver.resolve(configurationReference)
-                .orElseThrow(() -> new IllegalStateException("ConfiguraÃ§Ã£o de progressÃ£o nÃ£o encontrada."));
+                .orElseThrow(ProgressionConfigurationNotFoundException::new);
         return statefulProgression.executeLoaded(subjectId, inputFactory.create(fact, configuration, profile), profile);
     }
 }

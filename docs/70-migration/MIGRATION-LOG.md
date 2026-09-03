@@ -1,5 +1,29 @@
 # Migration Log
 
+### 2026-09-02 - TASK-007R Expose Internal Progression HTTP Adapter
+
+- Baseline commit: `6e893e1`; blocker resolved by TASK-008; prior blocker record: `2359842`.
+- Endpoint: `POST /api/internal/v1/progression/{subjectId}/evaluate`.
+- Request: `configurationId` and fact `details` only; subject UUID is supplied in the path. Rules and current progression state are never accepted.
+- Response: explicit DTO separates execution result (`globalXpDelta`, `stressTotal`, attribute deltas) from canonical updated profile.
+- Mapping: HTTP DTO -> `SubjectId` + `ProgressionConfigurationReference` + `ProgressionFact` -> `ExecuteConfiguredSubjectProgressionUseCase` -> response DTO.
+- Security: existing JWT protection remains active through `anyRequest().authenticated()`; no permit-all or authentication change.
+- Errors: missing subject/configuration return 404 via dedicated progression exceptions and existing global advice; malformed UUID returns 400 via Spring MVC.
+- Tests: 29 directed tests pass (5 controller tests plus 24 prior progression tests, including Spring processing integration).
+- Limitations: UUID compatibility bridge, inter-service authentication, idempotency, concurrency, and configuration versioning remain future work.
+
+### 2026-09-02 - TASK-007R Expose Internal Progression HTTP Adapter
+
+- Baseline commit: `6e893e1`; blocker checkpoint: `2359842`.
+- Endpoint: `POST /api/internal/v1/progression/{subjectId}/evaluate`.
+- Request: `configurationId` plus numeric fact `details`; subject UUID is in the path. No rules or current progression state are accepted.
+- Mapping: HTTP DTO -> `SubjectId` + `ProgressionConfigurationReference` + `ProgressionFact` -> `ExecuteConfiguredSubjectProgressionUseCase`.
+- Response: explicit DTO separates calculation result (`globalXpDelta`, `stressTotal`, attribute deltas) from canonical updated profile.
+- Security: existing JWT policy remains active; `/internal` was not added to permit-all routes.
+- Errors: missing subject/configuration return 404 via dedicated progression exceptions and existing global advice; malformed path UUID returns 400 via Spring MVC.
+- Tests: 29 tests executed in the final validation set (5 controller, 24 previous targeted); all green. The known vicio failures remain outside scope.
+- Limitations: current subject/configuration UUIDs are compatibility bridges; inter-service authentication, idempotency, concurrency, and configuration versioning remain future work.
+
 ### 2026-09-02 - TASK-008 Establish Progression Fact and Configuration Resolution Boundary
 
 - Baseline commit: `2359842`; architectural checkpoint: `1bf8522`.

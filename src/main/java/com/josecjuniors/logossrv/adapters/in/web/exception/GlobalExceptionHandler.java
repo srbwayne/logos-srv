@@ -15,6 +15,8 @@ import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeNaoE
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeRequisitoNaoEncontradoException;
 import com.josecjuniors.logossrv.core.jogador.domain.exception.ApelidoJaEmUsoException;
 import com.josecjuniors.logossrv.core.jogador.domain.exception.JogadorNaoEncontradoException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.exception.RegraDistribuicaoNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.exception.RegraFatorEstresseNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.exception.RegraFatorXPNaoEncontradaException;
@@ -128,6 +130,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(JogadorNaoEncontradoException.class)
     public ResponseEntity<Map<String, String>> handleJogadorNaoEncontrado(JogadorNaoEncontradoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ProgressionSubjectNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleProgressionSubjectNotFound(ProgressionSubjectNotFoundException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ProgressionConfigurationNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleProgressionConfigurationNotFound(ProgressionConfigurationNotFoundException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
     }
 

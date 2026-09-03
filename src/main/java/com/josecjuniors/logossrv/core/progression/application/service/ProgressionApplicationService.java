@@ -5,8 +5,10 @@ import com.josecjuniors.logossrv.core.registroatividade.application.service.Prog
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionInput;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfile;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionResult;
+import org.springframework.stereotype.Service;
 
 /** Coordena o cálculo e a aplicação da progressão sem conhecer sua origem ou persistência. */
+@Service
 public class ProgressionApplicationService implements ExecuteProgressionUseCase {
 
     private final ProgressionEngine progressionEngine;

@@ -3,12 +3,15 @@ package com.josecjuniors.logossrv.core.progression.application.service;
 import com.josecjuniors.logossrv.core.progression.application.port.in.ExecuteSubjectProgressionUseCase;
 import com.josecjuniors.logossrv.core.progression.application.port.out.ProgressionProfileRepository;
 import com.josecjuniors.logossrv.core.progression.domain.model.SubjectId;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionInput;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfile;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionResult;
+import org.springframework.stereotype.Service;
 import com.josecjuniors.logossrv.core.progression.application.port.in.ExecuteProgressionUseCase;
 
 /** Carrega, executa e persiste a progressão canônica de um subject. */
+@Service
 public class StatefulProgressionApplicationService implements ExecuteSubjectProgressionUseCase {
 
     private final ProgressionProfileRepository profileRepository;
@@ -23,7 +26,7 @@ public class StatefulProgressionApplicationService implements ExecuteSubjectProg
     @Override
     public ProgressionOutcome execute(SubjectId subjectId, ProgressionInput input) {
         ProgressionProfile currentProfile = profileRepository.findBySubjectId(subjectId)
-                .orElseThrow(() -> new IllegalStateException("Estado de progressÃ£o nÃ£o encontrado para o subject."));
+                .orElseThrow(ProgressionSubjectNotFoundException::new);
         return executeLoaded(subjectId, input, currentProfile);
     }
 

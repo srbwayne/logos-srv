@@ -9,6 +9,7 @@ import com.josecjuniors.logossrv.core.progression.application.port.out.Progressi
 import com.josecjuniors.logossrv.core.progression.domain.model.SubjectId;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfile;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfileMapper;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -36,7 +37,7 @@ public class JpaProgressionProfileRepository implements ProgressionProfileReposi
     @Override
     public ProgressionProfile save(SubjectId subjectId, ProgressionProfile profile) {
         Jogador jogador = jogadorRepository.findByAppUserId(new AppUserId(subjectId.value()))
-                .orElseThrow(() -> new IllegalStateException("Estado de progressÃ£o nÃ£o encontrado para o subject."));
+                .orElseThrow(ProgressionSubjectNotFoundException::new);
         mapper.applyTo(jogador, profile, atributoRepository.findAll());
         jogadorRepository.save(jogador);
         return mapper.from(jogador);

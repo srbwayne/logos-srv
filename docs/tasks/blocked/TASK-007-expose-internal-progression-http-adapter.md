@@ -1,6 +1,6 @@
 # TASK-007 - Expose Internal Progression HTTP Adapter
 
-Status: blocked - decision required
+Status: superseded by TASK-007R after TASK-008
 
 Baseline: `1bf8522`.
 

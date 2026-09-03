@@ -4,10 +4,12 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfig
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionInput;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfile;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 /** Combina fatos, configuração e estado de skills no input interno do engine. */
+@Component
 public class ProgressionInputFactory {
 
     public ProgressionInput create(ProgressionFact fact, ProgressionConfiguration configuration,
