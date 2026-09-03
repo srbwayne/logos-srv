@@ -1,5 +1,28 @@
 # Migration Log
 
+### 2026-09-03 — TASK-009R-V Validate External Subject Identity Migration
+
+- Environment: PostgreSQL 16.10 reached through the existing local server using two isolated disposable databases: `logos_task009r_validation` (V31 fixture/backfill) and `logos_task009r_clean` (migration and regression suite). Docker/psql were unavailable, so no compose file was changed.
+- Flyway: V1–V31 applied successfully before fixture creation; V32 then applied through Spring/Flyway with filesystem migration location. `flyway_schema_history` records version `32`, description `Create Progression Subject Identity Table`, `success=true`.
+- Fixture/snapshot: 2 `app_user` and 2 `jogador` rows were inserted at V31. Their distinct progression state was level/xp/skill points `(3,1234,7)` and `(5,5678,11)`.
+- Schema: `progression_subject_identity` has UUID `id`, `VARCHAR(64)` namespace, `VARCHAR(255)` external ID, UUID `jogador_id`, PK, FK, unique `(namespace, external_id)`, and both non-blank checks. The unique constraint provides the lookup index; no duplicate index exists.
+- Backfill: 2 players, 2 `logos-native` mappings, missing `0`, orphan `0`, mismatched external IDs `0`, duplicate identities `0`. The recorded progression fields remained unchanged.
+- Constraints: a second `experiment:subject-001` identity for one player was accepted; the same external identity for another player was rejected with PostgreSQL SQLSTATE `23505`. `experiment:ABC123` and `experiment:abc123` remained distinct.
+- Resolver: `JpaExternalSubjectResolverPostgresIT` passed against the fixture database, resolving trimmed/mixed-case ` LOGOS-NATIVE ` and the backfilled AppUser UUID to the expected internal `SubjectId`.
+- Tests: the complete directed identity/progression set passed with 37 tests. The full suite ran 158 tests: 156 passed and 2 pre-existing `RegistroVicioControllerTest` errors remained outside this task (`vicio_id`/vicio flow). No progression test failed.
+- Result: real PostgreSQL/Flyway/backfill validation passed. TASK-009R is a reliable checkpoint for TASK-009H. No V32 change was required during validation.
+
+### 2026-09-03 — TASK-009R Implement External Subject Identity Mapping
+
+- Baseline: branch `feat/lsrv-16-implementar-rotina-de-registro-de-vicios`, HEAD `af7afd9`; reference checkpoint `af7afd9` and prior progression checkpoints preserved. Pre-existing working-tree changes were left untouched.
+- Decision: use a dedicated `progression_subject_identity` table; a player may have many identities, while `(namespace, external_id)` is unique. `conexao_externa` and `ProvedorIntegracao` are not reused.
+- Migration: `V32__Create_Progression_Subject_Identity_Table.sql` creates UUID PK, `VARCHAR(64)` namespace, `VARCHAR(255)` external ID, UUID FK to `jogador(id)`, simple non-blank checks, and backfills every existing `jogador` from `jogador.user_id` to `app_user.id` as `logos-native` plus the UUID string.
+- Semantics: namespace is trim/lowercase using `Locale.ROOT`; external ID is trim/case-preserved. Lookup is explicit; no auto-create, email auto-link, LifeOS production mapping, update, or delete lifecycle was added.
+- Resolver: `ExternalSubjectReference` -> `JpaExternalSubjectResolver` -> mapping -> `Jogador/AppUser` -> internal `SubjectId`. The resolver returns `NOT_FOUND` for an absent mapping. A thin application service delegates to `ExecuteConfiguredSubjectProgressionUseCase` without duplicating progression logic.
+- Compatibility: `ProgressionEngine`, `ProgressionProfile`, `ExecuteProgressionUseCase`, `ProgressionInputFactory`, authentication, and the existing SubjectId HTTP endpoint were not changed.
+- Tests: baseline directed progression tests remained green in the available 29-test gate from TASK-007R; new value-object, resolver, not-found, multiple-identity, delegation, and PostgreSQL resolver tests were added. Flyway/backfill validation is recorded in TASK-009R-V above.
+- Remaining debts: external HTTP boundary, mapping lifecycle/onboarding, inter-service authentication, namespace authorization, configuration identity/versioning, idempotency, and concurrency.
+
 ### 2026-09-02 - TASK-007R Expose Internal Progression HTTP Adapter
 
 - Baseline commit: `6e893e1`; blocker resolved by TASK-008; prior blocker record: `2359842`.
