@@ -2,6 +2,9 @@ package com.josecjuniors.logossrv.core.registroatividade.application.service;
 
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
+import com.josecjuniors.logossrv.core.progression.application.port.in.ExecuteProgressionUseCase;
+import com.josecjuniors.logossrv.core.progression.application.service.ProgressionApplicationService;
+import com.josecjuniors.logossrv.core.progression.application.service.ProgressionOutcome;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.enums.TipoFatorEstresse;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
@@ -25,7 +28,7 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
     private static final Logger logger = LoggerFactory.getLogger(ProcessarRegistroAtividadeService.class);
     private final RegistroAtividadeRepository registroAtividadeRepository;
     private final JogadorRepository jogadorRepository;
-    private final ProgressionEngine progressionEngine = new ProgressionEngine();
+    private final ExecuteProgressionUseCase executeProgressionUseCase = new ProgressionApplicationService();
     private final ProgressionProfileMapper progressionProfileMapper = new ProgressionProfileMapper();
 
     @Autowired
@@ -52,11 +55,12 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
         RegistroAtividade registro = registroAtividadeRepository.findByIdWithDetails(event.registroAtividadeId())
                 .orElseThrow(() -> new IllegalStateException("Registro de Atividade não encontrado para processamento. ID: " + event.registroAtividadeId().getValue()));
 
-        ProgressionResult result = progressionEngine.calculate(toProgressionInput(registro));
-
         Jogador jogador = registro.getJogador();
         ProgressionProfile currentProfile = progressionProfileMapper.from(jogador);
-        ProgressionProfile updatedProfile = currentProfile.apply(result);
+        ProgressionInput input = toProgressionInput(registro);
+        ProgressionOutcome outcome = executeProgressionUseCase.execute(input, currentProfile);
+        ProgressionProfile updatedProfile = outcome.updatedProfile();
+        ProgressionResult result = outcome.result();
         progressionProfileMapper.applyTo(jogador, updatedProfile, registro.getAtividadeConfig().getRegrasDistribuicao().stream()
                 .map(regra -> regra.getAtributo()).toList());
         jogadorRepository.save(jogador);

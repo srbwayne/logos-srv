@@ -1,5 +1,16 @@
 # Migration Log
 
+### 2026-09-02 - TASK-005 Establish Progression Application Contract
+
+- Baseline commit: `207b300`; architectural checkpoints: `01b8caf`, `185916d`; behavioral checkpoint: `44df0a3`.
+- Contract: `ExecuteProgressionUseCase.execute(ProgressionInput, ProgressionProfile)` returns `ProgressionOutcome`.
+- Application service: `ProgressionApplicationService` coordinates engine calculation and profile application without source, JPA, repository, HTTP, auth, or LifeOS dependencies.
+- Outcome: preserves both `ProgressionResult` (needed by the current record adapter) and updated `ProgressionProfile`; no command was necessary.
+- Responsibilities removed: semantic progression execution and result application are delegated by `ProcessarRegistroAtividadeService`; record lookup, mapping, status, and persistence remain there.
+- Behavior preserved: XP, stress, attributes, skill bonuses, levels, points, status, and persistence remain unchanged.
+- Tests: 17 targeted tests pass using the existing resource-copy workaround for the pre-existing `application.properties` encoding issue.
+- Remaining risks: raw/effective XP, stress association, ID-derived keys, idempotency, persistence boundary, and existing non-progression responsibilities in `Jogador`.
+
 ### 2026-09-02 - TASK-004 Establish Progression Profile Boundary
 
 - Baseline commit: `01b8caf`; checkpoints: `185916d` and `44df0a3`.
