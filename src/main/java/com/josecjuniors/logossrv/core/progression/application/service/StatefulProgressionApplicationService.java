@@ -24,6 +24,11 @@ public class StatefulProgressionApplicationService implements ExecuteSubjectProg
     public ProgressionOutcome execute(SubjectId subjectId, ProgressionInput input) {
         ProgressionProfile currentProfile = profileRepository.findBySubjectId(subjectId)
                 .orElseThrow(() -> new IllegalStateException("Estado de progressÃ£o nÃ£o encontrado para o subject."));
+        return executeLoaded(subjectId, input, currentProfile);
+    }
+
+    public ProgressionOutcome executeLoaded(SubjectId subjectId, ProgressionInput input,
+                                            ProgressionProfile currentProfile) {
         ProgressionOutcome calculated = progressionUseCase.execute(input, currentProfile);
         ProgressionProfile savedProfile = profileRepository.save(subjectId, calculated.updatedProfile());
         return new ProgressionOutcome(calculated.result(), savedProfile);

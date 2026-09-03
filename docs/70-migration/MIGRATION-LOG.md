@@ -1,5 +1,17 @@
 # Migration Log
 
+### 2026-09-02 - TASK-008 Establish Progression Fact and Configuration Resolution Boundary
+
+- Baseline commit: `2359842`; architectural checkpoint: `1bf8522`.
+- Configuration reference: `ProgressionConfigurationReference(UUID)` maps to the existing `AtividadeConfigId`; no migration was necessary.
+- Facts: `ProgressionFact` contains only numeric detail keys and values.
+- Configuration: `ProgressionConfiguration` contains base XP/stress, attribute distributions, XP rules, stress rules, and skill bonus rules.
+- Resolution: `ProgressionConfigurationResolver` and `JpaProgressionConfigurationResolver` adapt `AtividadeConfigRepository` and current skill rule repositories without exposing JPA to the core.
+- Composition: `ProgressionInputFactory` combines facts, resolved configuration, and `ProgressionProfile.skills` into the existing `ProgressionInput`; the configured stateful use case then delegates to the existing stateful/core services.
+- Ownership: callers do not provide rules or progression state; Logos resolves rules and owns canonical state.
+- Tests: 24 targeted tests pass with the existing resource-copy workaround.
+- Risks: configuration versioning/lifecycle, temporary UUID bridge, idempotency, concurrency, stress association, and raw/effective XP remain debts.
+
 ### 2026-09-02 - TASK-007 Expose Internal Progression HTTP Adapter - BLOCKED
 
 - Baseline commit: `1bf8522`; prior checkpoints: `4dac8a3`, `207b300`, `01b8caf`, `185916d`, `44df0a3`.
