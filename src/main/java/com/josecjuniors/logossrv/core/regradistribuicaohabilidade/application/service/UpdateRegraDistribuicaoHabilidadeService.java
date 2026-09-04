@@ -8,6 +8,8 @@ import com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.excepti
 import com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.model.RegraDistribuicaoHabilidade;
 import com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.repository.RegraDistribuicaoHabilidadeRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -15,9 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class UpdateRegraDistribuicaoHabilidadeService implements UpdateRegraDistribuicaoHabilidadeUseCase {
 
     private final RegraDistribuicaoHabilidadeRepository repository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Autowired
+    public UpdateRegraDistribuicaoHabilidadeService(RegraDistribuicaoHabilidadeRepository repository, ApplicationEventPublisher eventPublisher) {
+        this.repository = repository;
+        this.eventPublisher = eventPublisher;
+    }
 
     public UpdateRegraDistribuicaoHabilidadeService(RegraDistribuicaoHabilidadeRepository repository) {
-        this.repository = repository;
+        this(repository, null);
     }
 
     @Override
@@ -32,6 +41,7 @@ public class UpdateRegraDistribuicaoHabilidadeService implements UpdateRegraDist
         regraDistribuicaoHabilidade.atualizar(command.pesoDistribuicao());
         
         RegraDistribuicaoHabilidade regraSalva = repository.save(regraDistribuicaoHabilidade);
+        if (eventPublisher != null) eventPublisher.publishEvent(new com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.events.SkillPolicySalvaEvent());
         return RegraDistribuicaoHabilidadeDto.fromDomain(regraSalva);
     }
 }

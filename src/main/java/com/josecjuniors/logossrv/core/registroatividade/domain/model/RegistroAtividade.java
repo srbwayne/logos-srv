@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "registro_atividade")
@@ -55,6 +56,12 @@ public class RegistroAtividade extends AbstractDomainAggregate<RegistroAtividade
 
     private Integer estresseGerado;
 
+    @Column(name = "configuration_version_id")
+    private UUID configurationVersionId;
+
+    @Column(name = "skill_policy_version_id")
+    private UUID skillPolicyVersionId;
+
     @OneToMany(mappedBy = "registroAtividade", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RegistroAtividadeDetalhe> detalhes = new ArrayList<>();
 
@@ -85,8 +92,15 @@ public class RegistroAtividade extends AbstractDomainAggregate<RegistroAtividade
     }
 
     public void marcarComoProcessado(int xpFinal, int estresseFinal) {
+        marcarComoProcessado(xpFinal, estresseFinal, null, null);
+    }
+
+    public void marcarComoProcessado(int xpFinal, int estresseFinal, UUID configurationVersionId,
+                                     UUID skillPolicyVersionId) {
         this.xpGanhoFinal = xpFinal;
         this.estresseGerado = estresseFinal;
+        this.configurationVersionId = configurationVersionId;
+        this.skillPolicyVersionId = skillPolicyVersionId;
         this.statusProcessamento = StatusProcessamento.PROCESSADO;
     }
 
@@ -130,6 +144,10 @@ public class RegistroAtividade extends AbstractDomainAggregate<RegistroAtividade
     public Integer getEstresseGerado() {
         return estresseGerado;
     }
+
+    public UUID getConfigurationVersionId() { return configurationVersionId; }
+
+    public UUID getSkillPolicyVersionId() { return skillPolicyVersionId; }
 
     public SituacaoRegistroAtividade getSituacao() {
         return situacao;

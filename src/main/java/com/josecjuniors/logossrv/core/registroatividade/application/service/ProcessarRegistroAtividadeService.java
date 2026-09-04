@@ -3,8 +3,12 @@ package com.josecjuniors.logossrv.core.registroatividade.application.service;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
 import com.josecjuniors.logossrv.core.progression.application.port.in.ExecuteProgressionUseCase;
+import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
 import com.josecjuniors.logossrv.core.progression.application.service.ProgressionApplicationService;
+import com.josecjuniors.logossrv.core.progression.application.service.ProgressionInputFactory;
 import com.josecjuniors.logossrv.core.progression.application.service.ProgressionOutcome;
+import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
+import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.enums.TipoFatorEstresse;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
@@ -30,11 +34,21 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
     private final JogadorRepository jogadorRepository;
     private final ExecuteProgressionUseCase executeProgressionUseCase = new ProgressionApplicationService();
     private final ProgressionProfileMapper progressionProfileMapper = new ProgressionProfileMapper();
+    private final VersionedProgressionConfigurationResolver versionedResolver;
+    private final ProgressionInputFactory inputFactory;
 
     @Autowired
-    public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository) {
+    public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository,
+                                             VersionedProgressionConfigurationResolver versionedResolver,
+                                             ProgressionInputFactory inputFactory) {
         this.registroAtividadeRepository = registroAtividadeRepository;
         this.jogadorRepository = jogadorRepository;
+        this.versionedResolver = versionedResolver;
+        this.inputFactory = inputFactory;
+    }
+
+    public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository) {
+        this(registroAtividadeRepository, jogadorRepository, null, null);
     }
 
     public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository, com.josecjuniors.logossrv.core.common.service.NivelXPService ignoredNivelXPService) {
@@ -57,7 +71,14 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
 
         Jogador jogador = registro.getJogador();
         ProgressionProfile currentProfile = progressionProfileMapper.from(jogador);
-        ProgressionInput input = toProgressionInput(registro);
+        var resolved = versionedResolver == null ? java.util.Optional.<com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration>empty()
+                : versionedResolver.resolveVersioned(new ProgressionConfigurationReference(registro.getAtividadeConfig().getId().getValue()));
+        ProgressionInput input = resolved.map(value -> inputFactory.create(
+                        new ProgressionFact(registro.getDetalhes().stream()
+                                .filter(d -> value.numericFactorKeys().contains(d.getFatorCalculo().getId().getValue().toString()))
+                                .map(d -> new ProgressionFact.Detail(d.getFatorCalculo().getId().getValue().toString(), Double.parseDouble(d.getValorRegistrado())))
+                                .toList()), value.configuration(), currentProfile))
+                .orElseGet(() -> toProgressionInput(registro));
         ProgressionOutcome outcome = executeProgressionUseCase.execute(input, currentProfile);
         ProgressionProfile updatedProfile = outcome.updatedProfile();
         ProgressionResult result = outcome.result();
@@ -65,7 +86,13 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
                 .map(regra -> regra.getAtributo()).toList());
         jogadorRepository.save(jogador);
 
-        registro.marcarComoProcessado((int) result.xpGlobal(), (int) result.stressTotal());
+        if (resolved.isPresent()) {
+            var value = resolved.get();
+            registro.marcarComoProcessado((int) result.xpGlobal(), (int) result.stressTotal(),
+                    value.configurationVersionId(), value.skillPolicyVersionId());
+        } else {
+            registro.marcarComoProcessado((int) result.xpGlobal(), (int) result.stressTotal());
+        }
         registroAtividadeRepository.save(registro);
 
         logger.info("Registro de atividade ID: {} processado com sucesso.", event.registroAtividadeId().getValue());

@@ -11,6 +11,8 @@ import com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.model.R
 import com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.model.RegraDistribuicaoHabilidadeId;
 import com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.repository.RegraDistribuicaoHabilidadeRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -20,11 +22,18 @@ public class CreateRegraDistribuicaoHabilidadeService implements CreateRegraDist
     private final RegraDistribuicaoHabilidadeRepository repository;
     private final HabilidadeRepository habilidadeRepository;
     private final AtributoRepository atributoRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public CreateRegraDistribuicaoHabilidadeService(RegraDistribuicaoHabilidadeRepository repository, HabilidadeRepository habilidadeRepository, AtributoRepository atributoRepository) {
+    @Autowired
+    public CreateRegraDistribuicaoHabilidadeService(RegraDistribuicaoHabilidadeRepository repository, HabilidadeRepository habilidadeRepository, AtributoRepository atributoRepository, ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.habilidadeRepository = habilidadeRepository;
         this.atributoRepository = atributoRepository;
+        this.eventPublisher = eventPublisher;
+    }
+
+    public CreateRegraDistribuicaoHabilidadeService(RegraDistribuicaoHabilidadeRepository repository, HabilidadeRepository habilidadeRepository, AtributoRepository atributoRepository) {
+        this(repository, habilidadeRepository, atributoRepository, null);
     }
 
     @Override
@@ -42,6 +51,7 @@ public class CreateRegraDistribuicaoHabilidadeService implements CreateRegraDist
         );
 
         var regraSalva = repository.save(novaRegra);
+        if (eventPublisher != null) eventPublisher.publishEvent(new com.josecjuniors.logossrv.core.regradistribuicaohabilidade.domain.events.SkillPolicySalvaEvent());
         return RegraDistribuicaoHabilidadeDto.fromDomain(regraSalva);
     }
 }

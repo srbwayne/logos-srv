@@ -142,6 +142,8 @@ class ProcessarRegistroAtividadeServiceTest {
         assertThat(registroProcessado.getXpGanhoFinal()).isEqualTo(150);
         // Estresse = 10 (base) + (10 / 2.0) = 15
         assertThat(registroProcessado.getEstresseGerado()).isEqualTo(15);
+        assertThat(registroProcessado.getConfigurationVersionId()).isNotNull();
+        assertThat(registroProcessado.getSkillPolicyVersionId()).isNotNull();
 
         // 2. Valida o Jogador
         assertThat(jogadorAtualizado.getEstresseGlobal().getPontuacaoAtual()).isEqualTo(15);
@@ -185,6 +187,8 @@ class ProcessarRegistroAtividadeServiceTest {
 
         // 1. Valida o Registro
         assertThat(registroProcessado.getStatusProcessamento()).isEqualTo(StatusProcessamento.PROCESSADO);
+        assertThat(registroProcessado.getConfigurationVersionId()).isNotNull();
+        assertThat(registroProcessado.getSkillPolicyVersionId()).isNotNull();
         // XP = 10 (base)
         assertThat(registroProcessado.getXpGanhoFinal()).isEqualTo(10);
         // Estresse = 5 (base)
