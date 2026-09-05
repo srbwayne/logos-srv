@@ -3,7 +3,6 @@ package com.josecjuniors.logossrv.core.atributo.domain.model;
 import com.josecjuniors.logossrv.core.util.domain.AbstractDomainAggregate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Lob;
 
 @Entity
 public class Atributo extends AbstractDomainAggregate<AtributoId> {
@@ -11,7 +10,7 @@ public class Atributo extends AbstractDomainAggregate<AtributoId> {
     @Column(nullable = false, unique = true)
     private String nome;
 
-    @Lob
+    @Column(name = "descricao")
     private String descricao;
 
     protected Atributo() {
