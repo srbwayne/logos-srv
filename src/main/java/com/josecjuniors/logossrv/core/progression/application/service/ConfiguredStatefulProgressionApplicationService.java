@@ -63,6 +63,14 @@ public class ConfiguredStatefulProgressionApplicationService implements ExecuteC
         if (externalConfigurationResolver == null) throw new ProgressionConfigurationNotFoundException();
         var resolved = externalConfigurationResolver.resolve(configurationReference)
                 .orElseThrow(ProgressionConfigurationNotFoundException::new);
+        return executeResolved(subjectId, resolved, fact);
+    }
+
+    public ProgressionOutcome executeResolved(SubjectId subjectId,
+                                              com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration resolved,
+                                              ProgressionFact fact) {
+        ProgressionProfile profile = profileRepository.findBySubjectId(subjectId)
+                .orElseThrow(ProgressionSubjectNotFoundException::new);
         return statefulProgression.executeLoaded(subjectId, inputFactory.create(fact, resolved.configuration(), profile), profile);
     }
 }
