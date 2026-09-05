@@ -5,12 +5,13 @@ import com.josecjuniors.logossrv.core.progression.application.port.out.Versioned
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfiguration;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration;
+import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 @Repository
-public class JpaProgressionConfigurationResolver implements ProgressionConfigurationResolver, VersionedProgressionConfigurationResolver {
+public class JpaProgressionConfigurationResolver implements ProgressionConfigurationResolver, VersionedProgressionConfigurationResolver, com.josecjuniors.logossrv.core.progression.application.port.out.ExternalProgressionConfigurationResolver {
     private final VersionedProgressionConfigurationStore store;
 
     public JpaProgressionConfigurationResolver(VersionedProgressionConfigurationStore store) {
@@ -25,5 +26,10 @@ public class JpaProgressionConfigurationResolver implements ProgressionConfigura
     @Override
     public Optional<ResolvedProgressionConfiguration> resolveVersioned(ProgressionConfigurationReference reference) {
         return store.resolveVersioned(reference);
+    }
+
+    @Override
+    public Optional<ResolvedProgressionConfiguration> resolve(ExternalProgressionConfigurationReference reference) {
+        return store.resolveExternal(reference);
     }
 }

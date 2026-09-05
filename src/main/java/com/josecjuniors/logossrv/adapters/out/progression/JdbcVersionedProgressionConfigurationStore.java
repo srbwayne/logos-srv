@@ -6,6 +6,7 @@ import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.Atividad
 import com.josecjuniors.logossrv.core.habilidade.domain.repository.HabilidadeRepository;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfiguration;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
+import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
@@ -13,6 +14,7 @@ import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
 
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -26,12 +28,14 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     private final JdbcTemplate jdbc;
     private final AtividadeConfigRepository configs;
     private final HabilidadeRepository habilidades;
+    private final EntityManager entityManager;
 
     JdbcVersionedProgressionConfigurationStore(JdbcTemplate jdbc, AtividadeConfigRepository configs,
-                                                HabilidadeRepository habilidades) {
+                                                HabilidadeRepository habilidades, EntityManager entityManager) {
         this.jdbc = jdbc;
         this.configs = configs;
         this.habilidades = habilidades;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -39,12 +43,37 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     public Optional<ResolvedProgressionConfiguration> resolveVersioned(ProgressionConfigurationReference reference) {
         UUID legacyId = reference.value();
         ConfigRow row = findConfig(legacyId).orElseGet(() -> configs.findById(new AtividadeConfigId(legacyId))
-                .map(this::snapshotConfiguration)
+                .map(config -> {
+                    entityManager.flush();
+                    return snapshotConfiguration(config);
+                })
                 .flatMap(this::findConfigByVersion)
                 .orElse(null));
         if (row == null) return Optional.empty();
 
         PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
+        return Optional.of(materialize(row, policy));
+    }
+
+    @Override
+    @Transactional
+    public Optional<ResolvedProgressionConfiguration> resolveExternal(ExternalProgressionConfigurationReference reference) {
+        String sql = reference.revision() == null ? """
+                SELECT v.id, v.base_xp, v.base_stress FROM progression_configuration_definition d
+                JOIN progression_configuration_version v ON v.id = d.current_version_id
+                WHERE d.logical_key = ?
+                """ : """
+                SELECT v.id, v.base_xp, v.base_stress FROM progression_configuration_definition d
+                JOIN progression_configuration_version v ON v.definition_id = d.id
+                WHERE d.logical_key = ? AND v.revision = ?
+                """;
+        Object[] args = reference.revision() == null ? new Object[]{reference.key()} : new Object[]{reference.key(), reference.revision()};
+        var rows = jdbc.query(sql, (rs, n) -> new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"), rs.getInt("base_stress")), args);
+        if (rows.isEmpty()) return Optional.empty();
+        return Optional.of(materialize(rows.get(0), currentPolicy().orElseGet(this::snapshotPolicy)));
+    }
+
+    private ResolvedProgressionConfiguration materialize(ConfigRow row, PolicyRow policy) {
         var distributions = jdbc.query("""
                 SELECT id, attribute_key, weight FROM progression_configuration_version_distribution
                 WHERE configuration_version_id = ? ORDER BY id
@@ -62,7 +91,7 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
                 SELECT factor_key FROM progression_configuration_version_factor
                 WHERE configuration_version_id = ? AND tipo_input = 'NUMERICO'
                 """, (rs, n) -> rs.getString(1), row.versionId));
-        return Optional.of(new ResolvedProgressionConfiguration(row.versionId, policy.versionId, configuration, numeric));
+        return new ResolvedProgressionConfiguration(row.versionId, policy.versionId, configuration, numeric);
     }
 
     private ProgressionConfiguration.AttributeDistribution toDistribution(DistributionRow d, UUID versionId) {
