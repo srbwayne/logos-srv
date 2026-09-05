@@ -9,7 +9,9 @@ import java.util.Optional;
 public interface JogadorRepository {
     Jogador save(Jogador jogador);
     Optional<Jogador> findById(JogadorId id);
+    Optional<Jogador> findByIdForUpdate(JogadorId id);
     Optional<Jogador> findByAppUserId(AppUserId appUserId);
+    Optional<Jogador> findByAppUserIdForUpdate(AppUserId appUserId);
     Optional<Jogador> findByUserEmail(String email);
     boolean existsByApelidoAndIdNot(String apelido, JogadorId id);
     void deleteAll();

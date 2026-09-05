@@ -25,7 +25,7 @@ public class StatefulProgressionApplicationService implements ExecuteSubjectProg
 
     @Override
     public ProgressionOutcome execute(SubjectId subjectId, ProgressionInput input) {
-        ProgressionProfile currentProfile = profileRepository.findBySubjectId(subjectId)
+        ProgressionProfile currentProfile = profileRepository.findBySubjectIdForUpdate(subjectId)
                 .orElseThrow(ProgressionSubjectNotFoundException::new);
         return executeLoaded(subjectId, input, currentProfile);
     }

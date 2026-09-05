@@ -39,7 +39,9 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -63,6 +65,7 @@ class IdempotentProgressionControllerPostgresIT {
     @Autowired ExecuteIdempotentExternalSubjectProgressionUseCase idempotentUseCase;
 
     private UUID subjectId;
+    private UUID jogadorId;
     private String token;
     private String configurationKey;
 
@@ -80,6 +83,7 @@ class IdempotentProgressionControllerPostgresIT {
         var player = new Jogador(JogadorId.generate(), user, "idempotent-player");
         player.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), player));
         jogadores.saveAndFlush(player);
+        jogadorId = player.getId().getValue();
         identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "user-1", player));
         var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Reading", "fixture", 10, 0, null, null));
         resolver.resolve(new ProgressionConfigurationReference(config.getId().getValue()));
@@ -122,6 +126,25 @@ class IdempotentProgressionControllerPostgresIT {
         assertThat(executionCount()).isEqualTo(1);
     }
 
+    @Test
+    void concurrentDistinctExecutionsAccumulateOnTheSameSubject() throws Exception {
+        var start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var calls = List.<Callable<Integer>>of(
+                    () -> directConcurrent("distinct-a", 30, start),
+                    () -> directConcurrent("distinct-b", 20, start));
+            var futures = calls.stream().map(pool::submit).toList();
+            start.countDown();
+            for (var future : futures) assertThat(future.get(10, TimeUnit.SECONDS)).isEqualTo(200);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId))
+                .isEqualTo(50L);
+    }
+
     private IdempotentProgressionEvaluationRequest request(String source, String key, double pages) {
         return new IdempotentProgressionEvaluationRequest(
                 new IdempotentProgressionEvaluationRequest.ExecutionIdentity(source, key),
@@ -137,12 +160,17 @@ class IdempotentProgressionControllerPostgresIT {
     }
 
     private int directConcurrent(String key) {
+        return directConcurrent(key, 30, null);
+    }
+
+    private int directConcurrent(String key, double pages, CountDownLatch start) {
         try {
+            if (start != null) start.await(10, TimeUnit.SECONDS);
             idempotentUseCase.execute(
                     new ProgressionExecutionIdentity("lifeos", key),
                     new ExternalSubjectReference("lifeos", "user-1"),
                     new ExternalProgressionConfigurationReference(configurationKey, null),
-                    new ProgressionFact(List.of(new ProgressionFact.Detail("pages_read", 30))));
+                    new ProgressionFact(List.of(new ProgressionFact.Detail("pages_read", pages))));
             return 200;
         } catch (Exception exception) {
             throw new RuntimeException(exception);

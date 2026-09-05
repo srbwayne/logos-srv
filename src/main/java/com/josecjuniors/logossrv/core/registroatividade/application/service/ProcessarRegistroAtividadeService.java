@@ -69,7 +69,8 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
         RegistroAtividade registro = registroAtividadeRepository.findByIdWithDetails(event.registroAtividadeId())
                 .orElseThrow(() -> new IllegalStateException("Registro de Atividade não encontrado para processamento. ID: " + event.registroAtividadeId().getValue()));
 
-        Jogador jogador = registro.getJogador();
+        Jogador jogador = jogadorRepository.findByIdForUpdate(registro.getJogador().getId())
+                .orElseThrow(() -> new IllegalStateException("Jogador nÃ£o encontrado para processamento."));
         ProgressionProfile currentProfile = progressionProfileMapper.from(jogador);
         var resolved = versionedResolver == null ? java.util.Optional.<com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration>empty()
                 : versionedResolver.resolveVersioned(new ProgressionConfigurationReference(registro.getAtividadeConfig().getId().getValue()));

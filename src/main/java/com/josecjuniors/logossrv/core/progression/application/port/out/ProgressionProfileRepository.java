@@ -10,5 +10,7 @@ public interface ProgressionProfileRepository {
 
     Optional<ProgressionProfile> findBySubjectId(SubjectId subjectId);
 
+    Optional<ProgressionProfile> findBySubjectIdForUpdate(SubjectId subjectId);
+
     ProgressionProfile save(SubjectId subjectId, ProgressionProfile profile);
 }

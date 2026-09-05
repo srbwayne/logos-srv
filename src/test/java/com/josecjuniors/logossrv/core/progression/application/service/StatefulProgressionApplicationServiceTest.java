@@ -65,6 +65,11 @@ class StatefulProgressionApplicationServiceTest {
         }
 
         @Override
+        public Optional<ProgressionProfile> findBySubjectIdForUpdate(SubjectId subjectId) {
+            return Optional.ofNullable(current);
+        }
+
+        @Override
         public ProgressionProfile save(SubjectId subjectId, ProgressionProfile profile) {
             savedSubject = subjectId;
             savedProfile = profile;

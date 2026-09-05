@@ -35,6 +35,12 @@ public class JpaProgressionProfileRepository implements ProgressionProfileReposi
     }
 
     @Override
+    public Optional<ProgressionProfile> findBySubjectIdForUpdate(SubjectId subjectId) {
+        return jogadorRepository.findByAppUserIdForUpdate(new AppUserId(subjectId.value()))
+                .map(mapper::from);
+    }
+
+    @Override
     public ProgressionProfile save(SubjectId subjectId, ProgressionProfile profile) {
         Jogador jogador = jogadorRepository.findByAppUserId(new AppUserId(subjectId.value()))
                 .orElseThrow(ProgressionSubjectNotFoundException::new);

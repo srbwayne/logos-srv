@@ -47,10 +47,10 @@ public class ConfiguredStatefulProgressionApplicationService implements ExecuteC
     @Override
     public ProgressionOutcome execute(SubjectId subjectId, ProgressionConfigurationReference configurationReference,
                                       ProgressionFact fact) {
-        ProgressionProfile profile = profileRepository.findBySubjectId(subjectId)
-                .orElseThrow(ProgressionSubjectNotFoundException::new);
         var configuration = configurationResolver.resolve(configurationReference)
                 .orElseThrow(ProgressionConfigurationNotFoundException::new);
+        ProgressionProfile profile = profileRepository.findBySubjectIdForUpdate(subjectId)
+                .orElseThrow(ProgressionSubjectNotFoundException::new);
         return statefulProgression.executeLoaded(subjectId, inputFactory.create(fact, configuration, profile), profile);
     }
 
@@ -58,8 +58,6 @@ public class ConfiguredStatefulProgressionApplicationService implements ExecuteC
     public ProgressionOutcome execute(SubjectId subjectId,
                                       com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference configurationReference,
                                       ProgressionFact fact) {
-        ProgressionProfile profile = profileRepository.findBySubjectId(subjectId)
-                .orElseThrow(ProgressionSubjectNotFoundException::new);
         if (externalConfigurationResolver == null) throw new ProgressionConfigurationNotFoundException();
         var resolved = externalConfigurationResolver.resolve(configurationReference)
                 .orElseThrow(ProgressionConfigurationNotFoundException::new);
@@ -69,7 +67,7 @@ public class ConfiguredStatefulProgressionApplicationService implements ExecuteC
     public ProgressionOutcome executeResolved(SubjectId subjectId,
                                               com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration resolved,
                                               ProgressionFact fact) {
-        ProgressionProfile profile = profileRepository.findBySubjectId(subjectId)
+        ProgressionProfile profile = profileRepository.findBySubjectIdForUpdate(subjectId)
                 .orElseThrow(ProgressionSubjectNotFoundException::new);
         return statefulProgression.executeLoaded(subjectId, inputFactory.create(fact, resolved.configuration(), profile), profile);
     }
