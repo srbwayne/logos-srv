@@ -1,12 +1,67 @@
 package com.josecjuniors.logossrv.core.registroatividade.application.service;
 
 import org.junit.jupiter.api.Test;
+import com.josecjuniors.logossrv.core.progression.domain.model.XpCalculationMode;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProgressionEngineTest {
+
+    @Test
+    void calculaXpProporcionalAoValorDoFato() {
+        var input = new ProgressionInput(1, 0,
+                List.of(new ProgressionInput.Detail("pages_read", 30)),
+                List.of(new ProgressionInput.AttributeDistribution("LEARNING", 1.0,
+                        List.of(new ProgressionInput.XpRule("pages_read", 1.0, null, null,
+                                XpCalculationMode.FACT_VALUE)), List.of())), List.of());
+
+        var result = new ProgressionEngine().calculate(input);
+
+        assertThat(result.xpGlobal()).isEqualTo(30);
+        assertThat(result.attributeProgressions()).singleElement()
+                .extracting(ProgressionResult.AttributeProgression::xp).isEqualTo(30L);
+    }
+
+    @Test
+    void rejeitaValorNegativoAntesDoResultado() {
+        var input = new ProgressionInput(1, 0,
+                List.of(new ProgressionInput.Detail("pages_read", -1)),
+                List.of(new ProgressionInput.AttributeDistribution("LEARNING", 1.0,
+                        List.of(new ProgressionInput.XpRule("pages_read", 1.0, null, null,
+                                XpCalculationMode.FACT_VALUE)), List.of())), List.of());
+
+        assertThatThrownBy(() -> new ProgressionEngine().calculate(input))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejeitaFatoAusenteParaRegraFactValue() {
+        var input = new ProgressionInput(1, 0, List.of(),
+                List.of(new ProgressionInput.AttributeDistribution("LEARNING", 1.0,
+                        List.of(new ProgressionInput.XpRule("pages_read", 1.0, null, null,
+                                XpCalculationMode.FACT_VALUE)), List.of())), List.of());
+
+        assertThatThrownBy(() -> new ProgressionEngine().calculate(input))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void preservaTruncamentoDecimalNoModoFactValue() {
+        var input = new ProgressionInput(1, 0,
+                List.of(new ProgressionInput.Detail("pages_read", 1.5)),
+                List.of(new ProgressionInput.AttributeDistribution("LEARNING", 1.0,
+                        List.of(new ProgressionInput.XpRule("pages_read", 1.0, null, null,
+                                XpCalculationMode.FACT_VALUE)), List.of())), List.of());
+
+        var result = new ProgressionEngine().calculate(input);
+
+        assertThat(result.xpGlobal()).isEqualTo(1);
+        assertThat(result.attributeProgressions()).singleElement()
+                .extracting(ProgressionResult.AttributeProgression::xp).isEqualTo(1L);
+    }
 
     private final ProgressionEngine engine = new ProgressionEngine();
 

@@ -1,6 +1,7 @@
 package com.josecjuniors.logossrv.core.registroatividade.application.service;
 
 import java.util.List;
+import com.josecjuniors.logossrv.core.progression.domain.model.XpCalculationMode;
 
 /** Entrada imutável do cálculo de progressão, sem entidades ou dependências de infraestrutura. */
 public record ProgressionInput(
@@ -25,7 +26,16 @@ public record ProgressionInput(
         }
     }
 
-    public record XpRule(String factorKey, double multiplier, Double minCutoff, Double maxCutoff) {}
+    public record XpRule(String factorKey, double multiplier, Double minCutoff, Double maxCutoff,
+                          XpCalculationMode calculationMode) {
+        public XpRule {
+            calculationMode = calculationMode == null ? XpCalculationMode.FIXED : calculationMode;
+        }
+
+        public XpRule(String factorKey, double multiplier, Double minCutoff, Double maxCutoff) {
+            this(factorKey, multiplier, minCutoff, maxCutoff, XpCalculationMode.FIXED);
+        }
+    }
 
     public record StressRule(double multiplier, Double minCutoff, Double maxCutoff, StressType type) {}
 

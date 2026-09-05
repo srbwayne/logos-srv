@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import com.josecjuniors.logossrv.core.progression.domain.model.XpCalculationMode;
 
 @Repository
 class JdbcVersionedProgressionConfigurationStore implements VersionedProgressionConfigurationStore {
@@ -96,11 +97,11 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
 
     private ProgressionConfiguration.AttributeDistribution toDistribution(DistributionRow d, UUID versionId) {
         var xp = jdbc.query("""
-                SELECT factor_key, multiplier, min_cutoff, max_cutoff
+                SELECT factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode
                 FROM progression_configuration_version_xp_rule WHERE distribution_id = ? ORDER BY id
                 """, (rs, n) -> new ProgressionConfiguration.XpRule(rs.getString("factor_key"),
                         (Double) rs.getObject("multiplier"), (Double) rs.getObject("min_cutoff"),
-                        (Double) rs.getObject("max_cutoff")), d.id);
+                        (Double) rs.getObject("max_cutoff"), XpCalculationMode.valueOf(rs.getString("calculation_mode"))), d.id);
         var stress = jdbc.query("""
                 SELECT multiplier, min_cutoff, max_cutoff, type
                 FROM progression_configuration_version_stress_rule WHERE distribution_id = ? ORDER BY id
@@ -146,8 +147,8 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
             jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) VALUES (?, ?, ?, ?)",
                     distribution, version, d.getAtributo().getId().getValue().toString(), d.getPesoPercentual());
             for (RegraFatorXP r : d.getRegraFatorXPS()) {
-                jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff) VALUES (?, ?, ?, ?, ?, ?)",
-                        UUID.randomUUID(), distribution, r.getFatorCalculo().getId().getValue().toString(), r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax());
+                jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        UUID.randomUUID(), distribution, r.getFatorCalculo().getId().getValue().toString(), r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), XpCalculationMode.FIXED.name());
             }
             for (RegraFatorEstresse r : d.getRegraFatorEstresses()) {
                 jdbc.update("INSERT INTO progression_configuration_version_stress_rule(id, distribution_id, multiplier, min_cutoff, max_cutoff, type) VALUES (?, ?, ?, ?, ?, ?)",

@@ -33,7 +33,7 @@ public class ProgressionInputFactory {
         return new ProgressionInput.AttributeDistribution(
                 distribution.attributeKey(), distribution.weight(),
                 distribution.xpRules().stream().map(rule -> new ProgressionInput.XpRule(
-                        rule.factorKey(), rule.multiplier(), rule.minCutoff(), rule.maxCutoff())).toList(),
+                        rule.factorKey(), rule.multiplier(), rule.minCutoff(), rule.maxCutoff(), rule.calculationMode())).toList(),
                 distribution.stressRules().stream().map(rule -> new ProgressionInput.StressRule(
                         rule.multiplier(), rule.minCutoff(), rule.maxCutoff(),
                         rule.type() == ProgressionConfiguration.StressType.NEGATIVE
