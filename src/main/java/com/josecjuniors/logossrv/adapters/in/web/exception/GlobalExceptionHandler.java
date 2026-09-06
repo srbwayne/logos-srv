@@ -15,6 +15,7 @@ import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeNaoE
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeRequisitoNaoEncontradoException;
 import com.josecjuniors.logossrv.core.jogador.domain.exception.ApelidoJaEmUsoException;
 import com.josecjuniors.logossrv.core.jogador.domain.exception.JogadorNaoEncontradoException;
+import com.josecjuniors.logossrv.core.jogador.domain.exception.VicioJogadorNaoEncontradoException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionConflictException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
@@ -131,6 +132,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(JogadorNaoEncontradoException.class)
     public ResponseEntity<Map<String, String>> handleJogadorNaoEncontrado(JogadorNaoEncontradoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(VicioJogadorNaoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleVicioJogadorNaoEncontrado(VicioJogadorNaoEncontradoException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
     }
 
