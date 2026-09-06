@@ -182,4 +182,26 @@
         </plugins>
     </build>
 
+    <profiles>
+        <profile>
+            <id>postgres-it</id>
+            <properties>
+                <maven.resources.skip>true</maven.resources.skip>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <systemPropertyVariables>
+                                <spring.flyway.locations>filesystem:${project.basedir}/src/main/resources/db/migration</spring.flyway.locations>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>
