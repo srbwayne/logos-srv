@@ -36,15 +36,24 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
     private final ProgressionProfileMapper progressionProfileMapper = new ProgressionProfileMapper();
     private final VersionedProgressionConfigurationResolver versionedResolver;
     private final ProgressionInputFactory inputFactory;
+    private final ActivityProgressionAdapter activityProgressionAdapter;
 
     @Autowired
     public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository,
                                              VersionedProgressionConfigurationResolver versionedResolver,
-                                             ProgressionInputFactory inputFactory) {
+                                             ProgressionInputFactory inputFactory,
+                                             ActivityProgressionAdapter activityProgressionAdapter) {
         this.registroAtividadeRepository = registroAtividadeRepository;
         this.jogadorRepository = jogadorRepository;
         this.versionedResolver = versionedResolver;
         this.inputFactory = inputFactory;
+        this.activityProgressionAdapter = activityProgressionAdapter;
+    }
+
+    public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository,
+                                             VersionedProgressionConfigurationResolver versionedResolver,
+                                             ProgressionInputFactory inputFactory) {
+        this(registroAtividadeRepository, jogadorRepository, versionedResolver, inputFactory, null);
     }
 
     public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository) {
@@ -60,7 +69,10 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
     public void processar(RegistroAtividadeCriadoEvent event) {
-        processarEvento(event);
+        if (activityProgressionAdapter == null
+                || !activityProgressionAdapter.process(event.registroAtividadeId().getValue())) {
+            processarEvento(event);
+        }
     }
 
     public void processarEvento(RegistroAtividadeCriadoEvent event) {

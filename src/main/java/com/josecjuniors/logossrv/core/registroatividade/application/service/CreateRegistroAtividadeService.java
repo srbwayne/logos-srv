@@ -20,6 +20,12 @@ import com.josecjuniors.logossrv.core.registroatividade.domain.repository.Regist
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.josecjuniors.logossrv.core.progression.application.port.out.ActivityProgressionExecutionStore;
+import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
+import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
+import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
+import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
+import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
 
 @Service
 @Transactional
@@ -30,13 +36,22 @@ public class CreateRegistroAtividadeService implements CreateRegistroAtividadeUs
     private final AtividadeConfigRepository atividadeConfigRepository;
     private final FatorCalculoRepository fatorCalculoRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final VersionedProgressionConfigurationResolver versionedResolver;
+    private final ActivityProgressionExecutionStore executionStore;
 
     public CreateRegistroAtividadeService(RegistroAtividadeRepository registroRepository, JogadorRepository jogadorRepository, AtividadeConfigRepository atividadeConfigRepository, FatorCalculoRepository fatorCalculoRepository, ApplicationEventPublisher eventPublisher) {
+        this(registroRepository, jogadorRepository, atividadeConfigRepository, fatorCalculoRepository, eventPublisher, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public CreateRegistroAtividadeService(RegistroAtividadeRepository registroRepository, JogadorRepository jogadorRepository, AtividadeConfigRepository atividadeConfigRepository, FatorCalculoRepository fatorCalculoRepository, ApplicationEventPublisher eventPublisher, VersionedProgressionConfigurationResolver versionedResolver, ActivityProgressionExecutionStore executionStore) {
         this.registroRepository = registroRepository;
         this.jogadorRepository = jogadorRepository;
         this.atividadeConfigRepository = atividadeConfigRepository;
         this.fatorCalculoRepository = fatorCalculoRepository;
         this.eventPublisher = eventPublisher;
+        this.versionedResolver = versionedResolver;
+        this.executionStore = executionStore;
     }
 
     @Override
@@ -55,6 +70,26 @@ public class CreateRegistroAtividadeService implements CreateRegistroAtividadeUs
         });
 
         RegistroAtividade registroSalvo = registroRepository.save(novoRegistro);
+
+        if (versionedResolver != null && executionStore != null) {
+            var resolvedOptional = versionedResolver.resolveVersioned(new ProgressionConfigurationReference(atividadeConfig.getId().getValue()));
+            if (resolvedOptional.isEmpty()) {
+                eventPublisher.publishEvent(new RegistroAtividadeCriadoEvent(registroSalvo.getId()));
+                return;
+            }
+            var resolved = resolvedOptional.get();
+            var facts = new ProgressionFact(novoRegistro.getDetalhes().stream()
+                    .filter(d -> resolved.numericFactorKeys().contains(d.getFatorCalculo().getId().getValue().toString()))
+                    .map(d -> new ProgressionFact.Detail(d.getFatorCalculo().getId().getValue().toString(), Double.parseDouble(d.getValorRegistrado())))
+                    .toList());
+            var identity = ActivityProgressionAdapter.identity(registroSalvo.getId().getValue());
+            var fingerprint = com.josecjuniors.logossrv.core.progression.application.service.ProgressionExecutionFingerprint.ofFrozen(
+                    identity, new ExternalSubjectReference("logos", jogador.getId().getValue().toString()),
+                    new ExternalProgressionConfigurationReference("activity-" + atividadeConfig.getId().getValue(), 1), facts,
+                    resolved.configurationVersionId(), resolved.skillPolicyVersionId());
+            executionStore.create(identity, fingerprint, jogador.getUser().getId().getValue(), facts, resolved,
+                    "activity-" + atividadeConfig.getId().getValue(), 1);
+        }
 
         eventPublisher.publishEvent(new RegistroAtividadeCriadoEvent(registroSalvo.getId()));
     }

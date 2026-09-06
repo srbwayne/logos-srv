@@ -23,6 +23,14 @@ public class ProgressionExternalExecutionEntity {
     private String requestFingerprint;
     @Column(name = "response_json", nullable = false, columnDefinition = "TEXT")
     private String responseJson;
+    @Column(name = "request_json", nullable = false, columnDefinition = "TEXT")
+    private String requestJson;
+    @Column(name = "processing_status", nullable = false, length = 32)
+    private String processingStatus;
+    @Column(name = "attempt_count", nullable = false)
+    private Integer attemptCount;
+    @Column(name = "last_error", columnDefinition = "TEXT")
+    private String lastError;
     @Column(name = "subject_namespace", nullable = false, length = 64)
     private String subjectNamespace;
     @Column(name = "subject_external_id", nullable = false, length = 255)
@@ -45,11 +53,26 @@ public class ProgressionExternalExecutionEntity {
                                                String subjectNamespace, String subjectExternalId,
                                                String configurationKey, Integer requestedRevision,
                                                UUID configurationVersionId, UUID skillPolicyVersionId) {
+        this(id, sourceSystem, idempotencyKey, requestFingerprint, responseJson, "{}", "COMPLETED", 1, null,
+                subjectNamespace, subjectExternalId, configurationKey, requestedRevision,
+                configurationVersionId, skillPolicyVersionId);
+    }
+
+    public ProgressionExternalExecutionEntity(UUID id, String sourceSystem, String idempotencyKey,
+                                               String requestFingerprint, String responseJson, String requestJson,
+                                               String processingStatus, int attemptCount, String lastError,
+                                               String subjectNamespace, String subjectExternalId,
+                                               String configurationKey, Integer requestedRevision,
+                                               UUID configurationVersionId, UUID skillPolicyVersionId) {
         this.id = id;
         this.sourceSystem = sourceSystem;
         this.idempotencyKey = idempotencyKey;
         this.requestFingerprint = requestFingerprint;
         this.responseJson = responseJson;
+        this.requestJson = requestJson;
+        this.processingStatus = processingStatus;
+        this.attemptCount = attemptCount;
+        this.lastError = lastError;
         this.subjectNamespace = subjectNamespace;
         this.subjectExternalId = subjectExternalId;
         this.configurationKey = configurationKey;
@@ -60,7 +83,29 @@ public class ProgressionExternalExecutionEntity {
     }
 
     public String getRequestFingerprint() { return requestFingerprint; }
+    public String getSourceSystem() { return sourceSystem; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public String getSubjectNamespace() { return subjectNamespace; }
+    public String getSubjectExternalId() { return subjectExternalId; }
+    public String getConfigurationKey() { return configurationKey; }
+    public Integer getRequestedRevision() { return requestedRevision; }
+    public UUID getConfigurationVersionId() { return configurationVersionId; }
+    public UUID getSkillPolicyVersionId() { return skillPolicyVersionId; }
     public String getResponseJson() { return responseJson; }
     public UUID getId() { return id; }
     public void setResponseJson(String responseJson) { this.responseJson = responseJson; }
+    public String getRequestJson() { return requestJson; }
+    public String getProcessingStatus() { return processingStatus; }
+    public Integer getAttemptCount() { return attemptCount; }
+    public String getLastError() { return lastError; }
+    public void markAttempt(String status, String error) {
+        this.processingStatus = status;
+        this.lastError = error;
+        this.attemptCount++;
+    }
+    public void markCompleted(String responseJson) {
+        this.responseJson = responseJson;
+        this.processingStatus = "COMPLETED";
+        this.lastError = null;
+    }
 }
