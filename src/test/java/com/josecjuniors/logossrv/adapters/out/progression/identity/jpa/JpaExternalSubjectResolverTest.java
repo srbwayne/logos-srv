@@ -30,7 +30,8 @@ class JpaExternalSubjectResolverTest {
         var user = new AppUser(new AppUserId(appUserId), "user@example.com", "password");
         var jogador = new Jogador(JogadorId.generate(), user, "jogador");
         var identity = new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "ABC123", jogador);
-        when(repository.findByNamespaceAndExternalId("lifeos", "ABC123")).thenReturn(Optional.of(identity));
+        when(repository.findAppUserIdByNamespaceAndExternalId("lifeos", "ABC123"))
+                .thenReturn(Optional.of(new AppUserId(appUserId)));
 
         var subjectId = new JpaExternalSubjectResolver(repository)
                 .resolve(new ExternalSubjectReference(" LifeOS ", " ABC123 "));
@@ -40,7 +41,8 @@ class JpaExternalSubjectResolverTest {
 
     @Test
     void mappingAusenteRetornaNotFound() {
-        when(repository.findByNamespaceAndExternalId("lifeos", "missing")).thenReturn(Optional.empty());
+        when(repository.findAppUserIdByNamespaceAndExternalId("lifeos", "missing"))
+                .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> new JpaExternalSubjectResolver(repository)
                 .resolve(new ExternalSubjectReference("lifeos", "missing")))
@@ -54,10 +56,10 @@ class JpaExternalSubjectResolverTest {
         var jogador = new Jogador(JogadorId.generate(), user, "jogador");
         var nativeIdentity = new ProgressionSubjectIdentity(UUID.randomUUID(), "logos-native", "A", jogador);
         var lifeOsIdentity = new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "B", jogador);
-        when(repository.findByNamespaceAndExternalId("logos-native", "A"))
-                .thenReturn(Optional.of(nativeIdentity));
-        when(repository.findByNamespaceAndExternalId("lifeos", "B"))
-                .thenReturn(Optional.of(lifeOsIdentity));
+        when(repository.findAppUserIdByNamespaceAndExternalId("logos-native", "A"))
+                .thenReturn(Optional.of(new AppUserId(appUserId)));
+        when(repository.findAppUserIdByNamespaceAndExternalId("lifeos", "B"))
+                .thenReturn(Optional.of(new AppUserId(appUserId)));
         var resolver = new JpaExternalSubjectResolver(repository);
 
         assertThat(resolver.resolve(new ExternalSubjectReference("logos-native", "A")).value())

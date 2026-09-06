@@ -17,8 +17,8 @@ public class JpaExternalSubjectResolver implements ExternalSubjectResolver {
 
     @Override
     public SubjectId resolve(ExternalSubjectReference reference) {
-        return repository.findByNamespaceAndExternalId(reference.namespace(), reference.externalId())
-                .map(identity -> new SubjectId(identity.getJogador().getUser().getId().getValue()))
+        return repository.findAppUserIdByNamespaceAndExternalId(reference.namespace(), reference.externalId())
+                .map(appUserId -> new SubjectId(appUserId.getValue()))
                 .orElseThrow(ProgressionSubjectNotFoundException::new);
     }
 }

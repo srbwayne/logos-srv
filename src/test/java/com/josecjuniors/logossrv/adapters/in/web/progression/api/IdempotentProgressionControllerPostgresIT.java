@@ -84,6 +84,12 @@ class IdempotentProgressionControllerPostgresIT {
         player.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), player));
         jogadores.saveAndFlush(player);
         jogadorId = player.getId().getValue();
+        var learningId = jdbc.queryForObject(
+                "SELECT id FROM atributo WHERE nome = 'LEARNING'", UUID.class);
+        jdbc.update("""
+                INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual)
+                VALUES (?, ?, ?, 0, 1)
+                """, UUID.randomUUID(), jogadorId, learningId);
         identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "user-1", player));
         var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Reading", "fixture", 10, 0, null, null));
         resolver.resolve(new ProgressionConfigurationReference(config.getId().getValue()));
@@ -132,8 +138,8 @@ class IdempotentProgressionControllerPostgresIT {
         var pool = Executors.newFixedThreadPool(2);
         try {
             var calls = List.<Callable<Integer>>of(
-                    () -> directConcurrent("distinct-a", 30, start),
-                    () -> directConcurrent("distinct-b", 20, start));
+                    () -> directFactValueConcurrent("distinct-a", 30, start),
+                    () -> directFactValueConcurrent("distinct-b", 20, start));
             var futures = calls.stream().map(pool::submit).toList();
             start.countDown();
             for (var future : futures) assertThat(future.get(10, TimeUnit.SECONDS)).isEqualTo(200);
@@ -143,6 +149,27 @@ class IdempotentProgressionControllerPostgresIT {
 
         assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId))
                 .isEqualTo(50L);
+        assertThat(attributeXp()).isEqualTo(50L);
+    }
+
+    @Test
+    void factValueExecutionsAccumulateSequentiallyInCreationOrder() {
+        directFactValue("serial-a", 30);
+        directFactValue("serial-b", 20);
+
+        assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId))
+                .isEqualTo(50L);
+        assertThat(attributeXp()).isEqualTo(50L);
+    }
+
+    @Test
+    void factValueExecutionsAccumulateSequentiallyInReverseOrder() {
+        directFactValue("serial-b", 20);
+        directFactValue("serial-a", 30);
+
+        assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId))
+                .isEqualTo(50L);
+        assertThat(attributeXp()).isEqualTo(50L);
     }
 
     private IdempotentProgressionEvaluationRequest request(String source, String key, double pages) {
@@ -175,6 +202,33 @@ class IdempotentProgressionControllerPostgresIT {
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }
+    }
+
+    private int directFactValueConcurrent(String key, double pages, CountDownLatch start) {
+        try {
+            start.await(10, TimeUnit.SECONDS);
+            directFactValue(key, pages);
+            return 200;
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+    }
+
+    private void directFactValue(String key, double pages) {
+        idempotentUseCase.execute(
+                new ProgressionExecutionIdentity("lifeos", key),
+                new ExternalSubjectReference("lifeos", "user-1"),
+                new ExternalProgressionConfigurationReference("reading", 2),
+                new ProgressionFact(List.of(new ProgressionFact.Detail("pages_read", pages))));
+    }
+
+    private long attributeXp() {
+        return jdbc.queryForObject("""
+                SELECT aj.xp_total
+                FROM atributo_jogador aj
+                JOIN atributo a ON a.id = aj.atributo_id
+                WHERE aj.jogador_id = ? AND a.nome = 'LEARNING'
+                """, Long.class, jogadorId);
     }
 
     private int executionCount() {
