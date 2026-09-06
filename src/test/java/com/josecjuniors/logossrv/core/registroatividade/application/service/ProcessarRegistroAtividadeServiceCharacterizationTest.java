@@ -216,6 +216,8 @@ class ProcessarRegistroAtividadeServiceCharacterizationTest {
 
     private void processar(RegistroAtividade registro) {
         when(registroRepository.findByIdWithDetails(registro.getId())).thenReturn(Optional.of(registro));
+        when(jogadorRepository.findByIdForUpdate(registro.getJogador().getId()))
+                .thenReturn(Optional.of(registro.getJogador()));
         service.processarEvento(new RegistroAtividadeCriadoEvent(registro.getId()));
     }
 
