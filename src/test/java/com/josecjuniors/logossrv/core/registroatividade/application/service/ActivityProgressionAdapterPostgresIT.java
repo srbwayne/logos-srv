@@ -21,6 +21,7 @@ import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobal
 import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobalId;
 import com.josecjuniors.logossrv.core.progression.application.port.out.ActivityProgressionExecutionStore;
 import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
+import com.josecjuniors.logossrv.core.progression.application.service.ConfiguredStatefulProgressionApplicationService;
 import com.josecjuniors.logossrv.core.progression.application.service.ProgressionExecutionFingerprint;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionConflictException;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +52,9 @@ import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
 
 @IntegrationTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -65,6 +70,7 @@ class ActivityProgressionAdapterPostgresIT {
     @Autowired VersionedProgressionConfigurationResolver resolver;
     @Autowired ActivityProgressionAdapter adapter;
     @Autowired ActivityProgressionRecovery recovery;
+    @SpyBean ConfiguredStatefulProgressionApplicationService progression;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder encoder;
 
@@ -195,6 +201,74 @@ class ActivityProgressionAdapterPostgresIT {
         assertThat(executions.findBySourceSystemAndIdempotencyKey(ActivityProgressionAdapter.SOURCE,
                 activity.id().getValue().toString())).hasValueSatisfying(e ->
                 assertThat(e.getProcessingStatus()).isEqualTo("PENDING"));
+    }
+
+    @Test
+    void retryUsesFrozenConfigurationAndSkillPolicyAfterRollout() {
+        var fixture = fixture();
+        var activity = intent(fixture, 30);
+        var execution = executions.findBySourceSystemAndIdempotencyKey(ActivityProgressionAdapter.SOURCE,
+                activity.id().getValue().toString()).orElseThrow();
+        var configurationVersion = execution.getConfigurationVersionId();
+        var skillPolicyVersion = execution.getSkillPolicyVersionId();
+
+        doThrow(new IllegalStateException("controlled retry failure")).when(progression)
+                .executeResolved(any(), any(), any());
+        try {
+            assertThatThrownBy(() -> adapter.process(activity.id().getValue()))
+                    .isInstanceOf(RuntimeException.class);
+        } finally {
+            reset(progression);
+        }
+
+        rolloutConfiguration(configurationVersion, 99);
+        rolloutSkillPolicy(skillPolicyVersion);
+
+        assertThat(recovery.recover()).isEqualTo(1);
+        assertThat(xp(fixture.userId())).isEqualTo(30L);
+        assertThat(executions.findBySourceSystemAndIdempotencyKey(ActivityProgressionAdapter.SOURCE,
+                activity.id().getValue().toString())).hasValueSatisfying(recovered -> {
+            assertThat(recovered.getConfigurationVersionId()).isEqualTo(configurationVersion);
+            assertThat(recovered.getSkillPolicyVersionId()).isEqualTo(skillPolicyVersion);
+            assertThat(recovered.getProcessingStatus()).isEqualTo("COMPLETED");
+        });
+    }
+
+    private void rolloutConfiguration(UUID previousVersion, int newBaseXp) {
+        UUID definition = jdbc.queryForObject(
+                "SELECT definition_id FROM progression_configuration_version WHERE id = ?", UUID.class, previousVersion);
+        int revision = jdbc.queryForObject(
+                "SELECT COALESCE(MAX(revision), 0) + 1 FROM progression_configuration_version WHERE definition_id = ?",
+                Integer.class, definition);
+        UUID version = UUID.randomUUID();
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress) "
+                + "SELECT ?, definition_id, ?, ?, base_stress FROM progression_configuration_version WHERE id = ?",
+                version, revision, newBaseXp, previousVersion);
+        UUID distribution = UUID.randomUUID();
+        jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) "
+                + "SELECT ?, ?, attribute_key, weight FROM progression_configuration_version_distribution WHERE configuration_version_id = ?",
+                distribution, version, previousVersion);
+        jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) "
+                + "SELECT gen_random_uuid(), ?, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode "
+                + "FROM progression_configuration_version_xp_rule r JOIN progression_configuration_version_distribution d ON d.id = r.distribution_id "
+                + "WHERE d.configuration_version_id = ?", distribution, previousVersion);
+        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) "
+                + "SELECT gen_random_uuid(), ?, factor_key, tipo_input FROM progression_configuration_version_factor WHERE configuration_version_id = ?",
+                version, previousVersion);
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
+    }
+
+    private void rolloutSkillPolicy(UUID previousVersion) {
+        UUID policy = jdbc.queryForObject("SELECT policy_id FROM progression_skill_policy_version WHERE id = ?", UUID.class, previousVersion);
+        UUID version = UUID.randomUUID();
+        int revision = jdbc.queryForObject(
+                "SELECT COALESCE(MAX(revision), 0) + 1 FROM progression_skill_policy_version WHERE policy_id = ?",
+                Integer.class, policy);
+        jdbc.update("INSERT INTO progression_skill_policy_version(id, policy_id, revision) VALUES (?, ?, ?)", version, policy, revision);
+        jdbc.update("INSERT INTO progression_skill_policy_version_rule(id, policy_version_id, skill_key, attribute_key, distribution_weight) "
+                + "SELECT gen_random_uuid(), ?, skill_key, attribute_key, distribution_weight FROM progression_skill_policy_version_rule WHERE policy_version_id = ?",
+                version, previousVersion);
+        jdbc.update("UPDATE progression_skill_policy SET current_version_id = ? WHERE id = ?", version, policy);
     }
 
     private Fixture fixture() {
