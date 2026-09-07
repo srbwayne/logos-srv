@@ -49,6 +49,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @IntegrationTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -150,6 +151,50 @@ class ActivityProgressionAdapterPostgresIT {
         assertThat(xp(fixture.userId())).isEqualTo(20L);
         assertThat(registros.findById(activity.id())).hasValueSatisfying(r ->
                 assertThat(r.getStatusProcessamento().name()).isEqualTo("PROCESSADO"));
+    }
+
+    @Test
+    void sequentialRetryReusesCompletedExecution() {
+        var fixture = fixture();
+        var activity = intent(fixture, 30);
+
+        assertThat(adapter.process(activity.id().getValue())).isTrue();
+        assertThat(adapter.process(activity.id().getValue())).isTrue();
+        assertThat(xp(fixture.userId())).isEqualTo(30L);
+    }
+
+    @Test
+    void differentSubjectsCanProcessConcurrently() throws Exception {
+        var firstFixture = fixture();
+        var secondFixture = fixture();
+        var first = intent(firstFixture, 30);
+        var second = intent(secondFixture, 20);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var futures = List.of(pool.submit(() -> adapter.process(first.id().getValue())),
+                    pool.submit(() -> adapter.process(second.id().getValue())));
+            assertThat(futures.get(0).get()).isTrue();
+            assertThat(futures.get(1).get()).isTrue();
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(xp(firstFixture.userId())).isEqualTo(30L);
+        assertThat(xp(secondFixture.userId())).isEqualTo(20L);
+    }
+
+    @Test
+    void canonicalMutationRollsBackWhenProjectionCannotBeWritten() {
+        var fixture = fixture();
+        var activity = intent(fixture, 30);
+        jdbc.update("DELETE FROM registro_atividade_detalhe WHERE registro_atividade_id = ?", activity.id().getValue());
+        jdbc.update("DELETE FROM registro_atividade WHERE id = ?", activity.id().getValue());
+
+        assertThatThrownBy(() -> adapter.process(activity.id().getValue()))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(xp(fixture.userId())).isZero();
+        assertThat(executions.findBySourceSystemAndIdempotencyKey(ActivityProgressionAdapter.SOURCE,
+                activity.id().getValue().toString())).hasValueSatisfying(e ->
+                assertThat(e.getProcessingStatus()).isEqualTo("PENDING"));
     }
 
     private Fixture fixture() {
