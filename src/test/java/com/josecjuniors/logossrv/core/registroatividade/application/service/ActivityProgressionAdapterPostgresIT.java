@@ -29,6 +29,9 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectRe
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionExecutionIdentity;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
+import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfiguration;
+import com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration;
+import com.josecjuniors.logossrv.core.progression.domain.model.XpCalculationMode;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXPId;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
@@ -48,6 +51,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -232,6 +236,104 @@ class ActivityProgressionAdapterPostgresIT {
             assertThat(recovered.getSkillPolicyVersionId()).isEqualTo(skillPolicyVersion);
             assertThat(recovered.getProcessingStatus()).isEqualTo("COMPLETED");
         });
+    }
+
+    @Test
+    void fixedRulesCoverMatchedUnmatchedInclusiveOpenAndTruncatedActivityPath() {
+        var lower = fixture();
+        var unmatched = fixture();
+        var upper = fixture();
+        var open = fixture();
+        assertThat(process(lower, fixed(lower, 100, 0, .25, 2, 80.0, 120.0), 80)).isEqualTo(50L);
+        assertThat(process(unmatched, fixed(unmatched, 100, 0, .50, 2, 80.0, 120.0), 79.9)).isEqualTo(25L);
+        assertThat(process(upper, fixed(upper, 100, 0, .25, 2, 80.0, 120.0), 120)).isEqualTo(50L);
+        assertThat(process(open, fixed(open, 101, 0, .25, 1.5, null, null), 999)).isEqualTo(37L);
+    }
+
+    @Test
+    void factValueRulesCoverMatchedAndUnmatchedActivityPath() {
+        var matched = fixture();
+        var unmatched = fixture();
+        assertThat(process(matched, factValue(matched, 1, 0, 1, 1, 0.0, null), 30)).isEqualTo(30L);
+        assertThat(process(unmatched, factValue(unmatched, 100, 0, .50, 2, 80.0, 120.0), 10)).isEqualTo(250L);
+    }
+
+    @Test
+    void stressRulesAndFloorAreAppliedThroughActivityPath() {
+        var positiveNegative = fixture();
+        var key = attributeKey(positiveNegative);
+        var config = new ProgressionConfiguration(10, 10,
+                List.of(new ProgressionConfiguration.AttributeDistribution(key, 1,
+                        List.of(xpRule(positiveNegative, 1, null, null, XpCalculationMode.FIXED)),
+                        List.of(new ProgressionConfiguration.StressRule(2, 0.0, null, ProgressionConfiguration.StressType.POSITIVE),
+                                new ProgressionConfiguration.StressRule(1, 0.0, null, ProgressionConfiguration.StressType.NEGATIVE)))), List.of());
+        process(positiveNegative, config, 1);
+        assertThat(stress(positiveNegative.userId())).isEqualTo(5);
+
+        var floor = fixture();
+        jdbc.update("UPDATE estresse_global SET pontuacao_atual = 2 WHERE jogador_id = (SELECT id FROM jogador WHERE user_id = ?)", floor.userId());
+        var floorConfig = new ProgressionConfiguration(1, 10,
+                List.of(new ProgressionConfiguration.AttributeDistribution(attributeKey(floor), 1,
+                        List.of(xpRule(floor, 1, null, null, XpCalculationMode.FIXED)),
+                        List.of(new ProgressionConfiguration.StressRule(.5, 0.0, null, ProgressionConfiguration.StressType.NEGATIVE)))), List.of());
+        process(floor, floorConfig, 1);
+        assertThat(stress(floor.userId())).isZero();
+    }
+
+    private long process(Fixture fixture, ProgressionConfiguration configuration, double value) {
+        var activity = activity(fixture, value);
+        var resolved = new ResolvedProgressionConfiguration(fixture.resolved().configurationVersionId(),
+                fixture.resolved().skillPolicyVersionId(), configuration,
+                Set.of(fixture.factor().getId().getValue().toString()));
+        var identity = ActivityProgressionAdapter.identity(activity.id().getValue());
+        var facts = new ProgressionFact(List.of(new ProgressionFact.Detail(fixture.factor().getId().getValue().toString(), value)));
+        var fingerprint = ProgressionExecutionFingerprint.ofFrozen(identity,
+                new ExternalSubjectReference("logos", fixture.userId().toString()),
+                new ExternalProgressionConfigurationReference("activity-" + fixture.config().getId().getValue(), 1), facts,
+                resolved.configurationVersionId(), resolved.skillPolicyVersionId());
+        executionStore.create(identity, fingerprint, fixture.userId(), facts, resolved,
+                "activity-" + fixture.config().getId().getValue(), 1);
+        assertThat(adapter.process(activity.id().getValue())).isTrue();
+        assertThat(registros.findById(activity.id())).hasValueSatisfying(record -> {
+            assertThat(record.getStatusProcessamento().name()).isEqualTo("PROCESSADO");
+            assertThat(record.getConfigurationVersionId()).isEqualTo(resolved.configurationVersionId());
+            assertThat(record.getSkillPolicyVersionId()).isEqualTo(resolved.skillPolicyVersionId());
+        });
+        return xp(fixture.userId());
+    }
+
+    private ProgressionConfiguration fixed(Fixture fixture, int baseXp, int baseStress, double weight, double multiplier,
+                                            Double lower, Double upper) {
+        return configuration(fixture, baseXp, baseStress, weight,
+                xpRule(fixture, multiplier, lower, upper, XpCalculationMode.FIXED), List.of());
+    }
+
+    private ProgressionConfiguration factValue(Fixture fixture, int baseXp, int baseStress, double weight, double multiplier,
+                                                Double lower, Double upper) {
+        return configuration(fixture, baseXp, baseStress, weight,
+                xpRule(fixture, multiplier, lower, upper, XpCalculationMode.FACT_VALUE), List.of());
+    }
+
+    private ProgressionConfiguration configuration(Fixture fixture, int baseXp, int baseStress, double weight,
+                                                    ProgressionConfiguration.XpRule rule,
+                                                    List<ProgressionConfiguration.StressRule> stressRules) {
+        return new ProgressionConfiguration(baseXp, baseStress,
+                List.of(new ProgressionConfiguration.AttributeDistribution(attributeKey(fixture), weight,
+                        List.of(rule), stressRules)), List.of());
+    }
+
+    private ProgressionConfiguration.XpRule xpRule(Fixture fixture, double multiplier, Double lower, Double upper,
+                                                     XpCalculationMode mode) {
+        return new ProgressionConfiguration.XpRule(fixture.factor().getId().getValue().toString(), multiplier, lower, upper, mode);
+    }
+
+    private String attributeKey(Fixture fixture) {
+        return fixture.resolved().configuration().attributeDistributions().get(0).attributeKey();
+    }
+
+    private int stress(UUID userId) {
+        return jdbc.queryForObject("SELECT e.pontuacao_atual FROM estresse_global e JOIN jogador j ON j.id = e.jogador_id WHERE j.user_id = ?",
+                Integer.class, userId);
     }
 
     private void rolloutConfiguration(UUID previousVersion, int newBaseXp) {
