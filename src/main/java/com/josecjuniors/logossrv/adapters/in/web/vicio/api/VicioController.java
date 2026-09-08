@@ -104,6 +104,7 @@ public class VicioController {
                 request.impactoEstresse(),
                 request.penalidadePontos(),
                 request.duracaoHoras(),
+                request.xpGanhoRecaida(),
                 request.debuffId() != null ? new DebuffId(request.debuffId()) : null
         );
         RegraVicioDto dto = createRegraVicioUseCase.create(command);
@@ -133,6 +134,7 @@ public class VicioController {
                 request.impactoEstresse(),
                 request.penalidadePontos(),
                 request.duracaoHoras(),
+                request.xpGanhoRecaida(),
                 request.debuffId() != null ? new DebuffId(request.debuffId()) : null
         );
         RegraVicioDto dto = updateRegraVicioUseCase.update(command);
