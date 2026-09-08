@@ -6,5 +6,6 @@ public record UpdateRegraVicioRequest(
         Integer impactoEstresse,
         Integer penalidadePontos,
         Integer duracaoHoras,
+        Integer xpGanhoRecaida,
         UUID debuffId
 ) {}
