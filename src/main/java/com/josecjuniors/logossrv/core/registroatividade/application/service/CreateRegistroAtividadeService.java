@@ -20,6 +20,7 @@ import com.josecjuniors.logossrv.core.registroatividade.domain.repository.Regist
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import com.josecjuniors.logossrv.core.progression.application.port.out.ActivityProgressionExecutionStore;
 import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
@@ -87,8 +88,13 @@ public class CreateRegistroAtividadeService implements CreateRegistroAtividadeUs
                     identity, new ExternalSubjectReference("logos", jogador.getId().getValue().toString()),
                     new ExternalProgressionConfigurationReference("activity-" + atividadeConfig.getId().getValue(), 1), facts,
                     resolved.configurationVersionId(), resolved.skillPolicyVersionId());
-            executionStore.create(identity, fingerprint, jogador.getUser().getId().getValue(), facts, resolved,
-                    "activity-" + atividadeConfig.getId().getValue(), 1);
+            try {
+                executionStore.create(identity, fingerprint, jogador.getUser().getId().getValue(), facts, resolved,
+                        "activity-" + atividadeConfig.getId().getValue(), 1);
+            } catch (RuntimeException exception) {
+                TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                throw exception;
+            }
         }
 
         eventPublisher.publishEvent(new RegistroAtividadeCriadoEvent(registroSalvo.getId()));
