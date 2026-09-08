@@ -41,6 +41,7 @@ public class CreateRegraVicioService implements CreateRegraVicioUseCase {
                 command.impactoEstresse(),
                 command.penalidadePontos(),
                 command.duracaoHoras(),
+                command.xpGanhoRecaida(),
                 debuff
         );
 

@@ -134,7 +134,7 @@ class VicioControllerTest {
     void createRegra_withValidData_shouldReturn201() throws Exception {
         var vicio = vicioRepository.save(new Vicio(VicioId.generate(), "Alcoolismo", null));
         var debuff = debuffRepository.save(new Debuff(DebuffId.generate(), "Ressaca"));
-        var request = new CreateRegraVicioRequest(10, -50, 8, debuff.getId().getValue());
+        var request = new CreateRegraVicioRequest(10, -50, 8, 8, debuff.getId().getValue());
 
         mockMvc.perform(post("/api/vicios/{vicioId}/regras", vicio.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken)
@@ -148,7 +148,7 @@ class VicioControllerTest {
     @Test
     void getAllRegras_whenExists_shouldReturnList() throws Exception {
         var vicio = vicioRepository.save(new Vicio(VicioId.generate(), "Alcoolismo", null));
-        regraVicioRepository.save(new RegraVicio(RegraVicioId.generate(), vicio, 10, -50, 8, null));
+        regraVicioRepository.save(new RegraVicio(RegraVicioId.generate(), vicio, 10, -50, 8, null, null));
 
         mockMvc.perform(get("/api/vicios/{vicioId}/regras", vicio.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
@@ -159,7 +159,7 @@ class VicioControllerTest {
     @Test
     void deleteRegra_whenExists_shouldReturn204() throws Exception {
         var vicio = vicioRepository.save(new Vicio(VicioId.generate(), "Alcoolismo", null));
-        var regra = regraVicioRepository.save(new RegraVicio(RegraVicioId.generate(), vicio, 10, -50, 8, null));
+        var regra = regraVicioRepository.save(new RegraVicio(RegraVicioId.generate(), vicio, 10, -50, 8, null, null));
 
         mockMvc.perform(delete("/api/vicios/{vicioId}/regras/{regraId}", vicio.getId().getValue(), regra.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))

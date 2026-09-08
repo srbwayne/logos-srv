@@ -39,6 +39,7 @@ public class UpdateRegraVicioService implements UpdateRegraVicioUseCase {
                 command.impactoEstresse(),
                 command.penalidadePontos(),
                 command.duracaoHoras(),
+                command.xpGanhoRecaida(),
                 debuff
         );
 
