@@ -42,4 +42,8 @@ jobs:
           cache: maven
 
       - name: Run PostgreSQL test suite
-        run: bash ./mvnw -Dmaven.resources.skip=true test -Ppostgres-it
+        run: >-
+          bash ./mvnw -Dmaven.resources.skip=true
+          -Dapplication.security.jwt.secret-key=Y2ktbG9nb3Mtc2VjdXJlLXRlc3Qta2V5LW5vdC1mb3ItcHJvZHVjdGlvbi0xMjM0NTY3ODkw
+          -Dapplication.security.jwt.expiration=86400000
+          test -Ppostgres-it
