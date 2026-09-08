@@ -10,6 +10,7 @@ import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConf
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
 import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
+import com.josecjuniors.logossrv.core.atributo.domain.model.AtributoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
@@ -280,13 +281,100 @@ class ActivityProgressionAdapterPostgresIT {
         assertThat(stress(floor.userId())).isZero();
     }
 
+    @Test
+    void distributesXpAcrossTwoAttributesWithoutChangingGlobalXp() {
+        var fixture = fixture();
+        var secondAttribute = addAttribute(fixture, "CREATIVITY");
+        var factorKey = fixture.factor().getId().getValue().toString();
+        var configuration = new ProgressionConfiguration(100, 0,
+                List.of(new ProgressionConfiguration.AttributeDistribution(attributeKey(fixture), .60,
+                                List.of(new ProgressionConfiguration.XpRule(factorKey, 1, null, null, XpCalculationMode.FIXED)), List.of()),
+                        new ProgressionConfiguration.AttributeDistribution(secondAttribute, .40,
+                                List.of(new ProgressionConfiguration.XpRule(factorKey, 1, null, null, XpCalculationMode.FIXED)), List.of())),
+                List.of());
+
+        var run = processActivity(fixture, configuration, List.of(new FactValue(fixture.factor(), 1)));
+
+        assertThat(run.globalXp()).isEqualTo(100L);
+        assertThat(attributeXp(fixture.userId(), attributeKey(fixture))).isEqualTo(60L);
+        assertThat(attributeXp(fixture.userId(), secondAttribute)).isEqualTo(40L);
+        assertProjection(run, fixture, 100, 0);
+    }
+
+    @Test
+    void accumulatesMultipleActivityDetailsAndFactorsInOneExecution() {
+        var fixture = fixture();
+        var secondFactor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "minutes-" + UUID.randomUUID(), "minutes", TipoInput.NUMERICO));
+        var attributeKey = attributeKey(fixture);
+        var configuration = new ProgressionConfiguration(10, 0,
+                List.of(new ProgressionConfiguration.AttributeDistribution(attributeKey, 1,
+                        List.of(new ProgressionConfiguration.XpRule(fixture.factor().getId().getValue().toString(), 1, null, null, XpCalculationMode.FIXED),
+                                new ProgressionConfiguration.XpRule(secondFactor.getId().getValue().toString(), 1, null, null, XpCalculationMode.FIXED)),
+                        List.of())), List.of());
+
+        var run = processActivity(fixture, configuration,
+                List.of(new FactValue(fixture.factor(), 2), new FactValue(secondFactor, 3)));
+
+        assertThat(run.globalXp()).isEqualTo(20L);
+        assertThat(attributeXp(fixture.userId(), attributeKey)).isEqualTo(20L);
+        assertProjection(run, fixture, 20, 0);
+    }
+
+    @Test
+    void skillBonusAppliesOnlyToAttributeXpThroughActivityPath() {
+        var fixture = fixture();
+        var skillKey = addSkillAtLevel(fixture, 3);
+        var key = attributeKey(fixture);
+        var configuration = new ProgressionConfiguration(100, 0,
+                List.of(new ProgressionConfiguration.AttributeDistribution(key, 1,
+                        List.of(xpRule(fixture, 1, null, null, XpCalculationMode.FIXED)), List.of())),
+                List.of(new ProgressionConfiguration.SkillBonusRule(skillKey, key, 10)));
+
+        var run = processActivity(fixture, configuration, List.of(new FactValue(fixture.factor(), 1)));
+
+        assertThat(run.globalXp()).isEqualTo(100L);
+        assertThat(attributeXp(fixture.userId(), key)).isEqualTo(101L);
+        assertProjection(run, fixture, 100, 0);
+    }
+
+    @Test
+    void singleLevelTransitionGrantsOneSkillPointThroughActivityPath() {
+        var fixture = fixture();
+        setGlobalState(fixture, 149, 1, 1);
+
+        var run = processActivity(fixture, globalOnly(150), List.of(new FactValue(fixture.factor(), 1)));
+
+        assertThat(run.globalXp()).isEqualTo(299L);
+        assertThat(globalLevel(fixture.userId())).isEqualTo(2);
+        assertThat(skillPoints(fixture.userId())).isEqualTo(2);
+        assertProjection(run, fixture, 150, 0);
+    }
+
+    @Test
+    void multiLevelTransitionUsesCanonicalRepeatedThresholdPolicy() {
+        var fixture = fixture();
+        setGlobalState(fixture, 0, 1, 1);
+
+        var run = processActivity(fixture, globalOnly(1600), List.of(new FactValue(fixture.factor(), 1)));
+
+        assertThat(run.globalXp()).isEqualTo(1600L);
+        assertThat(globalLevel(fixture.userId())).isEqualTo(4);
+        assertThat(skillPoints(fixture.userId())).isEqualTo(4);
+        assertProjection(run, fixture, 1600, 0);
+    }
+
     private long process(Fixture fixture, ProgressionConfiguration configuration, double value) {
-        var activity = activity(fixture, value);
+        return processActivity(fixture, configuration, List.of(new FactValue(fixture.factor(), value))).globalXp();
+    }
+
+    private ProcessedActivity processActivity(Fixture fixture, ProgressionConfiguration configuration, List<FactValue> values) {
+        var activity = activity(fixture, values);
         var resolved = new ResolvedProgressionConfiguration(fixture.resolved().configurationVersionId(),
                 fixture.resolved().skillPolicyVersionId(), configuration,
-                Set.of(fixture.factor().getId().getValue().toString()));
+                values.stream().map(value -> value.factor().getId().getValue().toString()).collect(java.util.stream.Collectors.toSet()));
         var identity = ActivityProgressionAdapter.identity(activity.id().getValue());
-        var facts = new ProgressionFact(List.of(new ProgressionFact.Detail(fixture.factor().getId().getValue().toString(), value)));
+        var facts = new ProgressionFact(values.stream()
+                .map(value -> new ProgressionFact.Detail(value.factor().getId().getValue().toString(), value.value())).toList());
         var fingerprint = ProgressionExecutionFingerprint.ofFrozen(identity,
                 new ExternalSubjectReference("logos", fixture.userId().toString()),
                 new ExternalProgressionConfigurationReference("activity-" + fixture.config().getId().getValue(), 1), facts,
@@ -299,7 +387,11 @@ class ActivityProgressionAdapterPostgresIT {
             assertThat(record.getConfigurationVersionId()).isEqualTo(resolved.configurationVersionId());
             assertThat(record.getSkillPolicyVersionId()).isEqualTo(resolved.skillPolicyVersionId());
         });
-        return xp(fixture.userId());
+        return new ProcessedActivity(activity.id(), xp(fixture.userId()));
+    }
+
+    private ProgressionConfiguration globalOnly(int baseXp) {
+        return new ProgressionConfiguration(baseXp, 0, List.of(), List.of());
     }
 
     private ProgressionConfiguration fixed(Fixture fixture, int baseXp, int baseStress, double weight, double multiplier,
@@ -334,6 +426,48 @@ class ActivityProgressionAdapterPostgresIT {
     private int stress(UUID userId) {
         return jdbc.queryForObject("SELECT e.pontuacao_atual FROM estresse_global e JOIN jogador j ON j.id = e.jogador_id WHERE j.user_id = ?",
                 Integer.class, userId);
+    }
+
+    private String addAttribute(Fixture fixture, String name) {
+        var attribute = atributos.save(new Atributo(new AtributoId(), name + "-" + UUID.randomUUID(), ""));
+        jdbc.update("INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual) VALUES (?, (SELECT id FROM jogador WHERE user_id = ?), ?, 0, 1)",
+                UUID.randomUUID(), fixture.userId(), attribute.getId().getValue());
+        return attribute.getId().getValue().toString();
+    }
+
+    private String addSkillAtLevel(Fixture fixture, int level) {
+        UUID skillId = UUID.randomUUID();
+        jdbc.update("INSERT INTO habilidade (id, nome, descricao) VALUES (?, ?, ?)", skillId, "skill-" + UUID.randomUUID(), "");
+        jdbc.update("INSERT INTO habilidade_jogador (id, jogador_id, habilidade_id, nivel_atual) VALUES (?, (SELECT id FROM jogador WHERE user_id = ?), ?, ?)",
+                UUID.randomUUID(), fixture.userId(), skillId, level);
+        return skillId.toString();
+    }
+
+    private long attributeXp(UUID userId, String attributeKey) {
+        return jdbc.queryForObject("SELECT aj.xp_total FROM atributo_jogador aj JOIN jogador j ON j.id = aj.jogador_id WHERE j.user_id = ? AND aj.atributo_id = ?",
+                Long.class, userId, UUID.fromString(attributeKey));
+    }
+
+    private void setGlobalState(Fixture fixture, long xp, int level, int points) {
+        jdbc.update("UPDATE jogador SET xp_total = ?, nivel_atual = ?, pontos_habilidade = ? WHERE user_id = ?", xp, level, points, fixture.userId());
+    }
+
+    private int globalLevel(UUID userId) {
+        return jdbc.queryForObject("SELECT nivel_atual FROM jogador WHERE user_id = ?", Integer.class, userId);
+    }
+
+    private int skillPoints(UUID userId) {
+        return jdbc.queryForObject("SELECT pontos_habilidade FROM jogador WHERE user_id = ?", Integer.class, userId);
+    }
+
+    private void assertProjection(ProcessedActivity run, Fixture fixture, int xpGained, int stressGenerated) {
+        assertThat(registros.findById(run.activityId())).hasValueSatisfying(record -> {
+            assertThat(record.getXpGanhoFinal()).isEqualTo(xpGained);
+            assertThat(record.getEstresseGerado()).isEqualTo(stressGenerated);
+            assertThat(record.getStatusProcessamento().name()).isEqualTo("PROCESSADO");
+            assertThat(record.getConfigurationVersionId()).isEqualTo(fixture.resolved().configurationVersionId());
+            assertThat(record.getSkillPolicyVersionId()).isEqualTo(fixture.resolved().skillPolicyVersionId());
+        });
     }
 
     private void rolloutConfiguration(UUID previousVersion, int newBaseXp) {
@@ -396,10 +530,14 @@ class ActivityProgressionAdapterPostgresIT {
     }
 
     private Activity activity(Fixture fixture, double value) {
+        return activity(fixture, List.of(new FactValue(fixture.factor(), value)));
+    }
+
+    private Activity activity(Fixture fixture, List<FactValue> values) {
         var record = new RegistroAtividade(RegistroAtividadeId.generate(),
                 jogadores.findByAppUserId(new AppUserId(fixture.userId())).orElseThrow(), fixture.config(),
                 LocalDateTime.now().minusHours(1), LocalDateTime.now());
-        record.adicionarDetalhe(fixture.factor(), Double.toString(value));
+        values.forEach(value -> record.adicionarDetalhe(value.factor(), Double.toString(value.value())));
         registros.save(record);
         return new Activity(record.getId(), fixture);
     }
@@ -425,4 +563,6 @@ class ActivityProgressionAdapterPostgresIT {
     private record Fixture(UUID userId, AtividadeConfig config, FatorCalculo factor,
                            com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration resolved) {}
     private record Activity(RegistroAtividadeId id, Fixture fixture) {}
+    private record FactValue(FatorCalculo factor, double value) {}
+    private record ProcessedActivity(RegistroAtividadeId activityId, long globalXp) {}
 }

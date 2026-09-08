@@ -55,7 +55,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
     void sourceAndIntentRollBackTogetherWhenIntentPersistenceFails() {
         var user = users.saveAndFlush(new AppUser(new AppUserId(), "tx1-" + UUID.randomUUID() + "@test",
                 encoder.encode("password")));
-        jogadores.save(new Jogador(JogadorId.generate(), user, "tx1-player-" + UUID.randomUUID()));
+        var jogador = jogadores.save(new Jogador(JogadorId.generate(), user, "tx1-player-" + UUID.randomUUID()));
         var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-" + UUID.randomUUID(),
                 "fixture", 1, 0, null, null));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-" + UUID.randomUUID(),
@@ -76,7 +76,34 @@ class ActivityProgressionTx1AtomicityPostgresIT {
             reset(executionStore);
         }
 
-        assertThat(registros.findAll()).isEmpty();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_external_execution", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM registro_atividade WHERE jogador_id = ?", Long.class,
+                jogador.getId().getValue())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_external_execution e "
+                + "JOIN registro_atividade r ON e.idempotency_key = r.id::text "
+                + "WHERE r.jogador_id = ?", Long.class, jogador.getId().getValue())).isZero();
+    }
+
+    @Test
+    void sourceAndDurableIntentCommitTogetherOnSuccessfulCreation() {
+        var user = users.saveAndFlush(new AppUser(new AppUserId(), "tx1-success-" + UUID.randomUUID() + "@test",
+                encoder.encode("password")));
+        jogadores.save(new Jogador(JogadorId.generate(), user, "tx1-success-player-" + UUID.randomUUID()));
+        var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-success-" + UUID.randomUUID(),
+                "fixture", 1, 0, null, null));
+        var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-success-" + UUID.randomUUID(),
+                "pages", TipoInput.NUMERICO));
+
+        var command = new CreateRegistroAtividadeCommand(user.getEmail(), config.getId().getValue(),
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
+                List.of(new DetalheRegistroRequest(factor.getId().getValue(), "30")));
+
+        creator.create(command);
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM registro_atividade WHERE jogador_id = "
+                + "(SELECT id FROM jogador WHERE user_id = ?)", Long.class, user.getId().getValue())).isEqualTo(1L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_external_execution e "
+                + "JOIN registro_atividade r ON e.idempotency_key = r.id::text "
+                + "WHERE r.jogador_id = (SELECT id FROM jogador WHERE user_id = ?) "
+                + "AND e.source_system = 'logos.activity'", Long.class, user.getId().getValue())).isEqualTo(1L);
     }
 }
