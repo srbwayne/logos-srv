@@ -8,5 +8,6 @@ public record CreateRegraVicioCommand(
         Integer impactoEstresse,
         Integer penalidadePontos,
         Integer duracaoHoras,
+        Integer xpGanhoRecaida,
         DebuffId debuffId
 ) {}

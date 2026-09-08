@@ -10,5 +10,6 @@ public record UpdateRegraVicioCommand(
         Integer impactoEstresse,
         Integer penalidadePontos,
         Integer duracaoHoras,
+        Integer xpGanhoRecaida,
         DebuffId debuffId
 ) {}
