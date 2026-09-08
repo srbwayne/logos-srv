@@ -24,6 +24,8 @@ import com.josecjuniors.logossrv.core.progression.application.port.out.ActivityP
 import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
 import com.josecjuniors.logossrv.core.progression.application.service.ConfiguredStatefulProgressionApplicationService;
 import com.josecjuniors.logossrv.core.progression.application.service.ProgressionExecutionFingerprint;
+import com.josecjuniors.logossrv.core.registroatividade.application.port.in.CreateRegistroAtividadeCommand;
+import com.josecjuniors.logossrv.adapters.in.web.registroatividade.dto.request.DetalheRegistroRequest;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionConflictException;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
@@ -50,6 +52,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.Set;
@@ -59,7 +62,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 
 @IntegrationTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -75,6 +80,8 @@ class ActivityProgressionAdapterPostgresIT {
     @Autowired VersionedProgressionConfigurationResolver resolver;
     @Autowired ActivityProgressionAdapter adapter;
     @Autowired ActivityProgressionRecovery recovery;
+    @Autowired CreateRegistroAtividadeService creator;
+    @SpyBean ProcessarRegistroAtividadeService legacyProcessor;
     @SpyBean ConfiguredStatefulProgressionApplicationService progression;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder encoder;
@@ -111,6 +118,29 @@ class ActivityProgressionAdapterPostgresIT {
             assertThat(r.getConfigurationVersionId()).isNotNull();
             assertThat(r.getSkillPolicyVersionId()).isNotNull();
         });
+    }
+
+    @Test
+    void productionActivityCreationDispatchesOnlyModernProgressionAfterCommit() {
+        var fixture = fixture();
+        String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
+        creator.create(new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
+                List.of(new DetalheRegistroRequest(fixture.factor().getId().getValue(), "1"))));
+
+        UUID activityId = jdbc.queryForObject("SELECT r.id FROM registro_atividade r "
+                + "JOIN jogador j ON j.id = r.jogador_id WHERE j.user_id = ?", UUID.class, fixture.userId());
+
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            assertThat(executions.findBySourceSystemAndIdempotencyKey(ActivityProgressionAdapter.SOURCE,
+                    activityId.toString())).hasValueSatisfying(execution ->
+                    assertThat(execution.getProcessingStatus()).isEqualTo("COMPLETED"));
+            assertThat(xp(fixture.userId())).isEqualTo(1L);
+            assertThat(jdbc.queryForObject("SELECT status_processamento FROM registro_atividade WHERE id = ?",
+                    String.class, activityId)).isEqualTo("PROCESSADO");
+        });
+
+        verify(legacyProcessor, never()).processar(any());
     }
 
     @Test

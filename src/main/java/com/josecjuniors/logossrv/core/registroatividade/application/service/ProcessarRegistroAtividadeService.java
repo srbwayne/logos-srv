@@ -18,12 +18,8 @@ import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAti
 import com.josecjuniors.logossrv.core.registroatividade.domain.repository.RegistroAtividadeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 
 @Service
@@ -36,24 +32,15 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
     private final ProgressionProfileMapper progressionProfileMapper = new ProgressionProfileMapper();
     private final VersionedProgressionConfigurationResolver versionedResolver;
     private final ProgressionInputFactory inputFactory;
-    private final ActivityProgressionAdapter activityProgressionAdapter;
 
     @Autowired
     public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository,
                                              VersionedProgressionConfigurationResolver versionedResolver,
-                                             ProgressionInputFactory inputFactory,
-                                             ActivityProgressionAdapter activityProgressionAdapter) {
+                                             ProgressionInputFactory inputFactory) {
         this.registroAtividadeRepository = registroAtividadeRepository;
         this.jogadorRepository = jogadorRepository;
         this.versionedResolver = versionedResolver;
         this.inputFactory = inputFactory;
-        this.activityProgressionAdapter = activityProgressionAdapter;
-    }
-
-    public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository,
-                                             VersionedProgressionConfigurationResolver versionedResolver,
-                                             ProgressionInputFactory inputFactory) {
-        this(registroAtividadeRepository, jogadorRepository, versionedResolver, inputFactory, null);
     }
 
     public ProcessarRegistroAtividadeService(RegistroAtividadeRepository registroAtividadeRepository, JogadorRepository jogadorRepository) {
@@ -64,15 +51,9 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
         this(registroAtividadeRepository, jogadorRepository);
     }
 
-    @Async
-    @TransactionalEventListener
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
     public void processar(RegistroAtividadeCriadoEvent event) {
-        if (activityProgressionAdapter == null
-                || !activityProgressionAdapter.process(event.registroAtividadeId().getValue())) {
-            processarEvento(event);
-        }
+        // Production event delivery is owned by RegistroAtividadeProgressionEventListener.
     }
 
     public void processarEvento(RegistroAtividadeCriadoEvent event) {
