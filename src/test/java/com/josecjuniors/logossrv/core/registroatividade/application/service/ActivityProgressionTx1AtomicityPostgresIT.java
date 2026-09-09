@@ -59,7 +59,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
         var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-" + UUID.randomUUID(),
                 "fixture", 1, 0, null, null));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-" + UUID.randomUUID(),
-                "pages", TipoInput.NUMERICO));
+                "pages", TipoInput.NUMERICO, "tx1_pages_" + UUID.randomUUID().toString().replace("-", "")));
 
         doThrow(new IllegalStateException("controlled intent failure")).when(executionStore).create(
                 any(), anyString(), any(), any(), any(), anyString(), anyInt());
@@ -91,7 +91,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
         var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-success-" + UUID.randomUUID(),
                 "fixture", 1, 0, null, null));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-success-" + UUID.randomUUID(),
-                "pages", TipoInput.NUMERICO));
+                "pages", TipoInput.NUMERICO, "tx1_success_pages_" + UUID.randomUUID().toString().replace("-", "")));
 
         var command = new CreateRegistroAtividadeCommand(user.getEmail(), config.getId().getValue(),
                 LocalDateTime.now().minusHours(1), LocalDateTime.now(),

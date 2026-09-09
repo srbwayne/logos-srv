@@ -334,7 +334,8 @@ class ActivityProgressionAdapterPostgresIT {
     @Test
     void accumulatesMultipleActivityDetailsAndFactorsInOneExecution() {
         var fixture = fixture();
-        var secondFactor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "minutes-" + UUID.randomUUID(), "minutes", TipoInput.NUMERICO));
+        var secondFactor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "minutes-" + UUID.randomUUID(), "minutes", TipoInput.NUMERICO,
+                "minutes_" + UUID.randomUUID().toString().replace("-", "")));
         var attributeKey = attributeKey(fixture);
         var configuration = new ProgressionConfiguration(10, 0,
                 List.of(new ProgressionConfiguration.AttributeDistribution(attributeKey, 1,
@@ -545,7 +546,8 @@ class ActivityProgressionAdapterPostgresIT {
         var learning = atributos.findAll().stream().filter(a -> "LEARNING".equals(a.getNome())).findFirst().orElseThrow();
         jdbc.update("INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual) VALUES (?, ?, ?, 0, 1)",
                 UUID.randomUUID(), jogador.getId().getValue(), learning.getId().getValue());
-        var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO));
+        var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO,
+                "pages_" + UUID.randomUUID().toString().replace("-", "")));
         var config = new AtividadeConfig(new AtividadeConfigId(), "activity-" + UUID.randomUUID(), "fixture", 1, 0, null, null);
         var distribution = new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), config, learning, 1.0);
         distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
@@ -576,7 +578,7 @@ class ActivityProgressionAdapterPostgresIT {
         var activity = activity(fixture, value);
         var identity = ActivityProgressionAdapter.identity(activity.id().getValue());
         var facts = new ProgressionFact(List.of(new ProgressionFact.Detail(
-                fixture.factor().getId().getValue().toString(), value)));
+                fixture.factor().getSemanticKey(), value)));
         var fingerprint = ProgressionExecutionFingerprint.ofFrozen(identity,
                 new ExternalSubjectReference("logos", fixture.userId().toString()),
                 new ExternalProgressionConfigurationReference("activity-" + fixture.config().getId().getValue(), 1), facts,
