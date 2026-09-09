@@ -49,7 +49,7 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         if (row == null) return Optional.empty();
 
         PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
-        return Optional.of(materialize(row, policy, FactKeyGeneration.SEMANTIC));
+        return Optional.of(materialize(row, policy));
     }
 
     @Override
@@ -59,7 +59,7 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         ConfigRow row = findConfig(legacyId).orElseGet(() -> snapshotForResolution(legacyId, true));
         if (row == null) return Optional.empty();
         PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
-        return Optional.of(materialize(row, policy, FactKeyGeneration.LEGACY_UUID));
+        return Optional.of(materialize(row, policy));
     }
 
     private ConfigRow snapshotForResolution(UUID legacyId, boolean legacyKeys) {
@@ -76,22 +76,21 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     @Transactional
     public Optional<ResolvedProgressionConfiguration> resolveExternal(ExternalProgressionConfigurationReference reference) {
         String sql = reference.revision() == null ? """
-                SELECT v.id, v.base_xp, v.base_stress FROM progression_configuration_definition d
+                SELECT v.id, v.base_xp, v.base_stress, v.fact_key_generation FROM progression_configuration_definition d
                 JOIN progression_configuration_version v ON v.id = d.current_version_id
                 WHERE d.logical_key = ?
                 """ : """
-                SELECT v.id, v.base_xp, v.base_stress FROM progression_configuration_definition d
+                SELECT v.id, v.base_xp, v.base_stress, v.fact_key_generation FROM progression_configuration_definition d
                 JOIN progression_configuration_version v ON v.definition_id = d.id
                 WHERE d.logical_key = ? AND v.revision = ?
                 """;
         Object[] args = reference.revision() == null ? new Object[]{reference.key()} : new Object[]{reference.key(), reference.revision()};
-        var rows = jdbc.query(sql, (rs, n) -> new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"), rs.getInt("base_stress")), args);
+        var rows = jdbc.query(sql, this::configRow, args);
         if (rows.isEmpty()) return Optional.empty();
-        return Optional.of(materialize(rows.get(0), currentPolicy().orElseGet(this::snapshotPolicy), FactKeyGeneration.SEMANTIC));
+        return Optional.of(materialize(rows.get(0), currentPolicy().orElseGet(this::snapshotPolicy)));
     }
 
-    private ResolvedProgressionConfiguration materialize(ConfigRow row, PolicyRow policy,
-                                                         FactKeyGeneration factKeyGeneration) {
+    private ResolvedProgressionConfiguration materialize(ConfigRow row, PolicyRow policy) {
         var distributions = jdbc.query("""
                 SELECT id, attribute_key, weight FROM progression_configuration_version_distribution
                 WHERE configuration_version_id = ? ORDER BY id
@@ -110,7 +109,7 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
                 WHERE configuration_version_id = ? AND tipo_input = 'NUMERICO'
                 """, (rs, n) -> rs.getString(1), row.versionId));
         return new ResolvedProgressionConfiguration(row.versionId, policy.versionId, configuration, numeric,
-                factKeyGeneration);
+                row.factKeyGeneration);
     }
 
     private ProgressionConfiguration.AttributeDistribution toDistribution(DistributionRow d, UUID versionId) {
@@ -132,17 +131,16 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
 
     private Optional<ConfigRow> findConfig(UUID legacyId) {
         return jdbc.query("""
-                SELECT v.id, v.base_xp, v.base_stress
+                SELECT v.id, v.base_xp, v.base_stress, v.fact_key_generation
                 FROM progression_configuration_definition d
                 JOIN progression_configuration_version v ON v.id = d.current_version_id
                 WHERE d.legacy_atividade_config_id = ?
-                """, (rs, n) -> new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"),
-                        rs.getInt("base_stress")), legacyId).stream().findFirst();
+                """, this::configRow, legacyId).stream().findFirst();
     }
 
     private Optional<ConfigRow> findConfigByVersion(UUID versionId) {
-        return jdbc.query("SELECT id, base_xp, base_stress FROM progression_configuration_version WHERE id = ?",
-                (rs, n) -> new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"), rs.getInt("base_stress")), versionId)
+        return jdbc.query("SELECT id, base_xp, base_stress, fact_key_generation FROM progression_configuration_version WHERE id = ?",
+                this::configRow, versionId)
                 .stream().findFirst();
     }
 
@@ -163,8 +161,9 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         int revision = jdbc.queryForObject("SELECT COALESCE(MAX(revision), 0) + 1 FROM progression_configuration_version WHERE definition_id = ?",
                 Integer.class, definition);
         UUID version = UUID.randomUUID();
-        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress) VALUES (?, ?, ?, ?, ?)",
-                version, definition, revision, config.getXpBase(), config.getEstresseBase());
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, ?, ?, ?, ?)",
+                version, definition, revision, config.getXpBase(), config.getEstresseBase(),
+                legacyKeys ? FactKeyGeneration.LEGACY_UUID.name() : FactKeyGeneration.SEMANTIC.name());
         for (RegraDistribuicaoAtividade d : config.getRegrasDistribuicao()) {
             UUID distribution = UUID.randomUUID();
             jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) VALUES (?, ?, ?, ?)",
@@ -246,7 +245,12 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         return new DistributionRow(rs.getObject("id", UUID.class), rs.getString("attribute_key"), rs.getDouble("weight"));
     }
 
-    private record ConfigRow(UUID versionId, int baseXp, int baseStress) {}
+    private ConfigRow configRow(ResultSet rs, int ignored) throws java.sql.SQLException {
+        return new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"), rs.getInt("base_stress"),
+                FactKeyGeneration.valueOf(rs.getString("fact_key_generation")));
+    }
+
+    private record ConfigRow(UUID versionId, int baseXp, int baseStress, FactKeyGeneration factKeyGeneration) {}
     private record PolicyRow(UUID versionId) {}
     private record DistributionRow(UUID id, String attributeKey, double weight) {}
 }

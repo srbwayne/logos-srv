@@ -34,6 +34,7 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfig
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionExecutionIdentity;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfiguration;
+import com.josecjuniors.logossrv.core.progression.domain.model.FactKeyGeneration;
 import com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration;
 import com.josecjuniors.logossrv.core.progression.domain.model.XpCalculationMode;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
@@ -142,6 +143,42 @@ class ActivityProgressionAdapterPostgresIT {
         });
 
         verify(legacyProcessor, never()).processar(any());
+    }
+
+    @Test
+    void newSemanticSnapshotPersistsAndResolvesSemanticGeneration() {
+        var fixture = fixture();
+
+        assertThat(fixture.resolved().factKeyGeneration()).isEqualTo(FactKeyGeneration.SEMANTIC);
+        assertThat(jdbc.queryForObject("SELECT fact_key_generation FROM progression_configuration_version WHERE id = ?",
+                String.class, fixture.resolved().configurationVersionId())).isEqualTo("SEMANTIC");
+    }
+
+    @Test
+    void existingUuidSnapshotKeepsUuidFactsAfterSemanticAssignment() {
+        var fixture = legacyFixture();
+        String legacyKey = fixture.factor().getId().getValue().toString();
+
+        assertThat(fixture.resolved().factKeyGeneration()).isEqualTo(FactKeyGeneration.LEGACY_UUID);
+        assertThat(fixture.resolved().numericFactorKeys()).contains(legacyKey).doesNotContain(fixture.factor().getSemanticKey());
+        assertThat(jdbc.queryForObject("SELECT fact_key_generation FROM progression_configuration_version WHERE id = ?",
+                String.class, fixture.resolved().configurationVersionId())).isEqualTo("LEGACY_UUID");
+        assertThat(jdbc.queryForObject("SELECT factor_key FROM progression_configuration_version_xp_rule r "
+                + "JOIN progression_configuration_version_distribution d ON d.id = r.distribution_id "
+                + "WHERE d.configuration_version_id = ?", String.class, fixture.resolved().configurationVersionId()))
+                .isEqualTo(legacyKey);
+
+        String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
+        creator.create(new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
+                List.of(new DetalheRegistroRequest(fixture.factor().getId().getValue(), "1"))));
+        UUID activityId = jdbc.queryForObject("SELECT r.id FROM registro_atividade r "
+                + "JOIN jogador j ON j.id = r.jogador_id WHERE j.user_id = ?", UUID.class, fixture.userId());
+        assertThat(adapter.process(activityId)).isTrue();
+        assertThat(executions.findBySourceSystemAndIdempotencyKey(ActivityProgressionAdapter.SOURCE, activityId.toString()))
+                .hasValueSatisfying(execution -> assertThat(execution.getRequestJson()).contains(legacyKey)
+                        .doesNotContain(fixture.factor().getSemanticKey()));
+        assertThat(xp(fixture.userId())).isEqualTo(1L);
     }
 
     @Test
@@ -527,8 +564,8 @@ class ActivityProgressionAdapterPostgresIT {
                 "SELECT COALESCE(MAX(revision), 0) + 1 FROM progression_configuration_version WHERE definition_id = ?",
                 Integer.class, definition);
         UUID version = UUID.randomUUID();
-        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress) "
-                + "SELECT ?, definition_id, ?, ?, base_stress FROM progression_configuration_version WHERE id = ?",
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) "
+                + "SELECT ?, definition_id, ?, ?, base_stress, fact_key_generation FROM progression_configuration_version WHERE id = ?",
                 version, revision, newBaseXp, previousVersion);
         UUID distribution = UUID.randomUUID();
         jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) "
@@ -577,6 +614,27 @@ class ActivityProgressionAdapterPostgresIT {
                         + "WHERE distribution_id IN (SELECT id FROM progression_configuration_version_distribution WHERE configuration_version_id = ?)",
                 resolved.configurationVersionId());
         resolved = resolver.resolveVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
+        return new Fixture(user.getId().getValue(), config, factor, resolved);
+    }
+
+    private Fixture legacyFixture() {
+        var user = users.saveAndFlush(new AppUser(new AppUserId(), "legacy-activity-" + UUID.randomUUID() + "@test", encoder.encode("password")));
+        var jogador = new Jogador(JogadorId.generate(), user, "legacy-player-" + UUID.randomUUID());
+        jogador.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), jogador));
+        jogadores.save(jogador);
+        var learning = atributos.findAll().stream().filter(a -> "LEARNING".equals(a.getNome())).findFirst().orElseThrow();
+        jdbc.update("INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual) VALUES (?, ?, ?, 0, 1)",
+                UUID.randomUUID(), jogador.getId().getValue(), learning.getId().getValue());
+        var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "legacy-pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO));
+        var config = new AtividadeConfig(new AtividadeConfigId(), "legacy-activity-" + UUID.randomUUID(), "fixture", 1, 0, null, null);
+        var distribution = new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), config, learning, 1.0);
+        distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
+        config.adicionarRegraDistribuicao(distribution);
+        configs.save(config);
+        resolver.resolveLegacyVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
+        factor.assignSemanticKey("legacy_pages");
+        fatores.save(factor);
+        var resolved = resolver.resolveVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
         return new Fixture(user.getId().getValue(), config, factor, resolved);
     }
 
