@@ -169,14 +169,12 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     }
 
     private void ensureSemanticKeysAvailable(AtividadeConfig config) {
-        config.getRegrasDistribuicao().stream()
+        boolean missing = config.getRegrasDistribuicao().stream()
                 .flatMap(distribution -> distribution.getRegraFatorXPS().stream())
-                .map(rule -> rule.getFatorCalculo().getSemanticKey())
-                .filter(java.util.Objects::isNull)
-                .findAny()
-                .ifPresent(missing -> {
-                    throw new IllegalStateException("Novas versões de configuração exigem semanticKey nos fatores referenciados.");
-                });
+                .anyMatch(rule -> rule.getFatorCalculo().getSemanticKey() == null);
+        if (missing) {
+            throw new IllegalStateException("Novas versões de configuração exigem semanticKey nos fatores referenciados.");
+        }
     }
 
     @Override
