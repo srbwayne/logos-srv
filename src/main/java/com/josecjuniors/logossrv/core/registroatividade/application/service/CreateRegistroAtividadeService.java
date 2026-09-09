@@ -27,6 +27,8 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressi
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
+import com.josecjuniors.logossrv.core.progression.domain.model.FactKeyGeneration;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionFactKeyNotRepresentedException;
 
 @Service
 @Transactional
@@ -102,11 +104,17 @@ public class CreateRegistroAtividadeService implements CreateRegistroAtividadeUs
 
     private ProgressionFact.Detail factDetailFor(com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividadeDetalhe detail,
                                                   com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration resolved) {
+        if (!detail.getFatorCalculo().getTipoInput().ehValorNumerico()) {
+            return null;
+        }
         String legacyKey = detail.getFatorCalculo().getId().getValue().toString();
         String semanticKey = detail.getFatorCalculo().getSemanticKey();
-        String effectiveKey = semanticKey != null && resolved.numericFactorKeys().contains(semanticKey)
-                ? semanticKey
-                : resolved.numericFactorKeys().contains(legacyKey) ? legacyKey : null;
-        return effectiveKey == null ? null : new ProgressionFact.Detail(effectiveKey, Double.parseDouble(detail.getValorRegistrado()));
+        String effectiveKey = resolved.factKeyGeneration() == FactKeyGeneration.LEGACY_UUID
+                ? resolved.numericFactorKeys().contains(legacyKey) ? legacyKey : null
+                : semanticKey != null && resolved.numericFactorKeys().contains(semanticKey) ? semanticKey : null;
+        if (effectiveKey == null) {
+            throw new ProgressionFactKeyNotRepresentedException(legacyKey);
+        }
+        return new ProgressionFact.Detail(effectiveKey, Double.parseDouble(detail.getValorRegistrado()));
     }
 }

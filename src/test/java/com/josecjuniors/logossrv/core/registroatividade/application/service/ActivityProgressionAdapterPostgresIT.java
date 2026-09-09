@@ -27,6 +27,7 @@ import com.josecjuniors.logossrv.core.progression.application.service.Progressio
 import com.josecjuniors.logossrv.core.registroatividade.application.port.in.CreateRegistroAtividadeCommand;
 import com.josecjuniors.logossrv.adapters.in.web.registroatividade.dto.request.DetalheRegistroRequest;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionConflictException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionFactKeyNotRepresentedException;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
@@ -141,6 +142,24 @@ class ActivityProgressionAdapterPostgresIT {
         });
 
         verify(legacyProcessor, never()).processar(any());
+    }
+
+    @Test
+    void modernSemanticExecutionRejectsUnrepresentedLegacyNumericFactWithoutPersistingIncompleteIntent() {
+        var fixture = fixture();
+        var legacyFactor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "legacy-" + UUID.randomUUID(), "un", TipoInput.NUMERICO));
+        String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
+        var command = new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
+                List.of(new DetalheRegistroRequest(fixture.factor().getId().getValue(), "1"),
+                        new DetalheRegistroRequest(legacyFactor.getId().getValue(), "2")));
+
+        assertThatThrownBy(() -> creator.create(command))
+                .isInstanceOf(ProgressionFactKeyNotRepresentedException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM registro_atividade WHERE jogador_id = "
+                + "(SELECT id FROM jogador WHERE user_id = ?)", Long.class, fixture.userId())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_external_execution WHERE subject_external_id = ?",
+                Long.class, fixture.userId().toString())).isZero();
     }
 
     @Test

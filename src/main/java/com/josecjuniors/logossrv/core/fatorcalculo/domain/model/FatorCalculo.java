@@ -6,6 +6,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.SemanticKeyAlreadyAssignedException;
 
 @Entity
 public class FatorCalculo extends AbstractDomainAggregate<FatorCalculoId> {
@@ -41,7 +42,7 @@ public class FatorCalculo extends AbstractDomainAggregate<FatorCalculoId> {
     public void assignSemanticKey(String semanticKey) {
         String normalized = SemanticKey.of(semanticKey).value();
         if (this.semanticKey != null && !this.semanticKey.equals(normalized)) {
-            throw new IllegalStateException("semanticKey já atribuído e não pode ser alterado.");
+            throw new SemanticKeyAlreadyAssignedException();
         }
         this.semanticKey = normalized;
     }

@@ -162,6 +162,27 @@ class FatorCalculoControllerTest {
     }
 
     @Test
+    void assignSemanticKey_whenSameKeyIsNormalized_shouldReturn200AndPreserveIdentity() throws Exception {
+        FatorCalculo fator = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Assigned", "un", TipoInput.NUMERICO, "pages_read"));
+        mockMvc.perform(put("/api/fatores-calculo/{id}/semantic-key", fator.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\" PAGES_READ \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.semanticKey").value("pages_read"));
+    }
+
+    @Test
+    void assignSemanticKey_whenDifferentKeyIsRequested_shouldReturn409Conflict() throws Exception {
+        FatorCalculo fator = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Assigned", "un", TipoInput.NUMERICO, "pages_read"));
+        mockMvc.perform(put("/api/fatores-calculo/{id}/semantic-key", fator.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\"pages_completed\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void create_whenSemanticKeyIsDuplicateAfterNormalization_shouldReturn409Conflict() throws Exception {
         fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Primeiro", "un", TipoInput.NUMERICO, "pages_read"));
         CreateFatorCalculoRequest request = new CreateFatorCalculoRequest(" Pages_Read ", "Segundo", "un", TipoInput.NUMERICO);

@@ -8,6 +8,7 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfig
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration;
+import com.josecjuniors.logossrv.core.progression.domain.model.FactKeyGeneration;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
@@ -48,7 +49,7 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         if (row == null) return Optional.empty();
 
         PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
-        return Optional.of(materialize(row, policy));
+        return Optional.of(materialize(row, policy, FactKeyGeneration.SEMANTIC));
     }
 
     @Override
@@ -58,7 +59,7 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         ConfigRow row = findConfig(legacyId).orElseGet(() -> snapshotForResolution(legacyId, true));
         if (row == null) return Optional.empty();
         PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
-        return Optional.of(materialize(row, policy));
+        return Optional.of(materialize(row, policy, FactKeyGeneration.LEGACY_UUID));
     }
 
     private ConfigRow snapshotForResolution(UUID legacyId, boolean legacyKeys) {
@@ -86,10 +87,11 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         Object[] args = reference.revision() == null ? new Object[]{reference.key()} : new Object[]{reference.key(), reference.revision()};
         var rows = jdbc.query(sql, (rs, n) -> new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"), rs.getInt("base_stress")), args);
         if (rows.isEmpty()) return Optional.empty();
-        return Optional.of(materialize(rows.get(0), currentPolicy().orElseGet(this::snapshotPolicy)));
+        return Optional.of(materialize(rows.get(0), currentPolicy().orElseGet(this::snapshotPolicy), FactKeyGeneration.SEMANTIC));
     }
 
-    private ResolvedProgressionConfiguration materialize(ConfigRow row, PolicyRow policy) {
+    private ResolvedProgressionConfiguration materialize(ConfigRow row, PolicyRow policy,
+                                                         FactKeyGeneration factKeyGeneration) {
         var distributions = jdbc.query("""
                 SELECT id, attribute_key, weight FROM progression_configuration_version_distribution
                 WHERE configuration_version_id = ? ORDER BY id
@@ -107,7 +109,8 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
                 SELECT factor_key FROM progression_configuration_version_factor
                 WHERE configuration_version_id = ? AND tipo_input = 'NUMERICO'
                 """, (rs, n) -> rs.getString(1), row.versionId));
-        return new ResolvedProgressionConfiguration(row.versionId, policy.versionId, configuration, numeric);
+        return new ResolvedProgressionConfiguration(row.versionId, policy.versionId, configuration, numeric,
+                factKeyGeneration);
     }
 
     private ProgressionConfiguration.AttributeDistribution toDistribution(DistributionRow d, UUID versionId) {
