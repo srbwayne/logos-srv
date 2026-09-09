@@ -5,11 +5,12 @@ import com.josecjuniors.logossrv.core.fatorcalculo.application.dto.FatorCalculoD
 
 public record FatorCalculoResponse(
         String id,
+        String semanticKey,
         String nome,
         String unidadeMedida,
         TipoInput tipoInput
 ) {
     public static FatorCalculoResponse fromDto(FatorCalculoDto dto) {
-        return new FatorCalculoResponse(dto.id(), dto.nome(), dto.unidadeMedida(), dto.tipoInput());
+        return new FatorCalculoResponse(dto.id(), dto.semanticKey(), dto.nome(), dto.unidadeMedida(), dto.tipoInput());
     }
 }

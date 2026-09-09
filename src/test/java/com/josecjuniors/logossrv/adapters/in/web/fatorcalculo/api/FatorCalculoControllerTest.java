@@ -58,13 +58,14 @@ class FatorCalculoControllerTest {
 
     @Test
     void create_withValidData_shouldReturn201AndCreatedFator() throws Exception {
-        CreateFatorCalculoRequest request = new CreateFatorCalculoRequest("Distância", "km", TipoInput.NUMERICO);
+        CreateFatorCalculoRequest request = new CreateFatorCalculoRequest("distance_km", "Distância", "km", TipoInput.NUMERICO);
 
         mockMvc.perform(post("/api/fatores-calculo")
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.semanticKey").value("distance_km"))
                 .andExpect(jsonPath("$.nome").value("Distância"))
                 .andExpect(jsonPath("$.unidadeMedida").value("km"))
                 .andExpect(jsonPath("$.tipoInput").value("NUMERICO"));
@@ -133,6 +134,38 @@ class FatorCalculoControllerTest {
         UpdateFatorCalculoRequest request = new UpdateFatorCalculoRequest("Calorias", "kcal", TipoInput.NUMERICO);
 
         mockMvc.perform(put("/api/fatores-calculo/{id}", fatorToUpdate.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void create_whenSemanticKeyIsMissing_shouldReturnBadRequest() throws Exception {
+        CreateFatorCalculoRequest request = new CreateFatorCalculoRequest(null, "Sem chave", "un", TipoInput.NUMERICO);
+        mockMvc.perform(post("/api/fatores-calculo")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void assignSemanticKey_whenLegacyFactorHasNoKey_shouldReturnKey() throws Exception {
+        FatorCalculo fator = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Legado", "un", TipoInput.NUMERICO));
+        mockMvc.perform(put("/api/fatores-calculo/{id}/semantic-key", fator.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\"legacy_factor\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.semanticKey").value("legacy_factor"));
+    }
+
+    @Test
+    void create_whenSemanticKeyIsDuplicateAfterNormalization_shouldReturn409Conflict() throws Exception {
+        fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Primeiro", "un", TipoInput.NUMERICO, "pages_read"));
+        CreateFatorCalculoRequest request = new CreateFatorCalculoRequest(" Pages_Read ", "Segundo", "un", TipoInput.NUMERICO);
+        mockMvc.perform(post("/api/fatores-calculo")
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

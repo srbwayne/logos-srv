@@ -6,6 +6,7 @@ import com.josecjuniors.logossrv.core.fatorcalculo.application.port.in.CreateFat
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoJaExisteException;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.SemanticKey;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +26,11 @@ public class CreateFatorCalculoService implements CreateFatorCalculoUseCase {
         if (repository.existsByNome(command.nome())) {
             throw new FatorCalculoJaExisteException(command.nome());
         }
-        FatorCalculo novoFator = new FatorCalculo(FatorCalculoId.generate(), command.nome(), command.unidadeMedida(), command.tipoInput());
+        String semanticKey = SemanticKey.of(command.semanticKey()).value();
+        if (repository.existsBySemanticKey(semanticKey)) {
+            throw new FatorCalculoJaExisteException(semanticKey);
+        }
+        FatorCalculo novoFator = new FatorCalculo(FatorCalculoId.generate(), command.nome(), command.unidadeMedida(), command.tipoInput(), semanticKey);
         FatorCalculo fatorSalvo = repository.save(novoFator);
         return FatorCalculoDto.fromDomain(fatorSalvo);
     }

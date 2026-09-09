@@ -13,6 +13,8 @@ public interface FatorCalculoRepository {
     Page<FatorCalculo> findByNomeContainingIgnoreCase(String nome, Pageable pageable);
     boolean existsByNome(String nome);
     boolean existsByNomeAndIdNot(String nome, FatorCalculoId id);
+    boolean existsBySemanticKey(String semanticKey);
+    boolean existsBySemanticKeyAndIdNot(String semanticKey, FatorCalculoId id);
     void deleteById(FatorCalculoId id);
     void deleteAll();
 }

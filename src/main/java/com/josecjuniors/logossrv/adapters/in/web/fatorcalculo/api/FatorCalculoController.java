@@ -2,6 +2,7 @@ package com.josecjuniors.logossrv.adapters.in.web.fatorcalculo.api;
 
 import com.josecjuniors.logossrv.adapters.in.web.fatorcalculo.dto.request.CreateFatorCalculoRequest;
 import com.josecjuniors.logossrv.adapters.in.web.fatorcalculo.dto.request.UpdateFatorCalculoRequest;
+import com.josecjuniors.logossrv.adapters.in.web.fatorcalculo.dto.request.AssignFatorCalculoSemanticKeyRequest;
 import com.josecjuniors.logossrv.adapters.in.web.fatorcalculo.dto.response.FatorCalculoResponse;
 import com.josecjuniors.logossrv.core.fatorcalculo.application.dto.FatorCalculoDto;
 import com.josecjuniors.logossrv.core.fatorcalculo.application.port.in.CreateFatorCalculoCommand;
@@ -11,6 +12,7 @@ import com.josecjuniors.logossrv.core.fatorcalculo.application.port.in.GetAllFat
 import com.josecjuniors.logossrv.core.fatorcalculo.application.port.in.GetFatorCalculoByIdUseCase;
 import com.josecjuniors.logossrv.core.fatorcalculo.application.port.in.UpdateFatorCalculoCommand;
 import com.josecjuniors.logossrv.core.fatorcalculo.application.port.in.UpdateFatorCalculoUseCase;
+import com.josecjuniors.logossrv.core.fatorcalculo.application.port.in.AssignFatorCalculoSemanticKeyUseCase;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -39,18 +41,27 @@ public class FatorCalculoController {
     private final GetFatorCalculoByIdUseCase getByIdUseCase;
     private final GetAllFatoresCalculoUseCase getAllUseCase;
     private final DeleteFatorCalculoUseCase deleteUseCase;
+    private final AssignFatorCalculoSemanticKeyUseCase assignSemanticKeyUseCase;
 
-    public FatorCalculoController(CreateFatorCalculoUseCase createUseCase, UpdateFatorCalculoUseCase updateUseCase, GetFatorCalculoByIdUseCase getByIdUseCase, GetAllFatoresCalculoUseCase getAllUseCase, DeleteFatorCalculoUseCase deleteUseCase) {
+    public FatorCalculoController(CreateFatorCalculoUseCase createUseCase, UpdateFatorCalculoUseCase updateUseCase, GetFatorCalculoByIdUseCase getByIdUseCase, GetAllFatoresCalculoUseCase getAllUseCase, DeleteFatorCalculoUseCase deleteUseCase, AssignFatorCalculoSemanticKeyUseCase assignSemanticKeyUseCase) {
         this.createUseCase = createUseCase;
         this.updateUseCase = updateUseCase;
         this.getByIdUseCase = getByIdUseCase;
         this.getAllUseCase = getAllUseCase;
         this.deleteUseCase = deleteUseCase;
+        this.assignSemanticKeyUseCase = assignSemanticKeyUseCase;
+    }
+
+    @PutMapping("/{id}/semantic-key")
+    public ResponseEntity<FatorCalculoResponse> assignSemanticKey(@PathVariable UUID id,
+                                                                  @RequestBody AssignFatorCalculoSemanticKeyRequest request) {
+        var dto = assignSemanticKeyUseCase.assign(new FatorCalculoId(id), request.semanticKey());
+        return ResponseEntity.ok(FatorCalculoResponse.fromDto(dto));
     }
 
     @PostMapping
     public ResponseEntity<FatorCalculoResponse> create(@RequestBody CreateFatorCalculoRequest request) {
-        var command = new CreateFatorCalculoCommand(request.nome(), request.unidadeMedida(), request.tipoInput());
+        var command = new CreateFatorCalculoCommand(request.semanticKey(), request.nome(), request.unidadeMedida(), request.tipoInput());
         FatorCalculoDto dto = createUseCase.create(command);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(dto.id()).toUri();
         return ResponseEntity.created(location).body(FatorCalculoResponse.fromDto(dto));

@@ -80,8 +80,8 @@ public class CreateRegistroAtividadeService implements CreateRegistroAtividadeUs
             }
             var resolved = resolvedOptional.get();
             var facts = new ProgressionFact(novoRegistro.getDetalhes().stream()
-                    .filter(d -> resolved.numericFactorKeys().contains(d.getFatorCalculo().getId().getValue().toString()))
-                    .map(d -> new ProgressionFact.Detail(d.getFatorCalculo().getId().getValue().toString(), Double.parseDouble(d.getValorRegistrado())))
+                    .map(d -> factDetailFor(d, resolved))
+                    .filter(java.util.Objects::nonNull)
                     .toList());
             var identity = ActivityProgressionAdapter.identity(registroSalvo.getId().getValue());
             var fingerprint = com.josecjuniors.logossrv.core.progression.application.service.ProgressionExecutionFingerprint.ofFrozen(
@@ -98,5 +98,15 @@ public class CreateRegistroAtividadeService implements CreateRegistroAtividadeUs
         }
 
         eventPublisher.publishEvent(new RegistroAtividadeCriadoEvent(registroSalvo.getId()));
+    }
+
+    private ProgressionFact.Detail factDetailFor(com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividadeDetalhe detail,
+                                                  com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration resolved) {
+        String legacyKey = detail.getFatorCalculo().getId().getValue().toString();
+        String semanticKey = detail.getFatorCalculo().getSemanticKey();
+        String effectiveKey = semanticKey != null && resolved.numericFactorKeys().contains(semanticKey)
+                ? semanticKey
+                : resolved.numericFactorKeys().contains(legacyKey) ? legacyKey : null;
+        return effectiveKey == null ? null : new ProgressionFact.Detail(effectiveKey, Double.parseDouble(detail.getValorRegistrado()));
     }
 }

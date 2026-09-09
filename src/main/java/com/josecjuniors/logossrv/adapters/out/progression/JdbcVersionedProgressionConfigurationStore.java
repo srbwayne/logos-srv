@@ -129,6 +129,7 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     }
 
     private UUID snapshotConfiguration(AtividadeConfig config) {
+        ensureSemanticKeysAvailable(config);
         UUID legacyId = config.getId().getValue();
         UUID definition = jdbc.query("SELECT id FROM progression_configuration_definition WHERE legacy_atividade_config_id = ?",
                 (rs, n) -> rs.getObject(1, UUID.class), legacyId).stream().findFirst().orElseGet(() -> {
@@ -148,16 +149,34 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
                     distribution, version, d.getAtributo().getId().getValue().toString(), d.getPesoPercentual());
             for (RegraFatorXP r : d.getRegraFatorXPS()) {
                 jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        UUID.randomUUID(), distribution, r.getFatorCalculo().getId().getValue().toString(), r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), XpCalculationMode.FIXED.name());
+                        UUID.randomUUID(), distribution, requiredSemanticKey(r.getFatorCalculo().getSemanticKey()), r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), XpCalculationMode.FIXED.name());
             }
             for (RegraFatorEstresse r : d.getRegraFatorEstresses()) {
                 jdbc.update("INSERT INTO progression_configuration_version_stress_rule(id, distribution_id, multiplier, min_cutoff, max_cutoff, type) VALUES (?, ?, ?, ?, ?, ?)",
                         UUID.randomUUID(), distribution, r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), r.getTipo().name());
             }
         }
-        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, id::text, tipo_input FROM fator_calculo", version);
+        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, semantic_key, tipo_input FROM fator_calculo WHERE semantic_key IS NOT NULL", version);
         jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
         return version;
+    }
+
+    private String requiredSemanticKey(String semanticKey) {
+        if (semanticKey == null || semanticKey.isBlank()) {
+            throw new IllegalStateException("Todos os fatores referenciados por uma nova versão devem possuir semanticKey.");
+        }
+        return semanticKey;
+    }
+
+    private void ensureSemanticKeysAvailable(AtividadeConfig config) {
+        config.getRegrasDistribuicao().stream()
+                .flatMap(distribution -> distribution.getRegraFatorXPS().stream())
+                .map(rule -> rule.getFatorCalculo().getSemanticKey())
+                .filter(java.util.Objects::isNull)
+                .findAny()
+                .ifPresent(missing -> {
+                    throw new IllegalStateException("Novas versões de configuração exigem semanticKey nos fatores referenciados.");
+                });
     }
 
     @Override
