@@ -11,6 +11,7 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressi
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.SemanticKeyRequiredException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,17 +44,31 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     @Transactional
     public Optional<ResolvedProgressionConfiguration> resolveVersioned(ProgressionConfigurationReference reference) {
         UUID legacyId = reference.value();
-        ConfigRow row = findConfig(legacyId).orElseGet(() -> configs.findById(new AtividadeConfigId(legacyId))
-                .map(config -> {
-                    entityManager.flush();
-                    return snapshotConfiguration(config);
-                })
-                .flatMap(this::findConfigByVersion)
-                .orElse(null));
+        ConfigRow row = findConfig(legacyId).orElseGet(() -> snapshotForResolution(legacyId, false));
         if (row == null) return Optional.empty();
 
         PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
         return Optional.of(materialize(row, policy));
+    }
+
+    @Override
+    @Transactional
+    public Optional<ResolvedProgressionConfiguration> resolveLegacyVersioned(ProgressionConfigurationReference reference) {
+        UUID legacyId = reference.value();
+        ConfigRow row = findConfig(legacyId).orElseGet(() -> snapshotForResolution(legacyId, true));
+        if (row == null) return Optional.empty();
+        PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
+        return Optional.of(materialize(row, policy));
+    }
+
+    private ConfigRow snapshotForResolution(UUID legacyId, boolean legacyKeys) {
+        return configs.findById(new AtividadeConfigId(legacyId))
+                .map(config -> {
+                    entityManager.flush();
+                    return snapshotConfiguration(config, legacyKeys);
+                })
+                .flatMap(this::findConfigByVersion)
+                .orElse(null);
     }
 
     @Override
@@ -129,7 +144,11 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     }
 
     private UUID snapshotConfiguration(AtividadeConfig config) {
-        ensureSemanticKeysAvailable(config);
+        return snapshotConfiguration(config, false);
+    }
+
+    private UUID snapshotConfiguration(AtividadeConfig config, boolean legacyKeys) {
+        if (!legacyKeys) ensureSemanticKeysAvailable(config);
         UUID legacyId = config.getId().getValue();
         UUID definition = jdbc.query("SELECT id FROM progression_configuration_definition WHERE legacy_atividade_config_id = ?",
                 (rs, n) -> rs.getObject(1, UUID.class), legacyId).stream().findFirst().orElseGet(() -> {
@@ -149,21 +168,30 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
                     distribution, version, d.getAtributo().getId().getValue().toString(), d.getPesoPercentual());
             for (RegraFatorXP r : d.getRegraFatorXPS()) {
                 jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        UUID.randomUUID(), distribution, requiredSemanticKey(r.getFatorCalculo().getSemanticKey()), r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), XpCalculationMode.FIXED.name());
+                        UUID.randomUUID(), distribution, factorKey(r.getFatorCalculo(), legacyKeys), r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), XpCalculationMode.FIXED.name());
             }
             for (RegraFatorEstresse r : d.getRegraFatorEstresses()) {
                 jdbc.update("INSERT INTO progression_configuration_version_stress_rule(id, distribution_id, multiplier, min_cutoff, max_cutoff, type) VALUES (?, ?, ?, ?, ?, ?)",
                         UUID.randomUUID(), distribution, r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), r.getTipo().name());
             }
         }
-        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, semantic_key, tipo_input FROM fator_calculo WHERE semantic_key IS NOT NULL", version);
+        if (legacyKeys) {
+            jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, id::text, tipo_input FROM fator_calculo", version);
+        } else {
+            jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, semantic_key, tipo_input FROM fator_calculo WHERE semantic_key IS NOT NULL", version);
+        }
         jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
         return version;
     }
 
+    private String factorKey(com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo factor, boolean legacyKeys) {
+        if (legacyKeys) return factor.getId().getValue().toString();
+        return requiredSemanticKey(factor.getSemanticKey());
+    }
+
     private String requiredSemanticKey(String semanticKey) {
         if (semanticKey == null || semanticKey.isBlank()) {
-            throw new IllegalStateException("Todos os fatores referenciados por uma nova versão devem possuir semanticKey.");
+            throw new SemanticKeyRequiredException();
         }
         return semanticKey;
     }
@@ -173,7 +201,7 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
                 .flatMap(distribution -> distribution.getRegraFatorXPS().stream())
                 .anyMatch(rule -> rule.getFatorCalculo().getSemanticKey() == null);
         if (missing) {
-            throw new IllegalStateException("Novas versões de configuração exigem semanticKey nos fatores referenciados.");
+            throw new SemanticKeyRequiredException();
         }
     }
 

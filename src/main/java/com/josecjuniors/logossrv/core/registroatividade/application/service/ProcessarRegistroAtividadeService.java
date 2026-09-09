@@ -66,7 +66,7 @@ public class ProcessarRegistroAtividadeService implements ProcessarRegistroAtivi
                 .orElseThrow(() -> new IllegalStateException("Jogador nÃ£o encontrado para processamento."));
         ProgressionProfile currentProfile = progressionProfileMapper.from(jogador);
         var resolved = versionedResolver == null ? java.util.Optional.<com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration>empty()
-                : versionedResolver.resolveVersioned(new ProgressionConfigurationReference(registro.getAtividadeConfig().getId().getValue()));
+                : versionedResolver.resolveLegacyVersioned(new ProgressionConfigurationReference(registro.getAtividadeConfig().getId().getValue()));
         ProgressionInput input = resolved.map(value -> inputFactory.create(
                         new ProgressionFact(registro.getDetalhes().stream()
                                 .filter(d -> value.numericFactorKeys().contains(d.getFatorCalculo().getId().getValue().toString()))

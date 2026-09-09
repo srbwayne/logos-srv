@@ -9,6 +9,7 @@ import java.util.UUID;
 
 interface VersionedProgressionConfigurationStore {
     Optional<ResolvedProgressionConfiguration> resolveVersioned(ProgressionConfigurationReference reference);
+    Optional<ResolvedProgressionConfiguration> resolveLegacyVersioned(ProgressionConfigurationReference reference);
     Optional<ResolvedProgressionConfiguration> resolveExternal(ExternalProgressionConfigurationReference reference);
     void snapshotConfiguration(UUID legacyId);
     void snapshotSkillPolicy();
