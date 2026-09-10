@@ -1,4 +1,4 @@
-package com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration;
+﻿package com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.josecjuniors.logossrv.adapters.out.appuser.jpa.AppUserJpaRepository;
@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @IntegrationTest
-class ProgressionConfigurationAuthoringPostgresIT {
+class ProgressionConfigurationAuthoringPostgresTest {
     private static final UUID LEARNING_ATTRIBUTE = UUID.fromString("11111111-1111-4111-8111-111111111111");
 
     @Autowired private MockMvc mockMvc;
