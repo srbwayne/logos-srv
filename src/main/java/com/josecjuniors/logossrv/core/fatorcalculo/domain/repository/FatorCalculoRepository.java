@@ -15,6 +15,7 @@ public interface FatorCalculoRepository {
     boolean existsByNomeAndIdNot(String nome, FatorCalculoId id);
     boolean existsBySemanticKey(String semanticKey);
     boolean existsBySemanticKeyAndIdNot(String semanticKey, FatorCalculoId id);
+    Optional<FatorCalculo> findBySemanticKey(String semanticKey);
     void deleteById(FatorCalculoId id);
     void deleteAll();
 }

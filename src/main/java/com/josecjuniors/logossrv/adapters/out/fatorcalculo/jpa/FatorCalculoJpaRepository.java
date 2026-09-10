@@ -35,5 +35,8 @@ public interface FatorCalculoJpaRepository extends FatorCalculoRepository, JpaRe
     boolean existsBySemanticKeyAndIdNot(String semanticKey, FatorCalculoId id);
 
     @Override
+    Optional<FatorCalculo> findBySemanticKey(String semanticKey);
+
+    @Override
     void deleteAll();
 }
