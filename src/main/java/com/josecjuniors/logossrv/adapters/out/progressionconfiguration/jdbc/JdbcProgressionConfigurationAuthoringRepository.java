@@ -101,6 +101,41 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
         return findDraft(logicalKey).orElseThrow();
     }
 
+    @Override
+    @Transactional
+    public PublishedProgressionConfigurationVersion publish(String logicalKey, long expectedDraftVersion,
+                                                            ProgressionConfigurationDraft draft) {
+        ProgressionConfigurationDefinition definition = find(logicalKey).orElseThrow();
+        UUID definitionId = definition.id();
+        jdbc.queryForObject("SELECT id FROM progression_configuration_definition WHERE id = ? FOR UPDATE", UUID.class, definitionId);
+        UUID draftId = jdbc.queryForObject("SELECT id FROM progression_configuration_draft WHERE definition_id = ? AND version = ?",
+                UUID.class, definitionId, expectedDraftVersion);
+        int revision = jdbc.queryForObject("SELECT COALESCE(MAX(revision), 0) + 1 FROM progression_configuration_version WHERE definition_id = ?",
+                Integer.class, definitionId);
+        UUID version = UUID.randomUUID();
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, ?, ?, ?, 'SEMANTIC')",
+                version, definitionId, revision, draft.baseXp(), draft.baseStress());
+        for (ProgressionConfigurationDraft.Distribution source : draft.distributions()) {
+            UUID distribution = UUID.randomUUID();
+            jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) VALUES (?, ?, ?, ?)",
+                    distribution, version, source.attributeId().toString(), source.weight());
+            for (ProgressionConfigurationDraft.XpRule rule : source.xpRules()) {
+                String fact = rule.fact().trim().toLowerCase(java.util.Locale.ROOT);
+                jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        UUID.randomUUID(), distribution, fact, rule.multiplier(), rule.minCutoff(), rule.maxCutoff(), rule.calculationMode().name());
+            }
+            for (ProgressionConfigurationDraft.StressRule rule : source.stressRules()) {
+                jdbc.update("INSERT INTO progression_configuration_version_stress_rule(id, distribution_id, multiplier, min_cutoff, max_cutoff, type) VALUES (?, ?, ?, ?, ?, ?)",
+                        UUID.randomUUID(), distribution, rule.multiplier(), rule.minCutoff(), rule.maxCutoff(), rule.type());
+            }
+        }
+        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) "
+                        + "SELECT gen_random_uuid(), ?, f.semantic_key, f.tipo_input FROM fator_calculo f "
+                        + "JOIN progression_configuration_draft_factor df ON df.fator_calculo_id = f.id WHERE df.draft_id = ?",
+                version, draftId);
+        return new PublishedProgressionConfigurationVersion(definitionId, version, revision);
+    }
+
     private record DraftRoot(UUID id, long version, Integer baseXp, Integer baseStress) {}
     private record DistributionBuilder(UUID id, UUID attributeId, double weight) {}
 }

@@ -4,10 +4,16 @@ import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.Prog
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDraft;
 
 import java.util.Optional;
+import java.util.UUID;
 
 public interface ProgressionConfigurationAuthoringRepository {
     ProgressionConfigurationDefinition create(String logicalKey);
     Optional<ProgressionConfigurationDefinition> find(String logicalKey);
     Optional<ProgressionConfigurationDraft> findDraft(String logicalKey);
     ProgressionConfigurationDraft replaceDraft(String logicalKey, long expectedVersion, ProgressionConfigurationDraft draft);
+
+    PublishedProgressionConfigurationVersion publish(String logicalKey, long expectedDraftVersion,
+                                                     ProgressionConfigurationDraft draft);
+
+    record PublishedProgressionConfigurationVersion(UUID definitionId, UUID versionId, int revision) {}
 }

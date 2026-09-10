@@ -74,6 +74,50 @@ public class ProgressionConfigurationAuthoringService {
         }
     }
 
+    @Transactional
+    public ProgressionConfigurationAuthoringRepository.PublishedProgressionConfigurationVersion publish(
+            String rawKey, long expectedDraftVersion) {
+        String key = ExternalProgressionConfigurationReference.normalizeKey(rawKey);
+        ProgressionConfigurationDefinition definition = get(key);
+        if (definition.legacyLinked()) {
+            throw new ProgressionConfigurationAuthoringConflictException("legacy-linked configuration is not available to modern authoring");
+        }
+        ProgressionConfigurationDraft draft = repository.findDraft(key)
+                .orElseThrow(com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException::new);
+        if (draft.version() != expectedDraftVersion) {
+            throw new ProgressionConfigurationAuthoringConflictException("stale draft version");
+        }
+        validatePublishableDraft(draft);
+        return repository.publish(key, expectedDraftVersion, draft);
+    }
+
+    private void validatePublishableDraft(ProgressionConfigurationDraft draft) {
+        if (draft.baseXp() == null || draft.baseStress() == null) {
+            throw new IllegalArgumentException("base XP and base stress are required for publication");
+        }
+        if (draft.factors().stream().anyMatch(key -> key == null || key.isBlank())) {
+            throw new IllegalArgumentException("published factors require semantic keys");
+        }
+        for (ProgressionConfigurationDraft.Distribution distribution : draft.distributions()) {
+            if (distribution.attributeId() == null) {
+                throw new IllegalArgumentException("published distributions require an attribute");
+            }
+            for (ProgressionConfigurationDraft.XpRule rule : distribution.xpRules()) {
+                if (rule.fact() == null || rule.fact().isBlank()) {
+                    throw new IllegalArgumentException("published XP rules require a fact");
+                }
+                if (rule.calculationMode() == null) {
+                    throw new IllegalArgumentException("published XP rules require a calculation mode");
+                }
+            }
+            for (ProgressionConfigurationDraft.StressRule rule : distribution.stressRules()) {
+                if (rule.multiplier() == null || rule.type() == null || rule.type().isBlank()) {
+                    throw new IllegalArgumentException("published stress rules require multiplier and type");
+                }
+            }
+        }
+    }
+
     private void validateDraft(ProgressionConfigurationDraft draft) {
         Set<String> factorKeys = new HashSet<>();
         for (String key : draft.factors()) {
