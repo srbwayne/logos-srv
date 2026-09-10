@@ -1,4 +1,4 @@
-﻿package com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration;
+package com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.josecjuniors.logossrv.adapters.out.appuser.jpa.AppUserJpaRepository;
