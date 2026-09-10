@@ -120,4 +120,82 @@ class ProgressionConfigurationAuthoringPostgresTest {
         mockMvc.perform(get("/api/progression/configurations/{key}/draft", legacyKey).header("Authorization", "Bearer " + token))
                 .andExpect(status().isConflict());
     }
+
+    @Test
+    void publishesSemanticSnapshotWithoutActivatingAndKeepsItImmutable() throws Exception {
+        String key = "publish_" + UUID.randomUUID().toString().replace('-', '_');
+        service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Publish factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "piano_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        String fact = factor.getSemanticKey();
+        replaceDraft(key, 0, fact, 10, 1);
+
+        String publish = mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":1}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(1))
+                .andReturn().getResponse().getContentAsString();
+        UUID version = UUID.fromString(objectMapper.readTree(publish).get("versionId").asText());
+
+        assertThat(jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE logical_key = ?", UUID.class, key)).isNull();
+        assertThat(jdbc.queryForObject("SELECT fact_key_generation FROM progression_configuration_version WHERE id = ?", String.class, version)).isEqualTo("SEMANTIC");
+        assertThat(jdbc.queryForObject("SELECT factor_key FROM progression_configuration_version_factor WHERE configuration_version_id = ?", String.class, version)).isEqualTo(fact);
+        assertThat(jdbc.queryForObject("SELECT factor_key FROM progression_configuration_version_xp_rule r JOIN progression_configuration_version_distribution d ON d.id = r.distribution_id WHERE d.configuration_version_id = ?", String.class, version)).isEqualTo(fact);
+
+        replaceDraft(key, 1, fact, 20, 2);
+        assertThat(jdbc.queryForObject("SELECT base_xp FROM progression_configuration_version WHERE id = ?", Integer.class, version)).isEqualTo(10);
+        mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":2}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(2));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT base_xp FROM progression_configuration_version WHERE id = ?", Integer.class, version)).isEqualTo(10);
+    }
+
+    @Test
+    void rejectsIncompletePublicationAndDoesNotCreateRuntimeVersion() throws Exception {
+        String key = "incomplete_publish_" + UUID.randomUUID().toString().replace('-', '_');
+        service.create(key);
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":0}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isZero();
+    }
+
+    @Test
+    void rejectsLegacyFactWithoutSemanticIdentityAtPublicationBoundary() throws Exception {
+        String key = "legacy_fact_publish_" + UUID.randomUUID().toString().replace('-', '_');
+        var definition = service.create(key);
+        FatorCalculo legacy = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Legacy publish factor " + UUID.randomUUID(), "min", TipoInput.NUMERICO));
+        UUID draftId = jdbc.queryForObject("SELECT id FROM progression_configuration_draft WHERE definition_id = ?", UUID.class, definition.id());
+        jdbc.update("INSERT INTO progression_configuration_draft_factor(id, draft_id, fator_calculo_id) VALUES (?, ?, ?)", UUID.randomUUID(), draftId, legacy.getId().getValue());
+        jdbc.update("UPDATE progression_configuration_draft SET base_xp = 10, base_stress = 1 WHERE id = ?", draftId);
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":0}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definition.id())).isZero();
+    }
+
+    @Test
+    void unknownDefinitionCannotBePublished() throws Exception {
+        mockMvc.perform(post("/api/progression/configurations/{key}/publish", "missing_" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":0}"))
+                .andExpect(status().isNotFound());
+    }
+
+    private void replaceDraft(String key, long expectedVersion, String fact, int baseXp, int baseStress) throws Exception {
+        String body = """
+                {"expectedVersion":%d,"baseXp":%d,"baseStress":%d,
+                 "factors":["%s"],"distributions":[{"attributeId":"%s","weight":1.0,
+                 "xpRules":[{"fact":"%s","multiplier":1.0,"minCutoff":null,"maxCutoff":null,"calculationMode":"FACT_VALUE"}],"stressRules":[]}]}
+                """.formatted(expectedVersion, baseXp, baseStress, fact, LEARNING_ATTRIBUTE, fact);
+        mockMvc.perform(put("/api/progression/configurations/{key}/draft", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+    }
 }
