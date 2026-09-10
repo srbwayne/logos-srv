@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,6 +35,7 @@ class ProgressionConfigurationAuthoringPostgresTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private EntityManager entityManager;
     @Autowired private FatorCalculoRepository factors;
     @Autowired private ProgressionConfigurationAuthoringService service;
     @Autowired private AppUserJpaRepository users;
@@ -169,6 +171,7 @@ class ProgressionConfigurationAuthoringPostgresTest {
         String key = "legacy_fact_publish_" + UUID.randomUUID().toString().replace('-', '_');
         var definition = service.create(key);
         FatorCalculo legacy = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Legacy publish factor " + UUID.randomUUID(), "min", TipoInput.NUMERICO));
+        entityManager.flush();
         UUID draftId = jdbc.queryForObject("SELECT id FROM progression_configuration_draft WHERE definition_id = ?", UUID.class, definition.id());
         jdbc.update("INSERT INTO progression_configuration_draft_factor(id, draft_id, fator_calculo_id) VALUES (?, ?, ?)", UUID.randomUUID(), draftId, legacy.getId().getValue());
         jdbc.update("UPDATE progression_configuration_draft SET base_xp = 10, base_stress = 1 WHERE id = ?", draftId);
