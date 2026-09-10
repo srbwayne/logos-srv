@@ -159,12 +159,12 @@ public final class PostgresTestDatabaseInitializer
                         """);
                 statement.executeUpdate("""
                         INSERT INTO progression_configuration_version
-                            (id, definition_id, revision, base_xp, base_stress)
+                            (id, definition_id, revision, base_xp, base_stress, fact_key_generation)
                         VALUES
                             ('44444444-4444-4444-8444-444444444444',
-                             '33333333-3333-4333-8333-333333333333', 1, 1, 0),
+                             '33333333-3333-4333-8333-333333333333', 1, 1, 0, 'SEMANTIC'),
                             ('55555555-5555-4555-8555-555555555555',
-                             '33333333-3333-4333-8333-333333333333', 2, 1, 0)
+                             '33333333-3333-4333-8333-333333333333', 2, 1, 0, 'SEMANTIC')
                         ON CONFLICT (definition_id, revision) DO NOTHING
                         """);
                 statement.executeUpdate("""

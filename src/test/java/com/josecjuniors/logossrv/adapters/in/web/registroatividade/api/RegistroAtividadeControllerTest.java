@@ -78,7 +78,7 @@ class RegistroAtividadeControllerTest {
 
         testJogador = jogadorRepository.save(new Jogador(JogadorId.generate(), testAppUser, "Registrador"));
         testAtividadeConfig = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida", null, 100, 10, null, null));
-        fatorDistancia = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Distância", "km", TipoInput.NUMERICO));
+        fatorDistancia = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Distância", "km", TipoInput.NUMERICO, "distance_km"));
     }
 
     @Test

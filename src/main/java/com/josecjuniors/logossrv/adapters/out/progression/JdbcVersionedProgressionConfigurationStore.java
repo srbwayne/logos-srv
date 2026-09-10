@@ -8,9 +8,11 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfig
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration;
+import com.josecjuniors.logossrv.core.progression.domain.model.FactKeyGeneration;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.SemanticKeyRequiredException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,13 +45,7 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     @Transactional
     public Optional<ResolvedProgressionConfiguration> resolveVersioned(ProgressionConfigurationReference reference) {
         UUID legacyId = reference.value();
-        ConfigRow row = findConfig(legacyId).orElseGet(() -> configs.findById(new AtividadeConfigId(legacyId))
-                .map(config -> {
-                    entityManager.flush();
-                    return snapshotConfiguration(config);
-                })
-                .flatMap(this::findConfigByVersion)
-                .orElse(null));
+        ConfigRow row = findConfig(legacyId).orElseGet(() -> snapshotForResolution(legacyId, false));
         if (row == null) return Optional.empty();
 
         PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
@@ -58,18 +54,38 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
 
     @Override
     @Transactional
+    public Optional<ResolvedProgressionConfiguration> resolveLegacyVersioned(ProgressionConfigurationReference reference) {
+        UUID legacyId = reference.value();
+        ConfigRow row = findConfig(legacyId).orElseGet(() -> snapshotForResolution(legacyId, true));
+        if (row == null) return Optional.empty();
+        PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
+        return Optional.of(materialize(row, policy));
+    }
+
+    private ConfigRow snapshotForResolution(UUID legacyId, boolean legacyKeys) {
+        return configs.findById(new AtividadeConfigId(legacyId))
+                .map(config -> {
+                    entityManager.flush();
+                    return snapshotConfiguration(config, legacyKeys);
+                })
+                .flatMap(this::findConfigByVersion)
+                .orElse(null);
+    }
+
+    @Override
+    @Transactional
     public Optional<ResolvedProgressionConfiguration> resolveExternal(ExternalProgressionConfigurationReference reference) {
         String sql = reference.revision() == null ? """
-                SELECT v.id, v.base_xp, v.base_stress FROM progression_configuration_definition d
+                SELECT v.id, v.base_xp, v.base_stress, v.fact_key_generation FROM progression_configuration_definition d
                 JOIN progression_configuration_version v ON v.id = d.current_version_id
                 WHERE d.logical_key = ?
                 """ : """
-                SELECT v.id, v.base_xp, v.base_stress FROM progression_configuration_definition d
+                SELECT v.id, v.base_xp, v.base_stress, v.fact_key_generation FROM progression_configuration_definition d
                 JOIN progression_configuration_version v ON v.definition_id = d.id
                 WHERE d.logical_key = ? AND v.revision = ?
                 """;
         Object[] args = reference.revision() == null ? new Object[]{reference.key()} : new Object[]{reference.key(), reference.revision()};
-        var rows = jdbc.query(sql, (rs, n) -> new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"), rs.getInt("base_stress")), args);
+        var rows = jdbc.query(sql, this::configRow, args);
         if (rows.isEmpty()) return Optional.empty();
         return Optional.of(materialize(rows.get(0), currentPolicy().orElseGet(this::snapshotPolicy)));
     }
@@ -92,7 +108,8 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
                 SELECT factor_key FROM progression_configuration_version_factor
                 WHERE configuration_version_id = ? AND tipo_input = 'NUMERICO'
                 """, (rs, n) -> rs.getString(1), row.versionId));
-        return new ResolvedProgressionConfiguration(row.versionId, policy.versionId, configuration, numeric);
+        return new ResolvedProgressionConfiguration(row.versionId, policy.versionId, configuration, numeric,
+                row.factKeyGeneration);
     }
 
     private ProgressionConfiguration.AttributeDistribution toDistribution(DistributionRow d, UUID versionId) {
@@ -114,21 +131,25 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
 
     private Optional<ConfigRow> findConfig(UUID legacyId) {
         return jdbc.query("""
-                SELECT v.id, v.base_xp, v.base_stress
+                SELECT v.id, v.base_xp, v.base_stress, v.fact_key_generation
                 FROM progression_configuration_definition d
                 JOIN progression_configuration_version v ON v.id = d.current_version_id
                 WHERE d.legacy_atividade_config_id = ?
-                """, (rs, n) -> new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"),
-                        rs.getInt("base_stress")), legacyId).stream().findFirst();
+                """, this::configRow, legacyId).stream().findFirst();
     }
 
     private Optional<ConfigRow> findConfigByVersion(UUID versionId) {
-        return jdbc.query("SELECT id, base_xp, base_stress FROM progression_configuration_version WHERE id = ?",
-                (rs, n) -> new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"), rs.getInt("base_stress")), versionId)
+        return jdbc.query("SELECT id, base_xp, base_stress, fact_key_generation FROM progression_configuration_version WHERE id = ?",
+                this::configRow, versionId)
                 .stream().findFirst();
     }
 
     private UUID snapshotConfiguration(AtividadeConfig config) {
+        return snapshotConfiguration(config, false);
+    }
+
+    private UUID snapshotConfiguration(AtividadeConfig config, boolean legacyKeys) {
+        if (!legacyKeys) ensureSemanticKeysAvailable(config);
         UUID legacyId = config.getId().getValue();
         UUID definition = jdbc.query("SELECT id FROM progression_configuration_definition WHERE legacy_atividade_config_id = ?",
                 (rs, n) -> rs.getObject(1, UUID.class), legacyId).stream().findFirst().orElseGet(() -> {
@@ -140,24 +161,50 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         int revision = jdbc.queryForObject("SELECT COALESCE(MAX(revision), 0) + 1 FROM progression_configuration_version WHERE definition_id = ?",
                 Integer.class, definition);
         UUID version = UUID.randomUUID();
-        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress) VALUES (?, ?, ?, ?, ?)",
-                version, definition, revision, config.getXpBase(), config.getEstresseBase());
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, ?, ?, ?, ?)",
+                version, definition, revision, config.getXpBase(), config.getEstresseBase(),
+                legacyKeys ? FactKeyGeneration.LEGACY_UUID.name() : FactKeyGeneration.SEMANTIC.name());
         for (RegraDistribuicaoAtividade d : config.getRegrasDistribuicao()) {
             UUID distribution = UUID.randomUUID();
             jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) VALUES (?, ?, ?, ?)",
                     distribution, version, d.getAtributo().getId().getValue().toString(), d.getPesoPercentual());
             for (RegraFatorXP r : d.getRegraFatorXPS()) {
                 jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        UUID.randomUUID(), distribution, r.getFatorCalculo().getId().getValue().toString(), r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), XpCalculationMode.FIXED.name());
+                        UUID.randomUUID(), distribution, factorKey(r.getFatorCalculo(), legacyKeys), r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), XpCalculationMode.FIXED.name());
             }
             for (RegraFatorEstresse r : d.getRegraFatorEstresses()) {
                 jdbc.update("INSERT INTO progression_configuration_version_stress_rule(id, distribution_id, multiplier, min_cutoff, max_cutoff, type) VALUES (?, ?, ?, ?, ?, ?)",
                         UUID.randomUUID(), distribution, r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), r.getTipo().name());
             }
         }
-        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, id::text, tipo_input FROM fator_calculo", version);
+        if (legacyKeys) {
+            jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, id::text, tipo_input FROM fator_calculo", version);
+        } else {
+            jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, semantic_key, tipo_input FROM fator_calculo WHERE semantic_key IS NOT NULL", version);
+        }
         jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
         return version;
+    }
+
+    private String factorKey(com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo factor, boolean legacyKeys) {
+        if (legacyKeys) return factor.getId().getValue().toString();
+        return requiredSemanticKey(factor.getSemanticKey());
+    }
+
+    private String requiredSemanticKey(String semanticKey) {
+        if (semanticKey == null || semanticKey.isBlank()) {
+            throw new SemanticKeyRequiredException();
+        }
+        return semanticKey;
+    }
+
+    private void ensureSemanticKeysAvailable(AtividadeConfig config) {
+        boolean missing = config.getRegrasDistribuicao().stream()
+                .flatMap(distribution -> distribution.getRegraFatorXPS().stream())
+                .anyMatch(rule -> rule.getFatorCalculo().getSemanticKey() == null);
+        if (missing) {
+            throw new SemanticKeyRequiredException();
+        }
     }
 
     @Override
@@ -198,7 +245,12 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         return new DistributionRow(rs.getObject("id", UUID.class), rs.getString("attribute_key"), rs.getDouble("weight"));
     }
 
-    private record ConfigRow(UUID versionId, int baseXp, int baseStress) {}
+    private ConfigRow configRow(ResultSet rs, int ignored) throws java.sql.SQLException {
+        return new ConfigRow(rs.getObject("id", UUID.class), rs.getInt("base_xp"), rs.getInt("base_stress"),
+                FactKeyGeneration.valueOf(rs.getString("fact_key_generation")));
+    }
+
+    private record ConfigRow(UUID versionId, int baseXp, int baseStress, FactKeyGeneration factKeyGeneration) {}
     private record PolicyRow(UUID versionId) {}
     private record DistributionRow(UUID id, String attributeKey, double weight) {}
 }

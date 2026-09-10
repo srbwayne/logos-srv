@@ -10,6 +10,7 @@ import com.josecjuniors.logossrv.core.debuff.domain.exception.DebuffJaExisteExce
 import com.josecjuniors.logossrv.core.debuff.domain.exception.DebuffNaoEncontradoException;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoJaExisteException;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoNaoEncontradoException;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.SemanticKeyAlreadyAssignedException;
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeJaExisteException;
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeNaoEncontradaException;
 import com.josecjuniors.logossrv.core.habilidade.domain.exception.HabilidadeRequisitoNaoEncontradoException;
@@ -107,6 +108,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(FatorCalculoJaExisteException.class)
     public ResponseEntity<Map<String, String>> handleFatorCalculoJaExiste(FatorCalculoJaExisteException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(SemanticKeyAlreadyAssignedException.class)
+    public ResponseEntity<Map<String, String>> handleSemanticKeyAlreadyAssigned(SemanticKeyAlreadyAssignedException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
     }
 

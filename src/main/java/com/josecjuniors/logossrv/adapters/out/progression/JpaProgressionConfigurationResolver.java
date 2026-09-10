@@ -29,6 +29,11 @@ public class JpaProgressionConfigurationResolver implements ProgressionConfigura
     }
 
     @Override
+    public Optional<ResolvedProgressionConfiguration> resolveLegacyVersioned(ProgressionConfigurationReference reference) {
+        return store.resolveLegacyVersioned(reference);
+    }
+
+    @Override
     public Optional<ResolvedProgressionConfiguration> resolve(ExternalProgressionConfigurationReference reference) {
         return store.resolveExternal(reference);
     }
