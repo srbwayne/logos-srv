@@ -222,10 +222,10 @@ class ProgressionConfigurationAuthoringPostgresTest {
         var start = new CountDownLatch(1);
         var executor = Executors.newFixedThreadPool(2);
         try {
-            var publication = executor.submit(() -> { start.await(); return service.publish(key, 0); });
+            var publication = executor.submit(() -> { start.await(); return service.publish(key, 1); });
             var replacement = executor.submit(() -> {
                 start.await();
-                return service.replaceDraft(key, 0, new ProgressionConfigurationDraft(definition.id(), 0, 20, 2,
+                return service.replaceDraft(key, 1, new ProgressionConfigurationDraft(definition.id(), 1, 20, 2,
                         java.util.List.of(factor.getSemanticKey()), java.util.List.of()));
             });
             start.countDown();
