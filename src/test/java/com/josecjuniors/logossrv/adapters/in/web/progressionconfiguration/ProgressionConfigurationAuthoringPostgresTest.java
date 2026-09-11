@@ -184,7 +184,6 @@ class ProgressionConfigurationAuthoringPostgresTest {
         var definition = service.create(key);
         FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Concurrent publish factor " + UUID.randomUUID(), "min",
                 TipoInput.NUMERICO, "concurrent_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
-        entityManager.flush();
         replaceDraft(key, 0, factor.getSemanticKey(), 10, 1);
         var start = new CountDownLatch(1);
         var executor = Executors.newFixedThreadPool(2);
