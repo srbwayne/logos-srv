@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,11 +80,14 @@ class AtividadeFormularioServiceTest {
                 List.of(new ReplaceAtividadeFormularioCommand.Campo(paginas.getId().getValue(), "páginas"))));
 
         atividade.atualizar("Leitura diária", "Atualizada", 10, 1, null, null);
+        atividadeRepository.save(atividade);
         service.onAtividadeCatalogoSalvo(new com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeCatalogoSalvoEvent(atividade.getId()));
 
-        AtividadeFormulario formulario = formularioRepository.findByAtividadeConfigId(atividade.getId()).orElseThrow();
-        assertThat(formulario.getFormularioJson().nomeAtividade()).isEqualTo("Leitura diária");
-        assertThat(formulario.getFormularioJson().campos()).hasSize(1);
-        assertThat(formulario.getFormularioJson().campos().get(0).placeholder()).isEqualTo("páginas");
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            AtividadeFormulario formulario = formularioRepository.findByAtividadeConfigId(atividade.getId()).orElseThrow();
+            assertThat(formulario.getFormularioJson().nomeAtividade()).isEqualTo("Leitura diária");
+            assertThat(formulario.getFormularioJson().campos()).hasSize(1);
+            assertThat(formulario.getFormularioJson().campos().get(0).placeholder()).isEqualTo("páginas");
+        });
     }
 }
