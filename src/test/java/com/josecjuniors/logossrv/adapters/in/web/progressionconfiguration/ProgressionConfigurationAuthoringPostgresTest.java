@@ -10,16 +10,23 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.core.progressionconfiguration.application.service.ProgressionConfigurationAuthoringService;
+import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDraft;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
@@ -34,6 +41,7 @@ class ProgressionConfigurationAuthoringPostgresTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private EntityManager entityManager;
     @Autowired private FatorCalculoRepository factors;
     @Autowired private ProgressionConfigurationAuthoringService service;
     @Autowired private AppUserJpaRepository users;
@@ -119,5 +127,200 @@ class ProgressionConfigurationAuthoringPostgresTest {
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/progression/configurations/{key}/draft", legacyKey).header("Authorization", "Bearer " + token))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void publishesSemanticSnapshotWithoutActivatingAndKeepsItImmutable() throws Exception {
+        String key = "publish_" + UUID.randomUUID().toString().replace('-', '_');
+        service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Publish factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "piano_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        String fact = factor.getSemanticKey();
+        replaceDraft(key, 0, fact, 10, 1);
+
+        String publish = mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":1}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(1))
+                .andReturn().getResponse().getContentAsString();
+        UUID version = UUID.fromString(objectMapper.readTree(publish).get("versionId").asText());
+
+        assertThat(jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE logical_key = ?", UUID.class, key)).isNull();
+        assertThat(jdbc.queryForObject("SELECT fact_key_generation FROM progression_configuration_version WHERE id = ?", String.class, version)).isEqualTo("SEMANTIC");
+        assertThat(jdbc.queryForObject("SELECT factor_key FROM progression_configuration_version_factor WHERE configuration_version_id = ?", String.class, version)).isEqualTo(fact);
+        assertThat(jdbc.queryForObject("SELECT factor_key FROM progression_configuration_version_xp_rule r JOIN progression_configuration_version_distribution d ON d.id = r.distribution_id WHERE d.configuration_version_id = ?", String.class, version)).isEqualTo(fact);
+
+        String retry = publish(key, 1);
+        assertThat(objectMapper.readTree(retry).get("versionId").asText()).isEqualTo(version.toString());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isEqualTo(1);
+
+        replaceDraft(key, 1, fact, 20, 2);
+        String lateRetry = publish(key, 1);
+        assertThat(objectMapper.readTree(lateRetry).get("versionId").asText()).isEqualTo(version.toString());
+        assertThat(jdbc.queryForObject("SELECT base_xp FROM progression_configuration_version WHERE id = ?", Integer.class, version)).isEqualTo(10);
+        publish(key, 2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT base_xp FROM progression_configuration_version WHERE id = ?", Integer.class, version)).isEqualTo(10);
+    }
+
+    @Test
+    void staleUnpublishedDraftVersionReturnsConflict() throws Exception {
+        String key = "stale_publish_" + UUID.randomUUID().toString().replace('-', '_');
+        service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Stale publish factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "stale_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        entityManager.flush();
+        replaceDraft(key, 0, factor.getSemanticKey(), 10, 1);
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":0}"))
+                .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isZero();
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentSameDraftPublicationReturnsOneImmutableVersion() throws Exception {
+        String key = "concurrent_publish_" + UUID.randomUUID().toString().replace('-', '_');
+        var definition = service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Concurrent publish factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "concurrent_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        replaceDraft(key, 0, factor.getSemanticKey(), 10, 1);
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> { start.await(); return service.publish(key, 1); });
+            var second = executor.submit(() -> { start.await(); return service.publish(key, 1); });
+            start.countDown();
+            var publishedFirst = first.get();
+            var publishedSecond = second.get();
+            assertThat(publishedFirst.versionId()).isEqualTo(publishedSecond.versionId());
+            assertThat(publishedFirst.revision()).isEqualTo(publishedSecond.revision());
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definition.id())).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+            jdbc.update("DELETE FROM progression_configuration_version_xp_rule WHERE distribution_id IN (SELECT id FROM progression_configuration_version_distribution WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?))", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version_stress_rule WHERE distribution_id IN (SELECT id FROM progression_configuration_version_distribution WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?))", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version_distribution WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?)", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version_factor WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?)", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version WHERE definition_id = ?", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_draft WHERE definition_id = ?", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_definition WHERE id = ?", definition.id());
+            jdbc.update("DELETE FROM fator_calculo WHERE id = ?", factor.getId().getValue());
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentPublicationAndReplacementCannotCreateHybridSnapshot() throws Exception {
+        String key = "publish_replace_" + UUID.randomUUID().toString().replace('-', '_');
+        var definition = service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Publish replace factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "replace_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        replaceDraftWithoutHttp(key, 0, factor.getSemanticKey(), 10, 1);
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var publication = executor.submit(() -> { start.await(); return service.publish(key, 1); });
+            var replacement = executor.submit(() -> {
+                start.await();
+                return service.replaceDraft(key, 1, new ProgressionConfigurationDraft(definition.id(), 1, 20, 2,
+                        java.util.List.of(factor.getSemanticKey()), java.util.List.of()));
+            });
+            start.countDown();
+            com.josecjuniors.logossrv.core.progressionconfiguration.domain.repository.ProgressionConfigurationAuthoringRepository.PublishedProgressionConfigurationVersion published = null;
+            Throwable publicationFailure = null;
+            try {
+                published = publication.get();
+            } catch (ExecutionException exception) {
+                publicationFailure = exception.getCause();
+            }
+            Throwable replacementFailure = null;
+            try {
+                replacement.get();
+            } catch (ExecutionException exception) {
+                replacementFailure = exception.getCause();
+            }
+            if (published != null) {
+                assertThat(jdbc.queryForObject("SELECT base_xp FROM progression_configuration_version WHERE id = ?", Integer.class, published.versionId())).isEqualTo(10);
+                assertThat(jdbc.queryForObject("SELECT factor_key FROM progression_configuration_version_factor WHERE configuration_version_id = ?", String.class, published.versionId())).isEqualTo(factor.getSemanticKey());
+                if (replacementFailure != null) {
+                    assertThat(replacementFailure).isInstanceOf(com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException.class);
+                }
+            } else {
+                assertThat(publicationFailure).isInstanceOf(com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException.class);
+                assertThat(replacementFailure).isNull();
+                assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definition.id())).isZero();
+            }
+        } finally {
+            executor.shutdownNow();
+            jdbc.update("DELETE FROM progression_configuration_version_factor WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?)", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version WHERE definition_id = ?", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_draft WHERE definition_id = ?", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_definition WHERE id = ?", definition.id());
+            jdbc.update("DELETE FROM fator_calculo WHERE id = ?", factor.getId().getValue());
+        }
+    }
+
+    @Test
+    void rejectsIncompletePublicationAndDoesNotCreateRuntimeVersion() throws Exception {
+        String key = "incomplete_publish_" + UUID.randomUUID().toString().replace('-', '_');
+        service.create(key);
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":0}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isZero();
+    }
+
+    @Test
+    void rejectsLegacyFactWithoutSemanticIdentityAtPublicationBoundary() throws Exception {
+        String key = "legacy_fact_publish_" + UUID.randomUUID().toString().replace('-', '_');
+        var definition = service.create(key);
+        FatorCalculo legacy = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Legacy publish factor " + UUID.randomUUID(), "min", TipoInput.NUMERICO));
+        entityManager.flush();
+        UUID draftId = jdbc.queryForObject("SELECT id FROM progression_configuration_draft WHERE definition_id = ?", UUID.class, definition.id());
+        jdbc.update("INSERT INTO progression_configuration_draft_factor(id, draft_id, fator_calculo_id) VALUES (?, ?, ?)", UUID.randomUUID(), draftId, legacy.getId().getValue());
+        jdbc.update("UPDATE progression_configuration_draft SET base_xp = 10, base_stress = 1 WHERE id = ?", draftId);
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":0}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definition.id())).isZero();
+    }
+
+    @Test
+    void unknownDefinitionCannotBePublished() throws Exception {
+        mockMvc.perform(post("/api/progression/configurations/{key}/publish", "missing_" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":0}"))
+                .andExpect(status().isNotFound());
+    }
+
+    private void replaceDraft(String key, long expectedVersion, String fact, int baseXp, int baseStress) throws Exception {
+        String body = """
+                {"expectedVersion":%d,"baseXp":%d,"baseStress":%d,
+                 "factors":["%s"],"distributions":[{"attributeId":"%s","weight":1.0,
+                 "xpRules":[{"fact":"%s","multiplier":1.0,"minCutoff":null,"maxCutoff":null,"calculationMode":"FACT_VALUE"}],"stressRules":[]}]}
+                """.formatted(expectedVersion, baseXp, baseStress, fact, LEARNING_ATTRIBUTE, fact);
+        mockMvc.perform(put("/api/progression/configurations/{key}/draft", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+    }
+
+    private String publish(String key, long expectedVersion) throws Exception {
+        return mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":" + expectedVersion + "}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    }
+
+    private void replaceDraftWithoutHttp(String key, long expectedVersion, String fact, int baseXp, int baseStress) {
+        service.replaceDraft(key, expectedVersion, new ProgressionConfigurationDraft(
+                service.get(key).id(), expectedVersion, baseXp, baseStress,
+                java.util.List.of(fact), java.util.List.of()));
     }
 }

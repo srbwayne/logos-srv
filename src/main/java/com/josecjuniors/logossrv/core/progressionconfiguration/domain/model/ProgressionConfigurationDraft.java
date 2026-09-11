@@ -3,6 +3,8 @@ package com.josecjuniors.logossrv.core.progressionconfiguration.domain.model;
 import com.josecjuniors.logossrv.core.progression.domain.model.XpCalculationMode;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.UUID;
 
 public record ProgressionConfigurationDraft(
@@ -13,7 +15,7 @@ public record ProgressionConfigurationDraft(
         List<String> factors,
         List<Distribution> distributions) {
     public ProgressionConfigurationDraft {
-        factors = List.copyOf(factors);
+        factors = Collections.unmodifiableList(new ArrayList<>(factors));
         distributions = List.copyOf(distributions);
     }
 

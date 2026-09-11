@@ -2,8 +2,10 @@ package com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.api;
 
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.request.CreateProgressionConfigurationRequest;
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.request.UpdateProgressionConfigurationDraftRequest;
+import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.request.PublishProgressionConfigurationRequest;
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.response.ProgressionConfigurationDraftResponse;
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.response.ProgressionConfigurationResponse;
+import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.response.PublishedProgressionConfigurationResponse;
 import com.josecjuniors.logossrv.core.progressionconfiguration.application.service.ProgressionConfigurationAuthoringService;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDraft;
 import org.springframework.http.ResponseEntity;
@@ -50,5 +52,12 @@ public class ProgressionConfigurationAuthoringController {
                         d.xpRules() == null ? java.util.List.of() : d.xpRules().stream().map(x -> new ProgressionConfigurationDraft.XpRule(x.fact(), x.multiplier(), x.minCutoff(), x.maxCutoff(), x.calculationMode())).toList(),
                         d.stressRules() == null ? java.util.List.of() : d.stressRules().stream().map(x -> new ProgressionConfigurationDraft.StressRule(x.multiplier(), x.minCutoff(), x.maxCutoff(), x.type())).toList())).toList());
         return ResponseEntity.ok(ProgressionConfigurationDraftResponse.from(service.replaceDraft(logicalKey, request.expectedVersion(), draft)));
+    }
+
+    @PostMapping("/{logicalKey}/publish")
+    public ResponseEntity<PublishedProgressionConfigurationResponse> publish(
+            @PathVariable String logicalKey, @RequestBody PublishProgressionConfigurationRequest request) {
+        return ResponseEntity.ok(PublishedProgressionConfigurationResponse.from(
+                service.publish(logicalKey, request.expectedDraftVersion())));
     }
 }
