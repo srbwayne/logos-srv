@@ -215,20 +215,10 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
     }
 
     private ProgressionConfigurationDefinition lockDefinition(String logicalKey) {
-        return jdbc.query("""
-                SELECT d.id, d.logical_key, d.legacy_atividade_config_id,
-                       v.revision, dr.version, d.activation_version
-                FROM progression_configuration_definition d
-                LEFT JOIN progression_configuration_version v ON v.id = d.current_version_id
-                LEFT JOIN progression_configuration_draft dr ON dr.definition_id = d.id
-                WHERE d.logical_key = ?
-                FOR UPDATE OF d
-                """, (rs, n) -> new ProgressionConfigurationDefinition(
-                rs.getObject("id", UUID.class), rs.getString("logical_key"),
-                (Integer) rs.getObject("revision"), (Long) rs.getObject("version"),
-                rs.getLong("activation_version"),
-                rs.getObject("legacy_atividade_config_id") != null), logicalKey).stream().findFirst()
+        jdbc.query("SELECT id FROM progression_configuration_definition WHERE logical_key = ? FOR UPDATE",
+                (rs, n) -> rs.getObject(1, UUID.class), logicalKey).stream().findFirst()
                 .orElseThrow(ProgressionConfigurationNotFoundException::new);
+        return find(logicalKey).orElseThrow(ProgressionConfigurationNotFoundException::new);
     }
 
     private record DraftRoot(UUID id, long version, Integer baseXp, Integer baseStress) {}
