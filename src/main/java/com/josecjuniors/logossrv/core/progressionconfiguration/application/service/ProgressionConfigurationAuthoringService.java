@@ -82,13 +82,11 @@ public class ProgressionConfigurationAuthoringService {
         if (definition.legacyLinked()) {
             throw new ProgressionConfigurationAuthoringConflictException("legacy-linked configuration is not available to modern authoring");
         }
-        ProgressionConfigurationDraft draft = repository.findDraft(key)
-                .orElseThrow(com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException::new);
-        if (draft.version() != expectedDraftVersion) {
-            throw new ProgressionConfigurationAuthoringConflictException("stale draft version");
-        }
+        var existing = repository.findPublishedByDraftVersion(key, expectedDraftVersion);
+        if (existing.isPresent()) return existing.get();
+        ProgressionConfigurationDraft draft = repository.lockDraft(key, expectedDraftVersion);
         validatePublishableDraft(draft);
-        return repository.publish(key, expectedDraftVersion, draft);
+        return repository.publishLocked(key, expectedDraftVersion, draft);
     }
 
     private void validatePublishableDraft(ProgressionConfigurationDraft draft) {

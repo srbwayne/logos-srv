@@ -4,8 +4,9 @@ import com.josecjuniors.logossrv.core.progressionconfiguration.domain.repository
 
 import java.util.UUID;
 
-public record PublishedProgressionConfigurationResponse(UUID definitionId, UUID versionId, int revision) {
+public record PublishedProgressionConfigurationResponse(UUID definitionId, UUID versionId, int revision,
+                                                         long sourceDraftVersion) {
     public static PublishedProgressionConfigurationResponse from(PublishedProgressionConfigurationVersion version) {
-        return new PublishedProgressionConfigurationResponse(version.definitionId(), version.versionId(), version.revision());
+        return new PublishedProgressionConfigurationResponse(version.definitionId(), version.versionId(), version.revision(), version.sourceDraftVersion());
     }
 }

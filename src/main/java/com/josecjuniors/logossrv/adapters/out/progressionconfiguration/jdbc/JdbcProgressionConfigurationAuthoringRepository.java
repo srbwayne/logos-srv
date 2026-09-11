@@ -78,7 +78,9 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
     @Transactional
     public ProgressionConfigurationDraft replaceDraft(String logicalKey, long expectedVersion, ProgressionConfigurationDraft draft) {
         ProgressionConfigurationDefinition definition = find(logicalKey).orElseThrow();
+        jdbc.queryForObject("SELECT id FROM progression_configuration_definition WHERE id = ? FOR UPDATE", UUID.class, definition.id());
         UUID draftId = jdbc.queryForObject("SELECT id FROM progression_configuration_draft WHERE definition_id = ?", UUID.class, definition.id());
+        jdbc.queryForObject("SELECT id FROM progression_configuration_draft WHERE id = ? FOR UPDATE", UUID.class, draftId);
         int updated = jdbc.update("UPDATE progression_configuration_draft SET version = version + 1, base_xp = ?, base_stress = ? WHERE id = ? AND version = ?", draft.baseXp(), draft.baseStress(), draftId, expectedVersion);
         if (updated != 1) throw new com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException("stale draft version");
         jdbc.update("DELETE FROM progression_configuration_draft_factor WHERE draft_id = ?", draftId);
@@ -103,18 +105,46 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
 
     @Override
     @Transactional
-    public PublishedProgressionConfigurationVersion publish(String logicalKey, long expectedDraftVersion,
-                                                            ProgressionConfigurationDraft draft) {
+    public Optional<PublishedProgressionConfigurationVersion> findPublishedByDraftVersion(String logicalKey,
+                                                                                            long sourceDraftVersion) {
         ProgressionConfigurationDefinition definition = find(logicalKey).orElseThrow();
         UUID definitionId = definition.id();
         jdbc.queryForObject("SELECT id FROM progression_configuration_definition WHERE id = ? FOR UPDATE", UUID.class, definitionId);
+        return jdbc.query("SELECT id, revision, source_draft_version FROM progression_configuration_version "
+                                + "WHERE definition_id = ? AND source_draft_version = ?",
+                        (rs, n) -> new PublishedProgressionConfigurationVersion(definitionId,
+                                rs.getObject("id", UUID.class), rs.getInt("revision"), rs.getLong("source_draft_version")),
+                        definitionId, sourceDraftVersion).stream().findFirst();
+    }
+
+    @Override
+    @Transactional
+    public ProgressionConfigurationDraft lockDraft(String logicalKey, long expectedDraftVersion) {
+        ProgressionConfigurationDefinition definition = find(logicalKey).orElseThrow();
+        UUID definitionId = definition.id();
+        jdbc.queryForObject("SELECT id FROM progression_configuration_definition WHERE id = ? FOR UPDATE", UUID.class, definitionId);
+        UUID draftId = jdbc.queryForObject("SELECT id FROM progression_configuration_draft WHERE definition_id = ?", UUID.class, definitionId);
+        Long currentVersion = jdbc.queryForObject("SELECT version FROM progression_configuration_draft WHERE id = ? FOR UPDATE",
+                Long.class, draftId);
+        if (currentVersion == null || currentVersion != expectedDraftVersion) {
+            throw new com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException("stale draft version");
+        }
+        return findDraft(logicalKey).orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public PublishedProgressionConfigurationVersion publishLocked(String logicalKey, long sourceDraftVersion,
+                                                                  ProgressionConfigurationDraft draft) {
+        ProgressionConfigurationDefinition definition = find(logicalKey).orElseThrow();
+        UUID definitionId = definition.id();
         UUID draftId = jdbc.queryForObject("SELECT id FROM progression_configuration_draft WHERE definition_id = ? AND version = ?",
-                UUID.class, definitionId, expectedDraftVersion);
+                UUID.class, definitionId, sourceDraftVersion);
         int revision = jdbc.queryForObject("SELECT COALESCE(MAX(revision), 0) + 1 FROM progression_configuration_version WHERE definition_id = ?",
                 Integer.class, definitionId);
         UUID version = UUID.randomUUID();
-        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, ?, ?, ?, 'SEMANTIC')",
-                version, definitionId, revision, draft.baseXp(), draft.baseStress());
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation, source_draft_version) VALUES (?, ?, ?, ?, ?, 'SEMANTIC', ?)",
+                version, definitionId, revision, draft.baseXp(), draft.baseStress(), sourceDraftVersion);
         for (ProgressionConfigurationDraft.Distribution source : draft.distributions()) {
             UUID distribution = UUID.randomUUID();
             jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) VALUES (?, ?, ?, ?)",
@@ -133,7 +163,7 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
                         + "SELECT gen_random_uuid(), ?, f.semantic_key, f.tipo_input FROM fator_calculo f "
                         + "JOIN progression_configuration_draft_factor df ON df.fator_calculo_id = f.id WHERE df.draft_id = ?",
                 version, draftId);
-        return new PublishedProgressionConfigurationVersion(definitionId, version, revision);
+        return new PublishedProgressionConfigurationVersion(definitionId, version, revision, sourceDraftVersion);
     }
 
     private record DraftRoot(UUID id, long version, Integer baseXp, Integer baseStress) {}

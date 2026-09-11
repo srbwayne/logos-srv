@@ -12,8 +12,14 @@ public interface ProgressionConfigurationAuthoringRepository {
     Optional<ProgressionConfigurationDraft> findDraft(String logicalKey);
     ProgressionConfigurationDraft replaceDraft(String logicalKey, long expectedVersion, ProgressionConfigurationDraft draft);
 
-    PublishedProgressionConfigurationVersion publish(String logicalKey, long expectedDraftVersion,
-                                                     ProgressionConfigurationDraft draft);
+    Optional<PublishedProgressionConfigurationVersion> findPublishedByDraftVersion(String logicalKey,
+                                                                                    long sourceDraftVersion);
 
-    record PublishedProgressionConfigurationVersion(UUID definitionId, UUID versionId, int revision) {}
+    ProgressionConfigurationDraft lockDraft(String logicalKey, long expectedDraftVersion);
+
+    PublishedProgressionConfigurationVersion publishLocked(String logicalKey, long sourceDraftVersion,
+                                                           ProgressionConfigurationDraft draft);
+
+    record PublishedProgressionConfigurationVersion(UUID definitionId, UUID versionId, int revision,
+                                                    long sourceDraftVersion) {}
 }
