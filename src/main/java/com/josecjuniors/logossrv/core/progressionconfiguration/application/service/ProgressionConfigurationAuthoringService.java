@@ -90,6 +90,18 @@ public class ProgressionConfigurationAuthoringService {
         return repository.publishLocked(key, expectedDraftVersion, draft);
     }
 
+    @Transactional
+    public ProgressionConfigurationDefinition activate(String rawKey, int revision, long expectedActivationVersion) {
+        return repository.activate(ExternalProgressionConfigurationReference.normalizeKey(rawKey), revision,
+                expectedActivationVersion);
+    }
+
+    @Transactional
+    public ProgressionConfigurationDefinition deactivate(String rawKey, long expectedActivationVersion) {
+        return repository.deactivate(ExternalProgressionConfigurationReference.normalizeKey(rawKey),
+                expectedActivationVersion);
+    }
+
     private void validatePublishableDraft(ProgressionConfigurationDraft draft) {
         if (draft.baseXp() == null || draft.baseStress() == null) {
             throw new IllegalArgumentException("base XP and base stress are required for publication");

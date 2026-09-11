@@ -8,8 +8,9 @@ public record ProgressionConfigurationResponse(
         UUID id,
         String logicalKey,
         Integer currentRevision,
-        Long draftVersion) {
+        Long draftVersion,
+        long activationVersion) {
     public static ProgressionConfigurationResponse from(ProgressionConfigurationDefinition value) {
-        return new ProgressionConfigurationResponse(value.id(), value.logicalKey(), value.currentRevision(), value.draftVersion());
+        return new ProgressionConfigurationResponse(value.id(), value.logicalKey(), value.currentRevision(), value.draftVersion(), value.activationVersion());
     }
 }
