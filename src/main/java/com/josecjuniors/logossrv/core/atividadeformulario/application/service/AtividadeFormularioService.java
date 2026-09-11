@@ -1,113 +1,92 @@
 package com.josecjuniors.logossrv.core.atividadeformulario.application.service;
 
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
+import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeCatalogoSalvoEvent;
+import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
+import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.ReplaceAtividadeFormularioCommand;
+import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.ReplaceAtividadeFormularioUseCase;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioConflitoException;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormulario;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormularioId;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.AtividadeFormularioJson;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.CampoFormularioJson;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.repository.AtividadeFormularioRepository;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoNaoEncontradoException;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
-import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
-import com.josecjuniors.logossrv.core.regrafatorxp.domain.repository.RegraFatorXPRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 @Service
-public class AtividadeFormularioService {
-
-    private static final Logger logger = LoggerFactory.getLogger(AtividadeFormularioService.class);
-
+public class AtividadeFormularioService implements ReplaceAtividadeFormularioUseCase {
     private final AtividadeConfigRepository atividadeConfigRepository;
     private final AtividadeFormularioRepository atividadeFormularioRepository;
-    private final RegraFatorXPRepository regraFatorXPRepository;
+    private final FatorCalculoRepository fatorCalculoRepository;
 
-    public AtividadeFormularioService(AtividadeConfigRepository atividadeConfigRepository, AtividadeFormularioRepository atividadeFormularioRepository, RegraFatorXPRepository regraFatorXPRepository) {
+    public AtividadeFormularioService(AtividadeConfigRepository atividadeConfigRepository,
+                                      AtividadeFormularioRepository atividadeFormularioRepository,
+                                      FatorCalculoRepository fatorCalculoRepository) {
         this.atividadeConfigRepository = atividadeConfigRepository;
         this.atividadeFormularioRepository = atividadeFormularioRepository;
-        this.regraFatorXPRepository = regraFatorXPRepository;
+        this.fatorCalculoRepository = fatorCalculoRepository;
     }
 
     @Async
     @TransactionalEventListener
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void onAtividadeConfigSalva(AtividadeConfigSalvaEvent event) {
-        logger.info("Recebido evento para gerar formulário para a atividade ID: {}", event.atividadeConfigId().getValue());
-        this.generateAndSaveFormulario(event);
+    public void onAtividadeCatalogoSalvo(AtividadeCatalogoSalvoEvent event) {
+        AtividadeConfig atividade = atividadeConfigRepository.findById(event.atividadeConfigId())
+                .orElseThrow(() -> new IllegalStateException("AtividadeConfig não encontrada para o evento."));
+        atividadeFormularioRepository.findByAtividadeConfigId(atividade.getId())
+                .ifPresentOrElse(formulario -> {
+                    AtividadeFormularioJson current = formulario.getFormularioJson();
+                    formulario.atualizar(new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(),
+                            atividade.getDescricao(), current.campos()));
+                    atividadeFormularioRepository.save(formulario);
+                }, () -> atividadeFormularioRepository.save(new AtividadeFormulario(
+                        AtividadeFormularioId.generate(), atividade,
+                        new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(),
+                                atividade.getDescricao(), List.of()))));
     }
 
-    public void generateAndSaveFormulario(AtividadeConfigSalvaEvent event) {
-        AtividadeConfig atividadeConfig = atividadeConfigRepository.findById(event.atividadeConfigId())
-                .orElseThrow(() -> new IllegalStateException("AtividadeConfig não encontrada para o evento. ID: " + event.atividadeConfigId().getValue()));
-
-        List<RegraFatorXP> regras = regraFatorXPRepository.findRegrasByAtividadeConfigId(atividadeConfig.getId());
-
-        List<CampoFormularioJson> campos = regras.stream()
-                .map(regra -> {
-                    FatorCalculo fator = regra.getFatorCalculo();
-                    String placeholder = gerarPlaceholder(regra);
-                    boolean obrigatorio = true;
-
-                    return new CampoFormularioJson(
-                            fator.getId().getValue(),
-                            fator.getNome(),
-                            fator.getUnidadeMedida(),
-                            fator.getTipoInput(),
-                            placeholder,
-                            obrigatorio
-                    );
-                })
-                .collect(Collectors.toList());
-
-        AtividadeFormularioJson formularioJson = new AtividadeFormularioJson(
-                atividadeConfig.getId().getValue(),
-                atividadeConfig.getNome(),
-                atividadeConfig.getDescricao(),
-                campos
-        );
-
-        atividadeFormularioRepository.findByAtividadeConfigId(atividadeConfig.getId())
-                .ifPresentOrElse(
-                        formularioExistente -> {
-                            logger.info("Atualizando formulário existente para a atividade ID: {}", atividadeConfig.getId().getValue());
-                            formularioExistente.atualizar(formularioJson);
-                            atividadeFormularioRepository.save(formularioExistente);
-                        },
-                        () -> {
-                            logger.info("Criando novo formulário para a atividade ID: {}", atividadeConfig.getId().getValue());
-                            AtividadeFormulario novoFormulario = new AtividadeFormulario(
-                                    AtividadeFormularioId.generate(),
-                                    atividadeConfig,
-                                    formularioJson
-                            );
-                            atividadeFormularioRepository.save(novoFormulario);
-                        }
-                );
-
-        logger.info("Processamento do formulário para a atividade ID: {} concluído.", event.atividadeConfigId().getValue());
-    }
-
-    private String gerarPlaceholder(RegraFatorXP regra) {
-        Double min = regra.getPontoCorteMin();
-        Double max = regra.getPontoCorteMax();
-
-        if (min != null && max != null) {
-            return String.format(Locale.US, "Ex: entre %.1f e %.1f", min, max);
-        } else if (min != null) {
-            return String.format(Locale.US, "Ex: acima de %.1f", min);
-        } else if (max != null) {
-            return String.format(Locale.US, "Ex: até %.1f", max);
+    @Override
+    @Transactional
+    public AtividadeFormularioJson replace(ReplaceAtividadeFormularioCommand command) {
+        AtividadeConfig atividade = atividadeConfigRepository.findById(command.atividadeConfigId())
+                .orElseThrow(AtividadeConfigNaoEncontradaException::new);
+        Set<FatorCalculoId> identities = new HashSet<>();
+        List<CampoFormularioJson> campos = command.campos().stream().map(campo -> {
+            if (campo.fatorCalculoId() == null || !identities.add(new FatorCalculoId(campo.fatorCalculoId()))) {
+                throw new IllegalArgumentException("form fields must contain unique FactDefinition ids");
+            }
+            FatorCalculo fator = fatorCalculoRepository.findById(new FatorCalculoId(campo.fatorCalculoId()))
+                    .orElseThrow(() -> new FatorCalculoNaoEncontradoException(campo.fatorCalculoId().toString()));
+            return new CampoFormularioJson(fator.getId().getValue(), fator.getNome(), fator.getUnidadeMedida(),
+                    fator.getTipoInput(), campo.placeholder() == null ? "" : campo.placeholder(), true);
+        }).toList();
+        AtividadeFormularioJson json = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(),
+                atividade.getDescricao(), campos);
+        AtividadeFormulario formulario = atividadeFormularioRepository.findByAtividadeConfigIdForUpdate(atividade.getId()).orElse(null);
+        if (formulario == null) {
+            if (command.expectedVersion() != 0) {
+                throw new AtividadeFormularioConflitoException("stale activity form version");
+            }
+            return atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, json))
+                    .getFormularioJson();
         }
-        return "";
+        if (formulario.getVersao() != command.expectedVersion()) {
+            throw new AtividadeFormularioConflitoException("stale activity form version");
+        }
+        formulario.atualizar(json);
+        return atividadeFormularioRepository.save(formulario).getFormularioJson();
     }
 }

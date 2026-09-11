@@ -2,11 +2,14 @@ package com.josecjuniors.logossrv.adapters.in.web.atividadeconfig.api;
 
 import com.josecjuniors.logossrv.adapters.in.web.atividadeconfig.dto.request.CreateAtividadeConfigRequest;
 import com.josecjuniors.logossrv.adapters.in.web.atividadeconfig.dto.request.UpdateAtividadeConfigRequest;
+import com.josecjuniors.logossrv.adapters.in.web.atividadeconfig.dto.request.ReplaceAtividadeFormularioRequest;
 import com.josecjuniors.logossrv.adapters.in.web.atividadeconfig.dto.response.AtividadeConfigResponse;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.dto.AtividadeConfigDto;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.port.in.*;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
 import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.GetFormularioByAtividadeIdUseCase;
+import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.ReplaceAtividadeFormularioCommand;
+import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.ReplaceAtividadeFormularioUseCase;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.AtividadeFormularioJson;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,14 +31,16 @@ public class AtividadeConfigController {
     private final GetAllAtividadesConfigUseCase getAllUseCase;
     private final DeleteAtividadeConfigUseCase deleteUseCase;
     private final GetFormularioByAtividadeIdUseCase getFormularioUseCase;
+    private final ReplaceAtividadeFormularioUseCase replaceFormularioUseCase;
 
-    public AtividadeConfigController(CreateAtividadeConfigUseCase createUseCase, UpdateAtividadeConfigUseCase updateUseCase, GetAtividadeConfigByIdUseCase getByIdUseCase, GetAllAtividadesConfigUseCase getAllUseCase, DeleteAtividadeConfigUseCase deleteUseCase, GetFormularioByAtividadeIdUseCase getFormularioUseCase) {
+    public AtividadeConfigController(CreateAtividadeConfigUseCase createUseCase, UpdateAtividadeConfigUseCase updateUseCase, GetAtividadeConfigByIdUseCase getByIdUseCase, GetAllAtividadesConfigUseCase getAllUseCase, DeleteAtividadeConfigUseCase deleteUseCase, GetFormularioByAtividadeIdUseCase getFormularioUseCase, ReplaceAtividadeFormularioUseCase replaceFormularioUseCase) {
         this.createUseCase = createUseCase;
         this.updateUseCase = updateUseCase;
         this.getByIdUseCase = getByIdUseCase;
         this.getAllUseCase = getAllUseCase;
         this.deleteUseCase = deleteUseCase;
         this.getFormularioUseCase = getFormularioUseCase;
+        this.replaceFormularioUseCase = replaceFormularioUseCase;
     }
 
     @PostMapping
@@ -67,6 +72,16 @@ public class AtividadeConfigController {
         return getFormularioUseCase.getByAtividadeId(new AtividadeConfigId(id))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}/formulario")
+    public ResponseEntity<AtividadeFormularioJson> replaceFormulario(@PathVariable UUID id,
+                                                                       @RequestBody ReplaceAtividadeFormularioRequest request) {
+        var campos = request.campos().stream()
+                .map(campo -> new ReplaceAtividadeFormularioCommand.Campo(campo.fatorCalculoId(), campo.placeholder()))
+                .toList();
+        var command = new ReplaceAtividadeFormularioCommand(new AtividadeConfigId(id), request.expectedVersion(), campos);
+        return ResponseEntity.ok(replaceFormularioUseCase.replace(command));
     }
 
     @PutMapping("/{id}")

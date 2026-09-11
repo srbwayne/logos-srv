@@ -4,6 +4,7 @@ import com.josecjuniors.logossrv.core.atividadeconfig.application.dto.AtividadeC
 import com.josecjuniors.logossrv.core.atividadeconfig.application.port.in.CreateAtividadeConfigCommand;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.port.in.CreateAtividadeConfigUseCase;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
+import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeCatalogoSalvoEvent;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigJaExisteException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
@@ -41,6 +42,7 @@ public class CreateAtividadeConfigService implements CreateAtividadeConfigUseCas
         AtividadeConfig atividadeSalva = repository.save(novaAtividade);
 
         eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(atividadeSalva.getId()));
+        eventPublisher.publishEvent(new AtividadeCatalogoSalvoEvent(atividadeSalva.getId()));
 
         return AtividadeConfigDto.fromDomain(atividadeSalva);
     }

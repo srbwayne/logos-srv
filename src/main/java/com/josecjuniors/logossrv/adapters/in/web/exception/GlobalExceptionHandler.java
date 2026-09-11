@@ -4,6 +4,7 @@ import com.josecjuniors.logossrv.core.appuser.domain.exception.EmailJaCadastrado
 import com.josecjuniors.logossrv.core.atividadeagendada.domain.exception.AtividadeAgendadaNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigJaExisteException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigNaoEncontradaException;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioConflitoException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoJaExisteException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoNaoEncontradoException;
 import com.josecjuniors.logossrv.core.debuff.domain.exception.DebuffJaExisteException;
@@ -86,6 +87,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(AtividadeFormularioConflitoException.class)
+    public ResponseEntity<Map<String, String>> handleAtividadeFormularioConflito(AtividadeFormularioConflitoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(RegraFatorXPNaoEncontradaException.class)

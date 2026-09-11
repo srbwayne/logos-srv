@@ -4,6 +4,7 @@ import com.josecjuniors.logossrv.core.atividadeconfig.application.dto.AtividadeC
 import com.josecjuniors.logossrv.core.atividadeconfig.application.port.in.UpdateAtividadeConfigCommand;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.port.in.UpdateAtividadeConfigUseCase;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
+import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeCatalogoSalvoEvent;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigJaExisteException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
@@ -45,6 +46,7 @@ public class UpdateAtividadeConfigService implements UpdateAtividadeConfigUseCas
         AtividadeConfig atividadeAtualizada = repository.save(atividade);
 
         eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(atividadeAtualizada.getId()));
+        eventPublisher.publishEvent(new AtividadeCatalogoSalvoEvent(atividadeAtualizada.getId()));
 
         return AtividadeConfigDto.fromDomain(atividadeAtualizada);
     }
