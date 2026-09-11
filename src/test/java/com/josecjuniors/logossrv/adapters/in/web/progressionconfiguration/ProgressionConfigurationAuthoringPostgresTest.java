@@ -11,6 +11,7 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.core.progressionconfiguration.application.service.ProgressionConfigurationAuthoringService;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException;
+import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationActivationConflictException;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDefinition;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDraft;
 import com.josecjuniors.logossrv.core.progression.application.port.out.ExternalProgressionConfigurationResolver;
@@ -413,7 +414,7 @@ class ProgressionConfigurationAuthoringPostgresTest {
             var secondResult = second.get();
             assertThat(java.util.stream.Stream.of(firstResult, secondResult).filter(ActivationAttempt::succeeded).count()).isEqualTo(1);
             assertThat(java.util.stream.Stream.of(firstResult, secondResult).filter(result -> !result.succeeded()).findFirst().orElseThrow().failure())
-                    .isInstanceOf(ProgressionConfigurationAuthoringConflictException.class);
+                    .isInstanceOf(ProgressionConfigurationActivationConflictException.class);
             assertThat(jdbc.queryForObject("SELECT activation_version FROM progression_configuration_definition WHERE id = ?", Long.class, definition.id())).isEqualTo(1L);
             assertThat(jdbc.queryForObject("SELECT v.revision FROM progression_configuration_definition d JOIN progression_configuration_version v ON v.id = d.current_version_id WHERE d.id = ?", Integer.class, definition.id()))
                     .isIn(1, 2);
@@ -455,7 +456,7 @@ class ProgressionConfigurationAuthoringPostgresTest {
         String key = "activation_deactivation_race_" + UUID.randomUUID().toString().replace('-', '_');
         var definition = service.create(key);
         FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Activation deactivation factor " + UUID.randomUUID(), "min",
-                TipoInput.NUMERICO, "activation_deactivation_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+                TipoInput.NUMERICO, "act_deact_min_" + UUID.randomUUID().toString().replace('-', '_')));
         replaceDraftWithoutHttp(key, 0, factor.getSemanticKey(), 10, 1);
         publish(key, 1);
         replaceDraftWithoutHttp(key, 1, factor.getSemanticKey(), 20, 2);
@@ -472,7 +473,7 @@ class ProgressionConfigurationAuthoringPostgresTest {
             var deactivationResult = deactivation.get();
             assertThat(java.util.stream.Stream.of(activationResult, deactivationResult).filter(ActivationAttempt::succeeded).count()).isEqualTo(1);
             assertThat(java.util.stream.Stream.of(activationResult, deactivationResult).filter(result -> !result.succeeded()).findFirst().orElseThrow().failure())
-                    .isInstanceOf(ProgressionConfigurationAuthoringConflictException.class);
+                    .isInstanceOf(ProgressionConfigurationActivationConflictException.class);
             assertThat(jdbc.queryForObject("SELECT activation_version FROM progression_configuration_definition WHERE id = ?", Long.class, definition.id())).isEqualTo(2L);
         } finally {
             executor.shutdownNow();

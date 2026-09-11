@@ -5,7 +5,7 @@ import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.Prog
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDraft;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.repository.ProgressionConfigurationAuthoringRepository;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException;
-import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException;
+import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationActivationConflictException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -174,7 +174,7 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
     public ProgressionConfigurationDefinition activate(String logicalKey, int revision, long expectedActivationVersion) {
         ProgressionConfigurationDefinition current = lockDefinition(logicalKey);
         if (current.legacyLinked()) {
-            throw new ProgressionConfigurationAuthoringConflictException("legacy-linked configuration cannot be activated by modern authoring");
+            throw new ProgressionConfigurationActivationConflictException("legacy-linked configuration cannot be activated by modern authoring");
         }
         UUID target = jdbc.query("SELECT v.id FROM progression_configuration_version v JOIN progression_configuration_definition d ON d.id = v.definition_id WHERE d.id = ? AND v.revision = ?",
                 (rs, n) -> rs.getObject(1, UUID.class), current.id(), revision).stream().findFirst()
@@ -183,12 +183,12 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
             return current;
         }
         if (current.activationVersion() != expectedActivationVersion) {
-            throw new ProgressionConfigurationAuthoringConflictException("stale activation version");
+            throw new ProgressionConfigurationActivationConflictException("stale activation version");
         }
         int updated = jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ?, activation_version = activation_version + 1 WHERE id = ? AND activation_version = ?",
                 target, current.id(), expectedActivationVersion);
         if (updated != 1) {
-            throw new ProgressionConfigurationAuthoringConflictException("stale activation version");
+            throw new ProgressionConfigurationActivationConflictException("stale activation version");
         }
         return find(logicalKey).orElseThrow(ProgressionConfigurationNotFoundException::new);
     }
@@ -198,18 +198,18 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
     public ProgressionConfigurationDefinition deactivate(String logicalKey, long expectedActivationVersion) {
         ProgressionConfigurationDefinition current = lockDefinition(logicalKey);
         if (current.legacyLinked()) {
-            throw new ProgressionConfigurationAuthoringConflictException("legacy-linked configuration cannot be deactivated by modern authoring");
+            throw new ProgressionConfigurationActivationConflictException("legacy-linked configuration cannot be deactivated by modern authoring");
         }
         if (current.currentRevision() == null) {
             return current;
         }
         if (current.activationVersion() != expectedActivationVersion) {
-            throw new ProgressionConfigurationAuthoringConflictException("stale activation version");
+            throw new ProgressionConfigurationActivationConflictException("stale activation version");
         }
         int updated = jdbc.update("UPDATE progression_configuration_definition SET current_version_id = NULL, activation_version = activation_version + 1 WHERE id = ? AND activation_version = ?",
                 current.id(), expectedActivationVersion);
         if (updated != 1) {
-            throw new ProgressionConfigurationAuthoringConflictException("stale activation version");
+            throw new ProgressionConfigurationActivationConflictException("stale activation version");
         }
         return find(logicalKey).orElseThrow(ProgressionConfigurationNotFoundException::new);
     }
