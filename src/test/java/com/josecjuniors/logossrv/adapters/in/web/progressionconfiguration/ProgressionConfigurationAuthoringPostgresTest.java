@@ -198,6 +198,14 @@ class ProgressionConfigurationAuthoringPostgresTest {
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definition.id())).isEqualTo(1);
         } finally {
             executor.shutdownNow();
+            jdbc.update("DELETE FROM progression_configuration_version_xp_rule WHERE distribution_id IN (SELECT id FROM progression_configuration_version_distribution WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?))", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version_stress_rule WHERE distribution_id IN (SELECT id FROM progression_configuration_version_distribution WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?))", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version_distribution WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?)", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version_factor WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?)", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version WHERE definition_id = ?", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_draft WHERE definition_id = ?", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_definition WHERE id = ?", definition.id());
+            jdbc.update("DELETE FROM fator_calculo WHERE id = ?", factor.getId().getValue());
         }
     }
 
