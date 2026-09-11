@@ -10,6 +10,7 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.core.progressionconfiguration.application.service.ProgressionConfigurationAuthoringService;
+import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDraft;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
@@ -144,14 +147,57 @@ class ProgressionConfigurationAuthoringPostgresTest {
         assertThat(jdbc.queryForObject("SELECT factor_key FROM progression_configuration_version_factor WHERE configuration_version_id = ?", String.class, version)).isEqualTo(fact);
         assertThat(jdbc.queryForObject("SELECT factor_key FROM progression_configuration_version_xp_rule r JOIN progression_configuration_version_distribution d ON d.id = r.distribution_id WHERE d.configuration_version_id = ?", String.class, version)).isEqualTo(fact);
 
+        String retry = publish(key, 1);
+        assertThat(objectMapper.readTree(retry).get("versionId").asText()).isEqualTo(version.toString());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isEqualTo(1);
+
         replaceDraft(key, 1, fact, 20, 2);
+        String lateRetry = publish(key, 1);
+        assertThat(objectMapper.readTree(lateRetry).get("versionId").asText()).isEqualTo(version.toString());
         assertThat(jdbc.queryForObject("SELECT base_xp FROM progression_configuration_version WHERE id = ?", Integer.class, version)).isEqualTo(10);
-        mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
-                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"expectedDraftVersion\":2}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(2));
+        publish(key, 2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT base_xp FROM progression_configuration_version WHERE id = ?", Integer.class, version)).isEqualTo(10);
+    }
+
+    @Test
+    void staleUnpublishedDraftVersionReturnsConflict() throws Exception {
+        String key = "stale_publish_" + UUID.randomUUID().toString().replace('-', '_');
+        service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Stale publish factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "stale_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        entityManager.flush();
+        replaceDraft(key, 0, factor.getSemanticKey(), 10, 1);
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":0}"))
+                .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isZero();
+    }
+
+    @Test
+    void concurrentSameDraftPublicationReturnsOneImmutableVersion() throws Exception {
+        String key = "concurrent_publish_" + UUID.randomUUID().toString().replace('-', '_');
+        var definition = service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Concurrent publish factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "concurrent_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        entityManager.flush();
+        replaceDraft(key, 0, factor.getSemanticKey(), 10, 1);
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> { start.await(); return service.publish(key, 1); });
+            var second = executor.submit(() -> { start.await(); return service.publish(key, 1); });
+            start.countDown();
+            var publishedFirst = first.get();
+            var publishedSecond = second.get();
+            assertThat(publishedFirst.versionId()).isEqualTo(publishedSecond.versionId());
+            assertThat(publishedFirst.revision()).isEqualTo(publishedSecond.revision());
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definition.id())).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -200,5 +246,12 @@ class ProgressionConfigurationAuthoringPostgresTest {
         mockMvc.perform(put("/api/progression/configurations/{key}/draft", key)
                         .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk());
+    }
+
+    private String publish(String key, long expectedVersion) throws Exception {
+        return mockMvc.perform(post("/api/progression/configurations/{key}/publish", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedDraftVersion\":" + expectedVersion + "}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
     }
 }
