@@ -84,7 +84,8 @@ public class ProgressionConfigurationAuthoringService {
         }
         var existing = repository.findPublishedByDraftVersion(key, expectedDraftVersion);
         if (existing.isPresent()) return existing.get();
-        ProgressionConfigurationDraft draft = repository.lockDraft(key, expectedDraftVersion);
+        ProgressionConfigurationDraft draft = repository.lockDraft(key, expectedDraftVersion)
+                .orElseThrow(() -> new ProgressionConfigurationAuthoringConflictException("stale draft version"));
         validatePublishableDraft(draft);
         return repository.publishLocked(key, expectedDraftVersion, draft);
     }

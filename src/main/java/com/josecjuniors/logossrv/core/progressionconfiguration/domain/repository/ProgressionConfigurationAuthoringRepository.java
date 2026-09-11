@@ -15,7 +15,7 @@ public interface ProgressionConfigurationAuthoringRepository {
     Optional<PublishedProgressionConfigurationVersion> findPublishedByDraftVersion(String logicalKey,
                                                                                     long sourceDraftVersion);
 
-    ProgressionConfigurationDraft lockDraft(String logicalKey, long expectedDraftVersion);
+    Optional<ProgressionConfigurationDraft> lockDraft(String logicalKey, long expectedDraftVersion);
 
     PublishedProgressionConfigurationVersion publishLocked(String logicalKey, long sourceDraftVersion,
                                                            ProgressionConfigurationDraft draft);

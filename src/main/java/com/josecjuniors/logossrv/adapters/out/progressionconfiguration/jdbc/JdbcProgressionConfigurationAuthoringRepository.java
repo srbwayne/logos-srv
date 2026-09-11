@@ -119,7 +119,7 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
 
     @Override
     @Transactional
-    public ProgressionConfigurationDraft lockDraft(String logicalKey, long expectedDraftVersion) {
+    public Optional<ProgressionConfigurationDraft> lockDraft(String logicalKey, long expectedDraftVersion) {
         ProgressionConfigurationDefinition definition = find(logicalKey).orElseThrow();
         UUID definitionId = definition.id();
         jdbc.queryForObject("SELECT id FROM progression_configuration_definition WHERE id = ? FOR UPDATE", UUID.class, definitionId);
@@ -127,9 +127,9 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
         Long currentVersion = jdbc.queryForObject("SELECT version FROM progression_configuration_draft WHERE id = ? FOR UPDATE",
                 Long.class, draftId);
         if (currentVersion == null || currentVersion != expectedDraftVersion) {
-            throw new com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException("stale draft version");
+            return Optional.empty();
         }
-        return findDraft(logicalKey).orElseThrow();
+        return findDraft(logicalKey);
     }
 
     @Override
