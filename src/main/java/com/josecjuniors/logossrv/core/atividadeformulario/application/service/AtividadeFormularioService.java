@@ -18,9 +18,8 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.context.event.EventListener;
 
 import java.util.HashSet;
 import java.util.List;
@@ -40,8 +39,8 @@ public class AtividadeFormularioService implements ReplaceAtividadeFormularioUse
         this.fatorCalculoRepository = fatorCalculoRepository;
     }
 
-    @TransactionalEventListener
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @EventListener
+    @Transactional
     public void onAtividadeCatalogoSalvo(AtividadeCatalogoSalvoEvent event) {
         AtividadeConfig atividade = atividadeConfigRepository.findById(event.atividadeConfigId())
                 .orElseThrow(() -> new IllegalStateException("AtividadeConfig não encontrada para o evento."));
