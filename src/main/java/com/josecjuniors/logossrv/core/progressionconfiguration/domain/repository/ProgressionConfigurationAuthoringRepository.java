@@ -20,6 +20,10 @@ public interface ProgressionConfigurationAuthoringRepository {
     PublishedProgressionConfigurationVersion publishLocked(String logicalKey, long sourceDraftVersion,
                                                            ProgressionConfigurationDraft draft);
 
+    ProgressionConfigurationDefinition activate(String logicalKey, int revision, long expectedActivationVersion);
+
+    ProgressionConfigurationDefinition deactivate(String logicalKey, long expectedActivationVersion);
+
     record PublishedProgressionConfigurationVersion(UUID definitionId, UUID versionId, int revision,
                                                     long sourceDraftVersion) {}
 }

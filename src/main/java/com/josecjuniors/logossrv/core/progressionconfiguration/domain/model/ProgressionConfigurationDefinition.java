@@ -7,5 +7,6 @@ public record ProgressionConfigurationDefinition(
         String logicalKey,
         Integer currentRevision,
         Long draftVersion,
+        long activationVersion,
         boolean legacyLinked) {
 }

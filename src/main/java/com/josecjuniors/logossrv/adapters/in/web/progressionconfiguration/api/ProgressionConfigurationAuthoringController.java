@@ -3,6 +3,7 @@ package com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.api;
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.request.CreateProgressionConfigurationRequest;
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.request.UpdateProgressionConfigurationDraftRequest;
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.request.PublishProgressionConfigurationRequest;
+import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.request.ActivationRequest;
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.response.ProgressionConfigurationDraftResponse;
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.response.ProgressionConfigurationResponse;
 import com.josecjuniors.logossrv.adapters.in.web.progressionconfiguration.dto.response.PublishedProgressionConfigurationResponse;
@@ -59,5 +60,19 @@ public class ProgressionConfigurationAuthoringController {
             @PathVariable String logicalKey, @RequestBody PublishProgressionConfigurationRequest request) {
         return ResponseEntity.ok(PublishedProgressionConfigurationResponse.from(
                 service.publish(logicalKey, request.expectedDraftVersion())));
+    }
+
+    @PostMapping("/{logicalKey}/versions/{revision}/activate")
+    public ResponseEntity<ProgressionConfigurationResponse> activate(
+            @PathVariable String logicalKey, @PathVariable int revision, @RequestBody ActivationRequest request) {
+        return ResponseEntity.ok(ProgressionConfigurationResponse.from(
+                service.activate(logicalKey, revision, request.expectedActivationVersion())));
+    }
+
+    @PostMapping("/{logicalKey}/deactivate")
+    public ResponseEntity<ProgressionConfigurationResponse> deactivate(
+            @PathVariable String logicalKey, @RequestBody ActivationRequest request) {
+        return ResponseEntity.ok(ProgressionConfigurationResponse.from(
+                service.deactivate(logicalKey, request.expectedActivationVersion())));
     }
 }

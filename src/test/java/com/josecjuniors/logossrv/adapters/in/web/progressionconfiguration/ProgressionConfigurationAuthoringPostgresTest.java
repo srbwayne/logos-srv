@@ -10,7 +10,11 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.core.progressionconfiguration.application.service.ProgressionConfigurationAuthoringService;
+import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException;
+import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDefinition;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDraft;
+import com.josecjuniors.logossrv.core.progression.application.port.out.ExternalProgressionConfigurationResolver;
+import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Callable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
@@ -44,6 +49,7 @@ class ProgressionConfigurationAuthoringPostgresTest {
     @Autowired private EntityManager entityManager;
     @Autowired private FatorCalculoRepository factors;
     @Autowired private ProgressionConfigurationAuthoringService service;
+    @Autowired private ExternalProgressionConfigurationResolver externalResolver;
     @Autowired private AppUserJpaRepository users;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
@@ -67,6 +73,7 @@ class ProgressionConfigurationAuthoringPostgresTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.logicalKey").value(key))
                 .andExpect(jsonPath("$.currentRevision").value(nullValue()))
+                .andExpect(jsonPath("$.activationVersion").value(0))
                 .andExpect(jsonPath("$.draftVersion").value(0));
 
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_definition WHERE logical_key = ? AND legacy_atividade_config_id IS NULL AND current_version_id IS NULL", Integer.class, key)).isEqualTo(1);
@@ -153,6 +160,7 @@ class ProgressionConfigurationAuthoringPostgresTest {
         String retry = publish(key, 1);
         assertThat(objectMapper.readTree(retry).get("versionId").asText()).isEqualTo(version.toString());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = (SELECT id FROM progression_configuration_definition WHERE logical_key = ?)", Integer.class, key)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT activation_version FROM progression_configuration_definition WHERE logical_key = ?", Long.class, key)).isZero();
 
         replaceDraft(key, 1, fact, 20, 2);
         String lateRetry = publish(key, 1);
@@ -300,6 +308,178 @@ class ProgressionConfigurationAuthoringPostgresTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void activatesRollsBackDeactivatesAndKeepsHistoricalResolution() throws Exception {
+        String key = "activation_" + UUID.randomUUID().toString().replace('-', '_');
+        service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Activation factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "activation_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        replaceDraft(key, 0, factor.getSemanticKey(), 10, 1);
+        publish(key, 1);
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/versions/1/activate", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":0}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.currentRevision").value(1))
+                .andExpect(jsonPath("$.activationVersion").value(1));
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/versions/1/activate", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":0}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.activationVersion").value(1));
+
+        replaceDraft(key, 1, factor.getSemanticKey(), 20, 2);
+        publish(key, 2);
+        mockMvc.perform(post("/api/progression/configurations/{key}/versions/2/activate", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":1}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.currentRevision").value(2))
+                .andExpect(jsonPath("$.activationVersion").value(2));
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/versions/1/activate", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":2}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.currentRevision").value(1))
+                .andExpect(jsonPath("$.activationVersion").value(3));
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/deactivate", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":3}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.currentRevision").value(nullValue()))
+                .andExpect(jsonPath("$.activationVersion").value(4));
+
+        assertThat(externalResolver.resolve(new ExternalProgressionConfigurationReference(key, null))).isEmpty();
+        assertThat(externalResolver.resolve(new ExternalProgressionConfigurationReference(key, 1))).isPresent();
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/deactivate", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":0}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.activationVersion").value(4));
+    }
+
+    @Test
+    void rejectsUnknownRevisionStaleMutationAndLegacyLinkedActivation() throws Exception {
+        String key = "activation_conflict_" + UUID.randomUUID().toString().replace('-', '_');
+        service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Activation conflict factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "activation_conflict_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        replaceDraft(key, 0, factor.getSemanticKey(), 10, 1);
+        publish(key, 1);
+
+        mockMvc.perform(post("/api/progression/configurations/{key}/versions/99/activate", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":0}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/progression/configurations/{key}/versions/1/activate", key)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":1}"))
+                .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE logical_key = ?", UUID.class, key)).isNull();
+
+        String legacyKey = "legacy_activation_" + UUID.randomUUID().toString().replace('-', '_');
+        UUID activityId = UUID.randomUUID();
+        jdbc.update("INSERT INTO atividade_config(id, nome) VALUES (?, ?)", activityId, "Legacy activation " + activityId);
+        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
+                UUID.randomUUID(), legacyKey, activityId);
+        mockMvc.perform(post("/api/progression/configurations/{key}/versions/1/activate", legacyKey)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":0}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/progression/configurations/{key}/deactivate", legacyKey)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedActivationVersion\":0}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentDifferentTargetActivationHasOneWinner() throws Exception {
+        String key = "activation_race_" + UUID.randomUUID().toString().replace('-', '_');
+        var definition = service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Activation race factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "activation_race_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        replaceDraftWithoutHttp(key, 0, factor.getSemanticKey(), 10, 1);
+        publish(key, 1);
+        replaceDraftWithoutHttp(key, 1, factor.getSemanticKey(), 20, 2);
+        publish(key, 2);
+
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> after(start, () -> service.activate(key, 1, 0)));
+            var second = executor.submit(() -> after(start, () -> service.activate(key, 2, 0)));
+            start.countDown();
+            var firstResult = first.get();
+            var secondResult = second.get();
+            assertThat(java.util.stream.Stream.of(firstResult, secondResult).filter(ActivationAttempt::succeeded).count()).isEqualTo(1);
+            assertThat(java.util.stream.Stream.of(firstResult, secondResult).filter(result -> !result.succeeded()).findFirst().orElseThrow().failure())
+                    .isInstanceOf(ProgressionConfigurationAuthoringConflictException.class);
+            assertThat(jdbc.queryForObject("SELECT activation_version FROM progression_configuration_definition WHERE id = ?", Long.class, definition.id())).isEqualTo(1L);
+            assertThat(jdbc.queryForObject("SELECT v.revision FROM progression_configuration_definition d JOIN progression_configuration_version v ON v.id = d.current_version_id WHERE d.id = ?", Integer.class, definition.id()))
+                    .isIn(1, 2);
+        } finally {
+            executor.shutdownNow();
+            cleanupDefinition(definition.id(), factor.getId().getValue());
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentSameTargetActivationIncrementsOnlyOnce() throws Exception {
+        String key = "activation_same_target_" + UUID.randomUUID().toString().replace('-', '_');
+        var definition = service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Same target factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "same_target_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        replaceDraftWithoutHttp(key, 0, factor.getSemanticKey(), 10, 1);
+        publish(key, 1);
+
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> after(start, () -> service.activate(key, 1, 0)));
+            var second = executor.submit(() -> after(start, () -> service.activate(key, 1, 0)));
+            start.countDown();
+            assertThat(first.get().succeeded()).isTrue();
+            assertThat(second.get().succeeded()).isTrue();
+            assertThat(jdbc.queryForObject("SELECT activation_version FROM progression_configuration_definition WHERE id = ?", Long.class, definition.id())).isEqualTo(1L);
+            assertThat(jdbc.queryForObject("SELECT v.revision FROM progression_configuration_definition d JOIN progression_configuration_version v ON v.id = d.current_version_id WHERE d.id = ?", Integer.class, definition.id())).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+            cleanupDefinition(definition.id(), factor.getId().getValue());
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentActivationAndDeactivationHasOneWinner() throws Exception {
+        String key = "activation_deactivation_race_" + UUID.randomUUID().toString().replace('-', '_');
+        var definition = service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Activation deactivation factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "activation_deactivation_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        replaceDraftWithoutHttp(key, 0, factor.getSemanticKey(), 10, 1);
+        publish(key, 1);
+        replaceDraftWithoutHttp(key, 1, factor.getSemanticKey(), 20, 2);
+        publish(key, 2);
+        service.activate(key, 1, 0);
+
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var activation = executor.submit(() -> after(start, () -> service.activate(key, 2, 1)));
+            var deactivation = executor.submit(() -> after(start, () -> service.deactivate(key, 1)));
+            start.countDown();
+            var activationResult = activation.get();
+            var deactivationResult = deactivation.get();
+            assertThat(java.util.stream.Stream.of(activationResult, deactivationResult).filter(ActivationAttempt::succeeded).count()).isEqualTo(1);
+            assertThat(java.util.stream.Stream.of(activationResult, deactivationResult).filter(result -> !result.succeeded()).findFirst().orElseThrow().failure())
+                    .isInstanceOf(ProgressionConfigurationAuthoringConflictException.class);
+            assertThat(jdbc.queryForObject("SELECT activation_version FROM progression_configuration_definition WHERE id = ?", Long.class, definition.id())).isEqualTo(2L);
+        } finally {
+            executor.shutdownNow();
+            cleanupDefinition(definition.id(), factor.getId().getValue());
+        }
+    }
+
     private void replaceDraft(String key, long expectedVersion, String fact, int baseXp, int baseStress) throws Exception {
         String body = """
                 {"expectedVersion":%d,"baseXp":%d,"baseStress":%d,
@@ -322,5 +502,32 @@ class ProgressionConfigurationAuthoringPostgresTest {
         service.replaceDraft(key, expectedVersion, new ProgressionConfigurationDraft(
                 service.get(key).id(), expectedVersion, baseXp, baseStress,
                 java.util.List.of(fact), java.util.List.of()));
+    }
+
+    private ActivationAttempt after(CountDownLatch start, Callable<ProgressionConfigurationDefinition> action) {
+        try {
+            start.await();
+            return new ActivationAttempt(action.call(), null);
+        } catch (Throwable failure) {
+            return new ActivationAttempt(null, failure);
+        }
+    }
+
+    private void cleanupDefinition(UUID definitionId, UUID factorId) {
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = NULL WHERE id = ?", definitionId);
+        jdbc.update("DELETE FROM progression_configuration_version_xp_rule WHERE distribution_id IN (SELECT id FROM progression_configuration_version_distribution WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?))", definitionId);
+        jdbc.update("DELETE FROM progression_configuration_version_stress_rule WHERE distribution_id IN (SELECT id FROM progression_configuration_version_distribution WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?))", definitionId);
+        jdbc.update("DELETE FROM progression_configuration_version_distribution WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?)", definitionId);
+        jdbc.update("DELETE FROM progression_configuration_version_factor WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?)", definitionId);
+        jdbc.update("DELETE FROM progression_configuration_version WHERE definition_id = ?", definitionId);
+        jdbc.update("DELETE FROM progression_configuration_draft_factor WHERE draft_id IN (SELECT id FROM progression_configuration_draft WHERE definition_id = ?)", definitionId);
+        jdbc.update("DELETE FROM progression_configuration_draft_distribution WHERE draft_id IN (SELECT id FROM progression_configuration_draft WHERE definition_id = ?)", definitionId);
+        jdbc.update("DELETE FROM progression_configuration_draft WHERE definition_id = ?", definitionId);
+        jdbc.update("DELETE FROM progression_configuration_definition WHERE id = ?", definitionId);
+        jdbc.update("DELETE FROM fator_calculo WHERE id = ?", factorId);
+    }
+
+    private record ActivationAttempt(ProgressionConfigurationDefinition state, Throwable failure) {
+        boolean succeeded() { return state != null; }
     }
 }

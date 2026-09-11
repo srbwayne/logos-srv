@@ -4,6 +4,8 @@ import com.josecjuniors.logossrv.core.progression.domain.model.XpCalculationMode
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDefinition;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDraft;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.repository.ProgressionConfigurationAuthoringRepository;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException;
+import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,14 +29,14 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
         UUID draft = UUID.randomUUID();
         jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, NULL, NULL)", definition, logicalKey);
         jdbc.update("INSERT INTO progression_configuration_draft(id, definition_id, version, base_xp, base_stress) VALUES (?, ?, 0, NULL, NULL)", draft, definition);
-        return new ProgressionConfigurationDefinition(definition, logicalKey, null, 0L, false);
+        return new ProgressionConfigurationDefinition(definition, logicalKey, null, 0L, 0L, false);
     }
 
     @Override
     public Optional<ProgressionConfigurationDefinition> find(String logicalKey) {
         return jdbc.query("""
                 SELECT d.id, d.logical_key, d.legacy_atividade_config_id,
-                       v.revision, dr.version
+                       v.revision, dr.version, d.activation_version
                 FROM progression_configuration_definition d
                 LEFT JOIN progression_configuration_version v ON v.id = d.current_version_id
                 LEFT JOIN progression_configuration_draft dr ON dr.definition_id = d.id
@@ -42,6 +44,7 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
                 """, (rs, n) -> new ProgressionConfigurationDefinition(
                 rs.getObject("id", UUID.class), rs.getString("logical_key"),
                 (Integer) rs.getObject("revision"), (Long) rs.getObject("version"),
+                rs.getLong("activation_version"),
                 rs.getObject("legacy_atividade_config_id") != null), logicalKey).stream().findFirst();
     }
 
@@ -164,6 +167,68 @@ public class JdbcProgressionConfigurationAuthoringRepository implements Progress
                         + "JOIN progression_configuration_draft_factor df ON df.fator_calculo_id = f.id WHERE df.draft_id = ?",
                 version, draftId);
         return new PublishedProgressionConfigurationVersion(definitionId, version, revision, sourceDraftVersion);
+    }
+
+    @Override
+    @Transactional
+    public ProgressionConfigurationDefinition activate(String logicalKey, int revision, long expectedActivationVersion) {
+        ProgressionConfigurationDefinition current = lockDefinition(logicalKey);
+        if (current.legacyLinked()) {
+            throw new ProgressionConfigurationAuthoringConflictException("legacy-linked configuration cannot be activated by modern authoring");
+        }
+        UUID target = jdbc.query("SELECT v.id FROM progression_configuration_version v JOIN progression_configuration_definition d ON d.id = v.definition_id WHERE d.id = ? AND v.revision = ?",
+                (rs, n) -> rs.getObject(1, UUID.class), current.id(), revision).stream().findFirst()
+                .orElseThrow(ProgressionConfigurationNotFoundException::new);
+        if (current.currentRevision() != null && current.currentRevision() == revision) {
+            return current;
+        }
+        if (current.activationVersion() != expectedActivationVersion) {
+            throw new ProgressionConfigurationAuthoringConflictException("stale activation version");
+        }
+        int updated = jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ?, activation_version = activation_version + 1 WHERE id = ? AND activation_version = ?",
+                target, current.id(), expectedActivationVersion);
+        if (updated != 1) {
+            throw new ProgressionConfigurationAuthoringConflictException("stale activation version");
+        }
+        return find(logicalKey).orElseThrow(ProgressionConfigurationNotFoundException::new);
+    }
+
+    @Override
+    @Transactional
+    public ProgressionConfigurationDefinition deactivate(String logicalKey, long expectedActivationVersion) {
+        ProgressionConfigurationDefinition current = lockDefinition(logicalKey);
+        if (current.legacyLinked()) {
+            throw new ProgressionConfigurationAuthoringConflictException("legacy-linked configuration cannot be deactivated by modern authoring");
+        }
+        if (current.currentRevision() == null) {
+            return current;
+        }
+        if (current.activationVersion() != expectedActivationVersion) {
+            throw new ProgressionConfigurationAuthoringConflictException("stale activation version");
+        }
+        int updated = jdbc.update("UPDATE progression_configuration_definition SET current_version_id = NULL, activation_version = activation_version + 1 WHERE id = ? AND activation_version = ?",
+                current.id(), expectedActivationVersion);
+        if (updated != 1) {
+            throw new ProgressionConfigurationAuthoringConflictException("stale activation version");
+        }
+        return find(logicalKey).orElseThrow(ProgressionConfigurationNotFoundException::new);
+    }
+
+    private ProgressionConfigurationDefinition lockDefinition(String logicalKey) {
+        return jdbc.query("""
+                SELECT d.id, d.logical_key, d.legacy_atividade_config_id,
+                       v.revision, dr.version, d.activation_version
+                FROM progression_configuration_definition d
+                LEFT JOIN progression_configuration_version v ON v.id = d.current_version_id
+                LEFT JOIN progression_configuration_draft dr ON dr.definition_id = d.id
+                WHERE d.logical_key = ?
+                FOR UPDATE OF d
+                """, (rs, n) -> new ProgressionConfigurationDefinition(
+                rs.getObject("id", UUID.class), rs.getString("logical_key"),
+                (Integer) rs.getObject("revision"), (Long) rs.getObject("version"),
+                rs.getLong("activation_version"),
+                rs.getObject("legacy_atividade_config_id") != null), logicalKey).stream().findFirst()
+                .orElseThrow(ProgressionConfigurationNotFoundException::new);
     }
 
     private record DraftRoot(UUID id, long version, Integer baseXp, Integer baseStress) {}

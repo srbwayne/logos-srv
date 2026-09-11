@@ -17,7 +17,7 @@ class ProgressionConfigurationAuthoringServiceTest {
     void normalizesLogicalKeyBeforeCreatingDefinition() {
         var repository = mock(ProgressionConfigurationAuthoringRepository.class);
         var service = new ProgressionConfigurationAuthoringService(repository, mock(FatorCalculoRepository.class), mock(AtributoRepository.class));
-        var expected = new ProgressionConfigurationDefinition(UUID.randomUUID(), "daily_reading", null, 0L, false);
+        var expected = new ProgressionConfigurationDefinition(UUID.randomUUID(), "daily_reading", null, 0L, 0L, false);
         when(repository.create("daily_reading")).thenReturn(expected);
 
         assertThat(service.create("  DAILY_READING ")).isEqualTo(expected);
