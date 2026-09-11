@@ -1,4 +1,5 @@
 package com.josecjuniors.logossrv.core.regrafatorxp.application.service;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoNaoEncontradoException;
@@ -30,22 +31,7 @@ public class UpdateRegraFatorXPService implements UpdateRegraFatorXPUseCase {
 
     @Override
     public RegraFatorXPDto update(UpdateRegraFatorXPCommand command) {
-        RegraFatorXP regra = regraFatorXPRepository.findById(command.regraFatorXPId())
-                .orElseThrow(RegraFatorXPNaoEncontradaException::new);
-        FatorCalculo fatorCalculo = fatorCalculoRepository.findById(command.fatorCalculoId())
-                .orElseThrow(FatorCalculoNaoEncontradoException::new);
+        throw new LegacyProgressionAuthoringRetiredException();
 
-        regra.atualizar(
-                fatorCalculo,
-                command.pesoMultiplicador(),
-                command.pontoCorteMin(),
-                command.pontoCorteMax()
-        );
-
-        RegraFatorXP regraAtualizada = regraFatorXPRepository.save(regra);
-
-        eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(regra.getRegraDistribuicaoAtividade().getAtividadeConfig().getId()));
-
-        return RegraFatorXPDto.fromDomain(regraAtualizada);
     }
 }

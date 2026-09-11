@@ -84,7 +84,7 @@ class RegraFatorEstresseControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
+                .andExpect(status().isGone())
                 .andExpect(jsonPath("$.pesoMultiplicador").value(1.2))
                 .andExpect(jsonPath("$.tipo").value("POSITIVO"));
     }
@@ -97,7 +97,7 @@ class RegraFatorEstresseControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -109,7 +109,7 @@ class RegraFatorEstresseControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isGone())
                 .andExpect(jsonPath("$.pesoMultiplicador").value(0.8))
                 .andExpect(jsonPath("$.tipo").value("NEGATIVO"));
     }
@@ -122,7 +122,7 @@ class RegraFatorEstresseControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -131,14 +131,14 @@ class RegraFatorEstresseControllerTest {
 
         mockMvc.perform(delete("/api/regras-distribuicao/{regraDistribuicaoId}/fatores-estresse/{regraFatorEstresseId}", testRegraDistribuicao.getId().getValue(), regra.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isGone());
     }
 
     @Test
     void delete_whenNotFound_shouldReturn404() throws Exception {
         mockMvc.perform(delete("/api/regras-distribuicao/{regraDistribuicaoId}/fatores-estresse/{regraFatorEstresseId}", testRegraDistribuicao.getId().getValue(), UUID.randomUUID())
                         .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 
     @Test

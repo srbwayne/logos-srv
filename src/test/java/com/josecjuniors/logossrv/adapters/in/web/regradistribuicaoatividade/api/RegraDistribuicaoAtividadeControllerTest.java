@@ -82,7 +82,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
+                .andExpect(status().isGone())
                 .andExpect(jsonPath("$.atividadeConfigNome").value(testAtividade.getNome()))
                 .andExpect(jsonPath("$.atributoNome").value(testAtributo.getNome()))
                 .andExpect(jsonPath("$.pesoPercentual").value(0.75));
@@ -96,7 +96,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -107,7 +107,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -158,7 +158,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isGone())
                 .andExpect(jsonPath("$.pesoPercentual").value(0.9));
     }
 
@@ -170,7 +170,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -191,14 +191,14 @@ class RegraDistribuicaoAtividadeControllerTest {
 
         mockMvc.perform(delete("/api/atividades-config/{atividadeId}/regras-distribuicao/{regraId}", testAtividade.getId().getValue(), regra.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isGone());
     }
 
     @Test
     void delete_whenRegraNotFound_shouldReturn404() throws Exception {
         mockMvc.perform(delete("/api/atividades-config/{atividadeId}/regras-distribuicao/{regraId}", testAtividade.getId().getValue(), UUID.randomUUID())
                         .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 
     @Test

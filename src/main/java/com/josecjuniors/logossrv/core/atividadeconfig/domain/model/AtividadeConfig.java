@@ -46,15 +46,11 @@ public class AtividadeConfig extends AbstractDomainAggregate<AtividadeConfigId> 
         // regra.setAtividadeConfig(this); 
     }
 
-    public void atualizar(String nome, String descricao, Integer xpBase, Integer estresseBase, Integer diasParaPenalidade, Integer xpPerdaPorCiclo) {
+    public void atualizarCatalogo(String nome, String descricao) {
         if (nome != null && !nome.isBlank()) {
             this.nome = nome;
         }
         this.descricao = descricao;
-        this.xpBase = xpBase;
-        this.estresseBase = estresseBase;
-        this.diasParaPenalidade = diasParaPenalidade;
-        this.xpPerdaPorCiclo = xpPerdaPorCiclo;
     }
 
     // Getters
