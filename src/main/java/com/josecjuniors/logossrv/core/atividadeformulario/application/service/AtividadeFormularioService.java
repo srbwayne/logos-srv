@@ -6,6 +6,7 @@ import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConf
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
 import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.ReplaceAtividadeFormularioCommand;
 import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.ReplaceAtividadeFormularioUseCase;
+import com.josecjuniors.logossrv.core.atividadeformulario.application.dto.AtividadeFormularioDto;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioConflitoException;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormulario;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormularioId;
@@ -16,7 +17,6 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculo
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,17 +40,14 @@ public class AtividadeFormularioService implements ReplaceAtividadeFormularioUse
         this.fatorCalculoRepository = fatorCalculoRepository;
     }
 
-    @Async
     @TransactionalEventListener
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onAtividadeCatalogoSalvo(AtividadeCatalogoSalvoEvent event) {
         AtividadeConfig atividade = atividadeConfigRepository.findById(event.atividadeConfigId())
                 .orElseThrow(() -> new IllegalStateException("AtividadeConfig não encontrada para o evento."));
-        atividadeFormularioRepository.findByAtividadeConfigId(atividade.getId())
+        atividadeFormularioRepository.findByAtividadeConfigIdForUpdate(atividade.getId())
                 .ifPresentOrElse(formulario -> {
-                    AtividadeFormularioJson current = formulario.getFormularioJson();
-                    formulario.atualizar(new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(),
-                            atividade.getDescricao(), current.campos()));
+                    formulario.refreshActivityMetadata(atividade.getNome(), atividade.getDescricao());
                     atividadeFormularioRepository.save(formulario);
                 }, () -> atividadeFormularioRepository.save(new AtividadeFormulario(
                         AtividadeFormularioId.generate(), atividade,
@@ -60,7 +57,7 @@ public class AtividadeFormularioService implements ReplaceAtividadeFormularioUse
 
     @Override
     @Transactional
-    public AtividadeFormularioJson replace(ReplaceAtividadeFormularioCommand command) {
+    public AtividadeFormularioDto replace(ReplaceAtividadeFormularioCommand command) {
         AtividadeConfig atividade = atividadeConfigRepository.findById(command.atividadeConfigId())
                 .orElseThrow(AtividadeConfigNaoEncontradaException::new);
         Set<FatorCalculoId> identities = new HashSet<>();
@@ -80,13 +77,14 @@ public class AtividadeFormularioService implements ReplaceAtividadeFormularioUse
             if (command.expectedVersion() != 0) {
                 throw new AtividadeFormularioConflitoException("stale activity form version");
             }
-            return atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, json))
-                    .getFormularioJson();
+            AtividadeFormulario created = atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, json));
+            return new AtividadeFormularioDto(created.getFormularioJson(), created.getVersao());
         }
         if (formulario.getVersao() != command.expectedVersion()) {
             throw new AtividadeFormularioConflitoException("stale activity form version");
         }
-        formulario.atualizar(json);
-        return atividadeFormularioRepository.save(formulario).getFormularioJson();
+        formulario.replaceCaptureDefinition(json);
+        AtividadeFormulario saved = atividadeFormularioRepository.save(formulario);
+        return new AtividadeFormularioDto(saved.getFormularioJson(), saved.getVersao());
     }
 }

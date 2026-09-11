@@ -10,6 +10,7 @@ import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConf
 import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.GetFormularioByAtividadeIdUseCase;
 import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.ReplaceAtividadeFormularioCommand;
 import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.ReplaceAtividadeFormularioUseCase;
+import com.josecjuniors.logossrv.core.atividadeformulario.application.dto.AtividadeFormularioDto;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.AtividadeFormularioJson;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -70,7 +71,9 @@ public class AtividadeConfigController {
     @GetMapping("/{id}/formulario")
     public ResponseEntity<AtividadeFormularioJson> getFormulario(@PathVariable UUID id) {
         return getFormularioUseCase.getByAtividadeId(new AtividadeConfigId(id))
-                .map(ResponseEntity::ok)
+                .map(formulario -> ResponseEntity.ok()
+                        .header("X-Activity-Form-Version", Integer.toString(formulario.versao()))
+                        .body(formulario.formulario()))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -81,7 +84,10 @@ public class AtividadeConfigController {
                 .map(campo -> new ReplaceAtividadeFormularioCommand.Campo(campo.fatorCalculoId(), campo.placeholder()))
                 .toList();
         var command = new ReplaceAtividadeFormularioCommand(new AtividadeConfigId(id), request.expectedVersion(), campos);
-        return ResponseEntity.ok(replaceFormularioUseCase.replace(command));
+        AtividadeFormularioDto result = replaceFormularioUseCase.replace(command);
+        return ResponseEntity.ok()
+                .header("X-Activity-Form-Version", Integer.toString(result.versao()))
+                .body(result.formulario());
     }
 
     @PutMapping("/{id}")

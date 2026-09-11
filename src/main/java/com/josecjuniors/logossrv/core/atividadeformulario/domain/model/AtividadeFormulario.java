@@ -46,9 +46,16 @@ public class AtividadeFormulario extends AbstractDomainAggregate<AtividadeFormul
         this.dataGeracao = LocalDateTime.now();
     }
 
-    public void atualizar(AtividadeFormularioJson formularioJson) {
+    public void replaceCaptureDefinition(AtividadeFormularioJson formularioJson) {
         this.formularioJson = formularioJson;
         this.versao++;
+        this.dataGeracao = LocalDateTime.now();
+    }
+
+    public void refreshActivityMetadata(String nomeAtividade, String descricaoAtividade) {
+        this.formularioJson = new AtividadeFormularioJson(
+                this.formularioJson.atividadeConfigId(), nomeAtividade, descricaoAtividade,
+                this.formularioJson.campos());
         this.dataGeracao = LocalDateTime.now();
     }
 
