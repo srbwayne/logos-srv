@@ -8,5 +8,6 @@ import java.util.Optional;
 public interface AtividadeFormularioRepository {
     AtividadeFormulario save(AtividadeFormulario formulario);
     Optional<AtividadeFormulario> findByAtividadeConfigId(AtividadeConfigId atividadeConfigId);
+    Optional<AtividadeFormulario> findByAtividadeConfigIdForUpdate(AtividadeConfigId atividadeConfigId);
     void deleteAll(); // Adicionado
 }
