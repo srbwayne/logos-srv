@@ -10,6 +10,7 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.core.progressionconfiguration.application.service.ProgressionConfigurationAuthoringService;
+import com.josecjuniors.logossrv.core.progressionconfiguration.domain.model.ProgressionConfigurationDraft;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
@@ -210,6 +212,58 @@ class ProgressionConfigurationAuthoringPostgresTest {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentPublicationAndReplacementCannotCreateHybridSnapshot() throws Exception {
+        String key = "publish_replace_" + UUID.randomUUID().toString().replace('-', '_');
+        var definition = service.create(key);
+        FatorCalculo factor = factors.save(new FatorCalculo(FatorCalculoId.generate(), "Publish replace factor " + UUID.randomUUID(), "min",
+                TipoInput.NUMERICO, "replace_minutes_" + UUID.randomUUID().toString().replace('-', '_')));
+        replaceDraftWithoutHttp(key, 0, factor.getSemanticKey(), 10, 1);
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var publication = executor.submit(() -> { start.await(); return service.publish(key, 0); });
+            var replacement = executor.submit(() -> {
+                start.await();
+                return service.replaceDraft(key, 0, new ProgressionConfigurationDraft(definition.id(), 0, 20, 2,
+                        java.util.List.of(factor.getSemanticKey()), java.util.List.of()));
+            });
+            start.countDown();
+            com.josecjuniors.logossrv.core.progressionconfiguration.domain.repository.ProgressionConfigurationAuthoringRepository.PublishedProgressionConfigurationVersion published = null;
+            Throwable publicationFailure = null;
+            try {
+                published = publication.get();
+            } catch (ExecutionException exception) {
+                publicationFailure = exception.getCause();
+            }
+            Throwable replacementFailure = null;
+            try {
+                replacement.get();
+            } catch (ExecutionException exception) {
+                replacementFailure = exception.getCause();
+            }
+            if (published != null) {
+                assertThat(jdbc.queryForObject("SELECT base_xp FROM progression_configuration_version WHERE id = ?", Integer.class, published.versionId())).isEqualTo(10);
+                assertThat(jdbc.queryForObject("SELECT factor_key FROM progression_configuration_version_factor WHERE configuration_version_id = ?", String.class, published.versionId())).isEqualTo(factor.getSemanticKey());
+                if (replacementFailure != null) {
+                    assertThat(replacementFailure).isInstanceOf(com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException.class);
+                }
+            } else {
+                assertThat(publicationFailure).isInstanceOf(com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException.class);
+                assertThat(replacementFailure).isNull();
+                assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definition.id())).isZero();
+            }
+        } finally {
+            executor.shutdownNow();
+            jdbc.update("DELETE FROM progression_configuration_version_factor WHERE configuration_version_id IN (SELECT id FROM progression_configuration_version WHERE definition_id = ?)", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_version WHERE definition_id = ?", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_draft WHERE definition_id = ?", definition.id());
+            jdbc.update("DELETE FROM progression_configuration_definition WHERE id = ?", definition.id());
+            jdbc.update("DELETE FROM fator_calculo WHERE id = ?", factor.getId().getValue());
+        }
+    }
+
+    @Test
     void rejectsIncompletePublicationAndDoesNotCreateRuntimeVersion() throws Exception {
         String key = "incomplete_publish_" + UUID.randomUUID().toString().replace('-', '_');
         service.create(key);
@@ -262,5 +316,11 @@ class ProgressionConfigurationAuthoringPostgresTest {
                         .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"expectedDraftVersion\":" + expectedVersion + "}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    }
+
+    private void replaceDraftWithoutHttp(String key, long expectedVersion, String fact, int baseXp, int baseStress) {
+        service.replaceDraft(key, expectedVersion, new ProgressionConfigurationDraft(
+                service.get(key).id(), expectedVersion, baseXp, baseStress,
+                java.util.List.of(fact), java.util.List.of()));
     }
 }
