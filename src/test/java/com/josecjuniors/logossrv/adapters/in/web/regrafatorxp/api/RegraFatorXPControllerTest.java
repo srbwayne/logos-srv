@@ -11,6 +11,14 @@ import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConf
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.TipoInput;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormulario;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormularioId;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.AtividadeFormularioJson;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.repository.AtividadeFormularioRepository;
+import com.josecjuniors.logossrv.core.atividadeformulario.application.service.AtividadeFormularioService;
+import com.josecjuniors.logossrv.core.atividadeformulario.application.port.in.ReplaceAtividadeFormularioCommand;
+import com.josecjuniors.logossrv.core.regrafatorxp.application.port.in.UpdateRegraFatorXPCommand;
+import com.josecjuniors.logossrv.core.regrafatorxp.application.port.in.UpdateRegraFatorXPUseCase;
 import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
 import com.josecjuniors.logossrv.core.atributo.domain.model.AtributoId;
 import com.josecjuniors.logossrv.core.atributo.domain.repository.AtributoRepository;
@@ -57,6 +65,12 @@ class RegraFatorXPControllerTest {
     @Autowired
     private FatorCalculoRepository fatorCalculoRepository;
     @Autowired
+    private AtividadeFormularioRepository atividadeFormularioRepository;
+    @Autowired
+    private AtividadeFormularioService atividadeFormularioService;
+    @Autowired
+    private UpdateRegraFatorXPUseCase updateRegraFatorXPUseCase;
+    @Autowired
     private AppUserJpaRepository appUserRepository;
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -70,6 +84,7 @@ class RegraFatorXPControllerTest {
     @BeforeEach
     void setUp() {
         regraFatorXPRepository.deleteAll();
+        atividadeFormularioRepository.deleteAll();
         regraDistribuicaoRepository.deleteAll();
         atividadeConfigRepository.deleteAll();
         atributoRepository.deleteAll();
@@ -122,6 +137,23 @@ class RegraFatorXPControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.pesoMultiplicador").value(2.0))
                 .andExpect(jsonPath("$.pontoCorteMax").value(12.0));
+    }
+
+    @Test
+    void updatingLegacyXpRuleDoesNotChangeAuthoredActivityForm() {
+        RegraFatorXP regra = regraFatorXPRepository.save(new RegraFatorXP(new RegraFatorXPId(), testRegraDistribuicao, testFatorCalculo, 1.0, 1.0, 10.0));
+        atividadeFormularioService.replace(new ReplaceAtividadeFormularioCommand(testRegraDistribuicao.getAtividadeConfig().getId(), 0,
+                java.util.List.of(new ReplaceAtividadeFormularioCommand.Campo(testFatorCalculo.getId().getValue(), "Distância em km"))));
+        AtividadeFormulario before = atividadeFormularioRepository.findByAtividadeConfigId(testRegraDistribuicao.getAtividadeConfig().getId()).orElseThrow();
+        int version = before.getVersao();
+        String placeholder = before.getFormularioJson().campos().get(0).placeholder();
+
+        updateRegraFatorXPUseCase.update(new UpdateRegraFatorXPCommand(regra.getId(), testFatorCalculo.getId(), 2.0, 20.0, 30.0));
+
+        AtividadeFormulario after = atividadeFormularioRepository.findByAtividadeConfigId(testRegraDistribuicao.getAtividadeConfig().getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(after.getVersao()).isEqualTo(version);
+        org.assertj.core.api.Assertions.assertThat(after.getFormularioJson().campos()).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(after.getFormularioJson().campos().get(0).placeholder()).isEqualTo(placeholder);
     }
 
     @Test

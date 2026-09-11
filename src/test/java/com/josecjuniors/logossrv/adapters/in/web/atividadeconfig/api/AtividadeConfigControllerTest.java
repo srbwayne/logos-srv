@@ -82,6 +82,51 @@ class AtividadeConfigControllerTest {
     }
 
     @Test
+    void create_bootstrapsEmptyFormBeforeReturning() throws Exception {
+        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Leitura", "Ler", 50, 1, null, null);
+
+        String location = mockMvc.perform(post("/api/atividades-config")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+
+        UUID id = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
+        mockMvc.perform(get("/api/atividades-config/{id}/formulario", id)
+                        .header("Authorization", "Bearer " + jwtToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Activity-Form-Version", "1"))
+                .andExpect(jsonPath("$.campos", hasSize(0)));
+    }
+
+    @Test
+    void updateMetadataPreservesAuthoredCaptureVersionAndFields() throws Exception {
+        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Inicial", 50, 1, null, null));
+        FatorCalculo paginas = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Páginas", "pág", TipoInput.NUMERICO));
+        AtividadeFormularioJson form = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(), atividade.getDescricao(),
+                java.util.List.of(new com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.CampoFormularioJson(
+                        paginas.getId().getValue(), paginas.getNome(), paginas.getUnidadeMedida(), paginas.getTipoInput(), "Páginas lidas", true)));
+        atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, form));
+
+        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Leitura diária", "Atualizada", 50, 1, null, null);
+        mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/atividades-config/{id}/formulario", atividade.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Activity-Form-Version", "1"))
+                .andExpect(jsonPath("$.nomeAtividade").value("Leitura diária"))
+                .andExpect(jsonPath("$.descricaoAtividade").value("Atualizada"))
+                .andExpect(jsonPath("$.campos", hasSize(1)))
+                .andExpect(jsonPath("$.campos[0].placeholder").value("Páginas lidas"));
+    }
+
+    @Test
     void create_whenNameIsTaken_shouldReturn409() throws Exception {
         atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", null, 50, -5, null, null));
         CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Leitura", null, 60, -10, null, null);
