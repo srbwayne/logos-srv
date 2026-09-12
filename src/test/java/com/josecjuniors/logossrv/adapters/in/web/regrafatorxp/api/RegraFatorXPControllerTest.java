@@ -109,9 +109,7 @@ class RegraFatorXPControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isGone())
-                .andExpect(jsonPath("$.fatorCalculoNome").value("Distância"))
-                .andExpect(jsonPath("$.pesoMultiplicador").value(1.5));
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -134,9 +132,7 @@ class RegraFatorXPControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isGone())
-                .andExpect(jsonPath("$.pesoMultiplicador").value(2.0))
-                .andExpect(jsonPath("$.pontoCorteMax").value(12.0));
+                .andExpect(status().isGone());
     }
 
     @Test

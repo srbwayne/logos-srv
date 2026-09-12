@@ -119,7 +119,7 @@ class AtividadeConfigControllerTest {
                         paginas.getId().getValue(), paginas.getNome(), paginas.getUnidadeMedida(), paginas.getTipoInput(), "Páginas lidas", true)));
         atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, form));
 
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Leitura diária", "Atualizada", 50, 1, null, null);
+        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Leitura diária", "Atualizada", null, null, null, null);
         mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -204,7 +204,7 @@ class AtividadeConfigControllerTest {
     @Test
     void update_withValidData_shouldReturn200() throws Exception {
         AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Musculação", null, 120, 15, null, null));
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Treino de Força", "Foco em hipertrofia", 150, 20, null, null);
+        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Treino de Força", "Foco em hipertrofia", null, null, null, null);
 
         mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken)

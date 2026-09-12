@@ -84,9 +84,7 @@ class RegraFatorEstresseControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isGone())
-                .andExpect(jsonPath("$.pesoMultiplicador").value(1.2))
-                .andExpect(jsonPath("$.tipo").value("POSITIVO"));
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -109,9 +107,7 @@ class RegraFatorEstresseControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isGone())
-                .andExpect(jsonPath("$.pesoMultiplicador").value(0.8))
-                .andExpect(jsonPath("$.tipo").value("NEGATIVO"));
+                .andExpect(status().isGone());
     }
 
     @Test

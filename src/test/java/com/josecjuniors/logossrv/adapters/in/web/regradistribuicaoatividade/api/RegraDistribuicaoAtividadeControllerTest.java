@@ -82,10 +82,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isGone())
-                .andExpect(jsonPath("$.atividadeConfigNome").value(testAtividade.getNome()))
-                .andExpect(jsonPath("$.atributoNome").value(testAtributo.getNome()))
-                .andExpect(jsonPath("$.pesoPercentual").value(0.75));
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -158,8 +155,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isGone())
-                .andExpect(jsonPath("$.pesoPercentual").value(0.9));
+                .andExpect(status().isGone());
     }
 
     @Test
