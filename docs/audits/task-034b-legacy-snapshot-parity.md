@@ -30,15 +30,21 @@ classified as `LEGACY_NON_RUNTIME`, so their later presence does not create a
 false snapshot-parity failure. If a future runtime uses either field, the
 self-sufficiency contract must be revisited before reader removal.
 
-The SQL treats all ActivityConfigs with legacy progression state as
-runtime-relevant because `resolveVersioned` and `resolveLegacyVersioned`
-accept an ActivityConfig ID and may invoke the lazy fallback for it. Detached
-immutable definitions are reported separately as historical data.
+The SQL marks an ActivityConfig `RUNTIME_RELEVANT` only when a persisted
+`registro_atividade` references it. An ActivityConfig without that evidence is
+`UNKNOWN_REACHABILITY` and therefore `AMBIGUOUS`; the audit does not invent a
+historical-only predicate. Detached immutable definitions are reported
+separately as historical data.
 
 `SAFE_FROZEN` requires structural validity and exact set/scalar parity. Missing
 or null current versions are `NEEDS_BACKFILL`; ownership/reference defects are
 `BROKEN_REFERENCE`; duplicate tuples are `AMBIGUOUS`; parity mismatches are
 `NEEDS_BACKFILL` with reason flags.
+
+The durable-reference result reports each immutable version separately for
+`progression_external_execution.configuration_version_id` and
+`registro_atividade.configuration_version_id`. These references are
+informational and must never be repointed or rewritten.
 
 ## Required access
 
@@ -114,3 +120,9 @@ local results do not establish production completeness. The expected
 structural orphan result is empty because the foreign keys in V1, V6 and V9
 protect those relationships. Do not run the application resolver during this
 validation because its fallback writes snapshots.
+
+The repository test
+`LegacySnapshotParityAuditSqlTest.auditScriptExecutesReadOnlyAgainstV41Schema`
+reads this file from the checkout, sets the JDBC connection and transaction to
+read-only, executes every SQL statement, and rolls the transaction back. It is
+test-only and does not invoke snapshot or backfill services.

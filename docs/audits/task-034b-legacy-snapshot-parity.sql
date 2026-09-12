@@ -26,6 +26,13 @@ defs AS (
 ),
 structural AS (
     SELECT l.id, l.xp_base, l.estresse_base,
+           CASE WHEN EXISTS (
+                    SELECT 1 FROM registro_atividade ra
+                    WHERE ra.atividade_config_id = l.id
+                )
+                THEN 'RUNTIME_RELEVANT'
+                ELSE 'UNKNOWN_REACHABILITY'
+           END AS reachability,
            d.definition_id, d.current_version_id, d.version_found,
            d.version_definition_id, d.revision, d.base_xp, d.base_stress,
            d.fact_key_generation,
@@ -154,6 +161,7 @@ parity AS (
 classified AS (
     SELECT p.*,
            CASE
+             WHEN p.reachability = 'UNKNOWN_REACHABILITY' THEN 'AMBIGUOUS'
              WHEN p.structural_reason IN ('NO_DEFINITION', 'NO_CURRENT_VERSION')
                THEN 'NEEDS_BACKFILL'
              WHEN p.structural_reason IS NOT NULL THEN 'BROKEN_REFERENCE'
@@ -165,6 +173,7 @@ classified AS (
              ELSE 'NEEDS_BACKFILL'
            END AS classification,
            concat_ws(';',
+             CASE WHEN p.reachability = 'UNKNOWN_REACHABILITY' THEN 'UNKNOWN_REACHABILITY' END,
              p.structural_reason,
              CASE WHEN p.scalar_parity = false THEN 'STALE_SCALAR' END,
              CASE WHEN p.distribution_parity = false THEN 'STALE_DISTRIBUTION' END,
@@ -178,6 +187,13 @@ classified AS (
 summary AS (
     SELECT 'ACTIVITY_CONFIGS_TOTAL' AS metric, COUNT(*)::text AS value FROM activity_state
     UNION ALL SELECT 'LEGACY_STATE_TOTAL', COUNT(*)::text FROM legacy
+    UNION ALL SELECT 'RUNTIME_RELEVANT_LEGACY_STATE', COUNT(*)::text
+      FROM classified WHERE reachability = 'RUNTIME_RELEVANT'
+    UNION ALL SELECT 'UNKNOWN_REACHABILITY_LEGACY_STATE', COUNT(*)::text
+      FROM classified WHERE reachability = 'UNKNOWN_REACHABILITY'
+    UNION ALL SELECT 'PENALTY_METADATA_ROWS', COUNT(*)::text
+      FROM activity_state
+     WHERE dias_para_penalidade IS NOT NULL OR xp_perda_por_ciclo IS NOT NULL
     UNION ALL SELECT 'LEGACY_LINKED_DEFINITIONS', COUNT(*)::text FROM defs
     UNION ALL SELECT 'IMMUTABLE_VERSIONS_FOR_LEGACY_DEFINITIONS', COUNT(*)::text
       FROM progression_configuration_version v
@@ -189,7 +205,8 @@ summary AS (
     UNION ALL SELECT 'NEEDS_BACKFILL', COUNT(*)::text FROM classified WHERE classification = 'NEEDS_BACKFILL'
     UNION ALL SELECT 'BROKEN_REFERENCE', COUNT(*)::text FROM classified WHERE classification = 'BROKEN_REFERENCE'
     UNION ALL SELECT 'AMBIGUOUS', COUNT(*)::text FROM classified WHERE classification = 'AMBIGUOUS'
-    UNION ALL SELECT 'HISTORICAL_ONLY', '0'
+    UNION ALL SELECT 'HISTORICAL_ONLY', COUNT(*)::text
+      FROM classified WHERE classification = 'HISTORICAL_ONLY'
     UNION ALL SELECT 'HISTORICAL_DETACHED', COUNT(*)::text
       FROM progression_configuration_definition d
      WHERE d.legacy_atividade_config_id IS NULL
@@ -207,16 +224,20 @@ SELECT 'DETAIL', classification, NULL::text, id, definition_id,
 FROM classified
 ORDER BY row_type, metric, atividade_config_id;
 
--- Result 2: immutable detached history and durable execution references.
-SELECT d.id AS definition_id,
-       COUNT(DISTINCT v.id) AS immutable_version_count,
-       COUNT(DISTINCT e.id) AS execution_reference_count
-FROM progression_configuration_definition d
-LEFT JOIN progression_configuration_version v ON v.definition_id = d.id
+-- Result 2: durable references, separated by execution family.
+SELECT v.id AS configuration_version_id,
+       v.definition_id,
+       CASE WHEN d.legacy_atividade_config_id IS NULL THEN 'DETACHED'
+            ELSE 'LEGACY_LINKED' END AS legacy_link_status,
+       COUNT(DISTINCT e.id) AS external_execution_reference_count,
+       COUNT(DISTINCT ra.id) AS activity_execution_reference_count,
+       COUNT(DISTINCT e.id) + COUNT(DISTINCT ra.id) AS total_durable_reference_count
+FROM progression_configuration_version v
+JOIN progression_configuration_definition d ON d.id = v.definition_id
 LEFT JOIN progression_external_execution e ON e.configuration_version_id = v.id
-WHERE d.legacy_atividade_config_id IS NULL
-GROUP BY d.id
-ORDER BY d.id;
+LEFT JOIN registro_atividade ra ON ra.configuration_version_id = v.id
+GROUP BY v.id, v.definition_id, d.legacy_atividade_config_id
+ORDER BY v.id;
 
 -- Result 3: orphan checks. Foreign keys should make these empty; the result
 -- is retained to document and verify the structural assumptions explicitly.
