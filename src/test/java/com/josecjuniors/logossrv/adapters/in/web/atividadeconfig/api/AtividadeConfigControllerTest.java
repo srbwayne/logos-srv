@@ -31,6 +31,7 @@ import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXPId;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresseId;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.enums.TipoFatorEstresse;
+import com.josecjuniors.logossrv.adapters.out.atividadeconfig.jpa.AtividadeConfigJpaRepository;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.TipoInput;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +60,8 @@ class AtividadeConfigControllerTest {
     private ObjectMapper objectMapper;
     @Autowired
     private AtividadeConfigRepository atividadeConfigRepository;
+    @Autowired
+    private AtividadeConfigJpaRepository atividadeConfigPersistence;
     @Autowired
     private AtividadeFormularioRepository atividadeFormularioRepository;
     @Autowired
@@ -165,8 +168,8 @@ class AtividadeConfigControllerTest {
 
     @Test
     void metadataOnlyUpdateDoesNotCreateLegacyProgressionSnapshot() throws Exception {
-        UUID activityId = UUID.randomUUID();
-        jdbc.update("INSERT INTO atividade_config(id, nome, descricao, xp_base, estresse_base, dias_para_penalidade, xp_perda_por_ciclo) VALUES (?, 'Historica', 'Inicial', 120, 15, 7, 25)", activityId);
+        AtividadeConfig atividade = atividadeConfigPersistence.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Historica", "Inicial", 120, 15, 7, 25));
+        UUID activityId = atividade.getId().getValue();
         UUID definitionId = UUID.randomUUID();
         UUID versionId = UUID.randomUUID();
         String logicalKey = "legacy:" + activityId;
