@@ -112,8 +112,8 @@ class LegacySnapshotParityAuditSqlTest {
         Fixture semantic = fixture("semantic", true, true);
         Fixture fallback = fixture("fallback", false, false);
         UUID empty = activity("empty-matrix", null, null);
-        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) VALUES (?, ?, ?, 'NUMERICO')",
-                UUID.randomUUID(), legacy.version, semantic.factor.toString());
+        completeFactorSnapshot(legacy.version, false);
+        completeFactorSnapshot(semantic.version, true);
 
         assertClassification(legacy.activity, "SAFE_FROZEN");
         assertClassification(semantic.activity, "SAFE_FROZEN");
@@ -239,6 +239,18 @@ class LegacySnapshotParityAuditSqlTest {
         UUID id = UUID.randomUUID();
         jdbc.update("INSERT INTO atividade_config(id, nome, xp_base, estresse_base) VALUES (?, ?, ?, ?)", id, "audit-" + name, xpBase, stressBase);
         return id;
+    }
+
+    private void completeFactorSnapshot(UUID version, boolean semantic) {
+        jdbc.update("DELETE FROM progression_configuration_version_factor WHERE configuration_version_id = ?", version);
+        for (Map<String, Object> row : jdbc.queryForList("SELECT id, semantic_key, tipo_input FROM fator_calculo")) {
+            UUID factorId = (UUID) row.get("id");
+            String semanticKey = (String) row.get("semantic_key");
+            if (!semantic || semanticKey != null) {
+                jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) VALUES (?, ?, ?, ?)",
+                        UUID.randomUUID(), version, semantic ? semanticKey : factorId.toString(), row.get("tipo_input"));
+            }
+        }
     }
 
     private Fixture fixture(String name, boolean semantic, boolean withVersion) {
