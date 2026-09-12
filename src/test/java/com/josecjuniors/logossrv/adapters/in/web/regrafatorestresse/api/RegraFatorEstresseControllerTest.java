@@ -20,6 +20,7 @@ import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFator
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresseId;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.enums.TipoFatorEstresse;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.repository.RegraFatorEstresseRepository;
+import com.josecjuniors.logossrv.adapters.out.regrafatorestresse.jpa.RegraFatorEstresseJpaRepository;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,8 @@ class RegraFatorEstresseControllerTest {
     private ObjectMapper objectMapper;
     @Autowired
     private RegraFatorEstresseRepository regraFatorEstresseRepository;
+    @Autowired
+    private RegraFatorEstresseJpaRepository regraFatorEstressePersistence;
     @Autowired
     private RegraDistribuicaoAtividadeRepository regraDistribuicaoRepository;
     @Autowired
@@ -85,6 +88,7 @@ class RegraFatorEstresseControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(regraFatorEstressePersistence.count()).isZero();
     }
 
     @Test
@@ -108,6 +112,11 @@ class RegraFatorEstresseControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isGone());
+        RegraFatorEstresse persisted = regraFatorEstresseRepository.findById(regra.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(persisted.getPesoMultiplicador()).isEqualTo(1.0);
+        org.assertj.core.api.Assertions.assertThat(persisted.getPontoCorteMin()).isEqualTo(10.0);
+        org.assertj.core.api.Assertions.assertThat(persisted.getPontoCorteMax()).isEqualTo(20.0);
+        org.assertj.core.api.Assertions.assertThat(persisted.getTipo()).isEqualTo(TipoFatorEstresse.POSITIVO);
     }
 
     @Test
@@ -128,6 +137,7 @@ class RegraFatorEstresseControllerTest {
         mockMvc.perform(delete("/api/regras-distribuicao/{regraDistribuicaoId}/fatores-estresse/{regraFatorEstresseId}", testRegraDistribuicao.getId().getValue(), regra.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(regraFatorEstresseRepository.findById(regra.getId())).isPresent();
     }
 
     @Test

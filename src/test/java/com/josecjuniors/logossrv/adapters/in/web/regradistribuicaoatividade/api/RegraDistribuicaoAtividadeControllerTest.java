@@ -83,6 +83,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(regraRepository.findByAtividadeConfigId(testAtividade.getId())).isEmpty();
     }
 
     @Test
@@ -156,6 +157,7 @@ class RegraDistribuicaoAtividadeControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(regraRepository.findById(regra.getId()).orElseThrow().getPesoPercentual()).isEqualTo(0.5);
     }
 
     @Test
@@ -188,6 +190,7 @@ class RegraDistribuicaoAtividadeControllerTest {
         mockMvc.perform(delete("/api/atividades-config/{atividadeId}/regras-distribuicao/{regraId}", testAtividade.getId().getValue(), regra.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(regraRepository.findById(regra.getId())).isPresent();
     }
 
     @Test

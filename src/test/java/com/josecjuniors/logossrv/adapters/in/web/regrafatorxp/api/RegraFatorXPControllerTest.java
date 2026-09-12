@@ -110,6 +110,7 @@ class RegraFatorXPControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(regraFatorXPRepository.findRegrasByAtividadeConfigId(testRegraDistribuicao.getAtividadeConfig().getId())).isEmpty();
     }
 
     @Test
@@ -133,6 +134,11 @@ class RegraFatorXPControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isGone());
+        RegraFatorXP persisted = regraFatorXPRepository.findById(regra.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(persisted.getPesoMultiplicador()).isEqualTo(1.0);
+        org.assertj.core.api.Assertions.assertThat(persisted.getPontoCorteMin()).isEqualTo(1.0);
+        org.assertj.core.api.Assertions.assertThat(persisted.getPontoCorteMax()).isEqualTo(10.0);
+        org.assertj.core.api.Assertions.assertThat(persisted.getFatorCalculo().getId()).isEqualTo(testFatorCalculo.getId());
     }
 
     @Test
@@ -171,6 +177,7 @@ class RegraFatorXPControllerTest {
         mockMvc.perform(delete("/api/regras-distribuicao/{regraDistribuicaoId}/fatores-xp/{regraFatorXPId}", testRegraDistribuicao.getId().getValue(), regra.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(regraFatorXPRepository.findById(regra.getId())).isPresent();
     }
 
     @Test

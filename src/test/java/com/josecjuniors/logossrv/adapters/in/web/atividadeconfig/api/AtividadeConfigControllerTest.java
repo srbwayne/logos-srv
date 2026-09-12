@@ -24,6 +24,13 @@ import com.josecjuniors.logossrv.core.atributo.domain.repository.AtributoReposit
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividadeId;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.repository.RegraDistribuicaoAtividadeRepository;
+import com.josecjuniors.logossrv.core.regrafatorxp.domain.repository.RegraFatorXPRepository;
+import com.josecjuniors.logossrv.core.regrafatorestresse.domain.repository.RegraFatorEstresseRepository;
+import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
+import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXPId;
+import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
+import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresseId;
+import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.enums.TipoFatorEstresse;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.TipoInput;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +65,10 @@ class AtividadeConfigControllerTest {
     @Autowired
     private RegraDistribuicaoAtividadeRepository regraDistribuicaoRepository;
     @Autowired
+    private RegraFatorXPRepository regraFatorXPRepository;
+    @Autowired
+    private RegraFatorEstresseRepository regraFatorEstresseRepository;
+    @Autowired
     private AtributoRepository atributoRepository;
     @Autowired
     private AppUserJpaRepository appUserRepository;
@@ -70,6 +81,8 @@ class AtividadeConfigControllerTest {
 
     @BeforeEach
     void setUp() {
+        regraFatorEstresseRepository.deleteAll();
+        regraFatorXPRepository.deleteAll();
         atividadeFormularioRepository.deleteAll();
         atividadeConfigRepository.deleteAll();
         fatorCalculoRepository.deleteAll();
@@ -83,12 +96,18 @@ class AtividadeConfigControllerTest {
     void create_withValidData_shouldReturn201() throws Exception {
         CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Corrida", "Corrida ao ar livre", null, null, null, null);
 
-        mockMvc.perform(post("/api/atividades-config")
+        String location = mockMvc.perform(post("/api/atividades-config")
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.nome").value("Corrida"));
+                .andExpect(jsonPath("$.nome").value("Corrida"))
+                .andReturn().getResponse().getHeader("Location");
+        AtividadeConfig persisted = atividadeConfigRepository.findById(new AtividadeConfigId(UUID.fromString(location.substring(location.lastIndexOf('/') + 1)))).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpBase()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getEstresseBase()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getDiasParaPenalidade()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpPerdaPorCiclo()).isNull();
     }
 
     @Test
@@ -157,6 +176,7 @@ class AtividadeConfigControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(atividadeConfigRepository.existsByNome("Corrida")).isFalse();
     }
 
     @Test
@@ -169,6 +189,14 @@ class AtividadeConfigControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isGone());
+        AtividadeConfig persisted = atividadeConfigRepository.findById(atividade.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(persisted.getNome()).isEqualTo("Corrida");
+        org.assertj.core.api.Assertions.assertThat(persisted.getDescricao()).isEqualTo("Inicial");
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpBase()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getEstresseBase()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getDiasParaPenalidade()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpPerdaPorCiclo()).isNull();
+        org.assertj.core.api.Assertions.assertThat(atividadeFormularioRepository.findByAtividadeConfigId(atividade.getId())).isEmpty();
     }
 
     @Test
@@ -243,6 +271,9 @@ class AtividadeConfigControllerTest {
         Atributo atributo = atributoRepository.save(new Atributo(new AtributoId(), "Foco", null));
         RegraDistribuicaoAtividade regra = regraDistribuicaoRepository.save(new RegraDistribuicaoAtividade(
                 new RegraDistribuicaoAtividadeId(), atividade, atributo, 1.0));
+        FatorCalculo fator = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Minutos", "min", TipoInput.NUMERICO));
+        RegraFatorXP xp = regraFatorXPRepository.save(new RegraFatorXP(new RegraFatorXPId(), regra, fator, 1.0, 1.0, 10.0));
+        RegraFatorEstresse stress = regraFatorEstresseRepository.save(new RegraFatorEstresse(new RegraFatorEstresseId(), regra, 1.0, 1.0, 10.0, TipoFatorEstresse.POSITIVO));
 
         mockMvc.perform(delete("/api/atividades-config/{id}", atividade.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
@@ -250,6 +281,8 @@ class AtividadeConfigControllerTest {
 
         org.assertj.core.api.Assertions.assertThat(atividadeConfigRepository.findById(atividade.getId())).isPresent();
         org.assertj.core.api.Assertions.assertThat(regraDistribuicaoRepository.findById(regra.getId())).isPresent();
+        org.assertj.core.api.Assertions.assertThat(regraFatorXPRepository.findById(xp.getId())).isPresent();
+        org.assertj.core.api.Assertions.assertThat(regraFatorEstresseRepository.findById(stress.getId())).isPresent();
     }
 
     @Test
