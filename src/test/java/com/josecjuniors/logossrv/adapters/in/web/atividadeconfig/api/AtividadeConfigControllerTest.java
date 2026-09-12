@@ -36,6 +36,7 @@ import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -76,6 +77,8 @@ class AtividadeConfigControllerTest {
     private PasswordEncoder passwordEncoder;
     @Autowired
     private JwtService jwtService;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private String jwtToken;
 
@@ -131,7 +134,7 @@ class AtividadeConfigControllerTest {
 
     @Test
     void updateMetadataPreservesAuthoredCaptureVersionAndFields() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Inicial", 50, 1, null, null));
+        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Inicial", 120, 15, 7, 25));
         FatorCalculo paginas = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Páginas", "pág", TipoInput.NUMERICO));
         AtividadeFormularioJson form = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(), atividade.getDescricao(),
                 java.util.List.of(new com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.CampoFormularioJson(
@@ -153,6 +156,38 @@ class AtividadeConfigControllerTest {
                 .andExpect(jsonPath("$.descricaoAtividade").value("Atualizada"))
                 .andExpect(jsonPath("$.campos", hasSize(1)))
                 .andExpect(jsonPath("$.campos[0].placeholder").value("Páginas lidas"));
+        AtividadeConfig metadataPersisted = atividadeConfigRepository.findById(atividade.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getXpBase()).isEqualTo(120);
+        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getEstresseBase()).isEqualTo(15);
+        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getDiasParaPenalidade()).isEqualTo(7);
+        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getXpPerdaPorCiclo()).isEqualTo(25);
+    }
+
+    @Test
+    void metadataOnlyUpdateDoesNotCreateLegacyProgressionSnapshot() throws Exception {
+        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Historica", "Inicial", 120, 15, 7, 25));
+        UUID definitionId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        String logicalKey = "legacy:" + atividade.getId().getValue();
+        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
+                definitionId, logicalKey, atividade.getId().getValue());
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, 1, 120, 15, 'LEGACY_UUID')",
+                versionId, definitionId);
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", versionId, definitionId);
+        int beforeCount = jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definitionId);
+        UUID beforeCurrent = jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE id = ?", UUID.class, definitionId);
+
+        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Historica atualizada", "Descricao atualizada", null, null, null, null);
+        mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        UUID afterCurrent = jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE id = ?", UUID.class, definitionId);
+        int afterCount = jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definitionId);
+        org.assertj.core.api.Assertions.assertThat(afterCurrent).isEqualTo(beforeCurrent);
+        org.assertj.core.api.Assertions.assertThat(afterCount).isEqualTo(beforeCount);
     }
 
     @Test
@@ -181,7 +216,7 @@ class AtividadeConfigControllerTest {
 
     @Test
     void update_withLegacyProgressionFields_shouldReturn410() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida", "Inicial", null, null, null, null));
+        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida", "Inicial", 120, 15, 7, 25));
         UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Corrida atualizada", "Cat?logo", null, 1, null, null);
 
         mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
@@ -192,10 +227,10 @@ class AtividadeConfigControllerTest {
         AtividadeConfig persisted = atividadeConfigRepository.findById(atividade.getId()).orElseThrow();
         org.assertj.core.api.Assertions.assertThat(persisted.getNome()).isEqualTo("Corrida");
         org.assertj.core.api.Assertions.assertThat(persisted.getDescricao()).isEqualTo("Inicial");
-        org.assertj.core.api.Assertions.assertThat(persisted.getXpBase()).isNull();
-        org.assertj.core.api.Assertions.assertThat(persisted.getEstresseBase()).isNull();
-        org.assertj.core.api.Assertions.assertThat(persisted.getDiasParaPenalidade()).isNull();
-        org.assertj.core.api.Assertions.assertThat(persisted.getXpPerdaPorCiclo()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpBase()).isEqualTo(120);
+        org.assertj.core.api.Assertions.assertThat(persisted.getEstresseBase()).isEqualTo(15);
+        org.assertj.core.api.Assertions.assertThat(persisted.getDiasParaPenalidade()).isEqualTo(7);
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpPerdaPorCiclo()).isEqualTo(25);
         org.assertj.core.api.Assertions.assertThat(atividadeFormularioRepository.findByAtividadeConfigId(atividade.getId())).isEmpty();
     }
 
