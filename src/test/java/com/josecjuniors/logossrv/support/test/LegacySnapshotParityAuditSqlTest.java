@@ -204,7 +204,7 @@ class LegacySnapshotParityAuditSqlTest {
 
     private void assertClassification(UUID activity, String expected, String... reasons) throws Exception {
         var row = detail(jdbc.queryForList(firstResult()), activity);
-        assertThat(row.get("metric")).isEqualTo(expected);
+        assertThat(row.get("metric")).as("activity %s audit row %s", activity, row).isEqualTo(expected);
         String actualReasons = String.valueOf(row.get("reasons"));
         for (String reason : reasons) assertThat(actualReasons).contains(reason);
     }
