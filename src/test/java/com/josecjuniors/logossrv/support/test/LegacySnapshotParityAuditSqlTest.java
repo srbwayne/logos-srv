@@ -125,7 +125,7 @@ class LegacySnapshotParityAuditSqlTest {
                 incompleteDefinition, "audit-incomplete", fallback.activity);
         jdbc.update("UPDATE atividade_config SET xp_base = NULL WHERE id = ?", fallback.activity);
         assertClassification(fallback.activity, "AMBIGUOUS", "INCOMPLETE_LEGACY_BASES");
-        jdbc.update("UPDATE atividade_config SET xp_base = 10, dias_para_penalidade = 3 WHERE id = ?", empty);
+        jdbc.update("UPDATE atividade_config SET xp_base = NULL, estresse_base = NULL, dias_para_penalidade = 3 WHERE id = ?", empty);
         assertClassification(empty, "AMBIGUOUS", "UNCONFIGURED_RUNTIME_CANDIDATE");
         assertSummary("PENALTY_METADATA_ROWS", "1");
 
@@ -187,7 +187,9 @@ class LegacySnapshotParityAuditSqlTest {
         assertClassification(durable.activity, "SAFE_FROZEN");
         assertThat(String.valueOf(detail(jdbc.queryForList(firstResult()), durable.activity).get("metric")))
                 .isEqualTo(durableClassificationBeforeReference);
-        Map<String, Object> durableRow = jdbc.queryForList("SELECT v.id AS configuration_version_id, COUNT(DISTINCT e.id) AS external_execution_reference_count, COUNT(DISTINCT ra.id) AS activity_execution_reference_count, COUNT(DISTINCT e.id) + COUNT(DISTINCT ra.id) AS total_durable_reference_count FROM progression_configuration_version v JOIN progression_configuration_definition d ON d.id = v.definition_id LEFT JOIN progression_external_execution e ON e.configuration_version_id = v.id LEFT JOIN registro_atividade ra ON ra.configuration_version_id = v.id WHERE v.id = ? GROUP BY v.id", durable.version).get(0);
+        Map<String, Object> durableRow = jdbc.queryForList(secondResult()).stream()
+                .filter(row -> durable.version.equals(row.get("configuration_version_id")))
+                .findFirst().orElseThrow();
         assertThat(durableRow).containsEntry("external_execution_reference_count", 1L)
                 .containsEntry("activity_execution_reference_count", 1L)
                 .containsEntry("total_durable_reference_count", 2L);
@@ -235,8 +237,19 @@ class LegacySnapshotParityAuditSqlTest {
     }
 
     private String firstResult() throws Exception {
+        return resultBetween(null, "-- Result 2:");
+    }
+
+    private String secondResult() throws Exception {
+        return resultBetween("-- Result 2:", "-- Result 3:");
+    }
+
+    private String resultBetween(String startMarker, String endMarker) throws Exception {
         String sql = Files.readString(AUDIT.toAbsolutePath().normalize());
-        return sql.substring(0, sql.indexOf("-- Result 2:")).replaceFirst(";\\s*$", "");
+        int start = startMarker == null ? 0 : sql.indexOf(startMarker) + startMarker.length();
+        if (startMarker != null) start = sql.indexOf('\n', start) + 1;
+        int end = sql.indexOf(endMarker, start);
+        return sql.substring(start, end).replaceFirst(";\\s*$", "").trim();
     }
 
     private UUID activity(String name, Integer xpBase, Integer stressBase) {
