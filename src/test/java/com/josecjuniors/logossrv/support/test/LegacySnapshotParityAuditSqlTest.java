@@ -177,7 +177,7 @@ class LegacySnapshotParityAuditSqlTest {
         UUID player = UUID.randomUUID();
         UUID registro = UUID.randomUUID();
         jdbc.update("INSERT INTO app_user(id, email, password) VALUES (?, ?, ?)", user, "audit-" + user + "@example.test", "x");
-        jdbc.update("INSERT INTO jogador(id, user_id, nome_exibicao) VALUES (?, ?, ?)", player, user, "audit-player");
+        jdbc.update("INSERT INTO jogador(id, user_id, apelido) VALUES (?, ?, ?)", player, user, "audit-player");
         jdbc.update("INSERT INTO registro_atividade(id, jogador_id, atividade_config_id, data_hora_inicio, situacao, status_processamento, data_registro, configuration_version_id) VALUES (?, ?, ?, now(), 'CONCLUIDA', 'PROCESSADO', now(), ?)",
                 registro, player, durable.activity, durable.version);
         UUID policyVersion = jdbc.queryForObject("SELECT current_version_id FROM progression_skill_policy WHERE logical_key = 'global'", UUID.class);
