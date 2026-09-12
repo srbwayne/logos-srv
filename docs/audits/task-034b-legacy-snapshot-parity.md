@@ -2,127 +2,139 @@
 
 This audit is strictly read-only. It observes legacy ActivityConfig state and
 immutable progression snapshots; it never invokes application snapshot or
-backfill services.
+backfill services. Run it inside `BEGIN TRANSACTION READ ONLY` and finish with
+`ROLLBACK`.
 
-## Canonical snapshot semantics
+## Runtime semantics and candidate universe
 
-The current production implementation is
-`JdbcVersionedProgressionConfigurationStore.snapshotConfiguration`.
+The supported resolver accepts an existing `atividade_config.id` directly.
+Future runtime eligibility is therefore the complete `atividade_config` table;
+historical `registro_atividade` rows are not an eligibility predicate.
 
-| Legacy source | Immutable target | Comparison |
-|---|---|---|
-| `atividade_config.xp_base` | `progression_configuration_version.base_xp` | Null-safe scalar equality |
-| `atividade_config.estresse_base` | `progression_configuration_version.base_stress` | Null-safe scalar equality |
-| `regra_distribuicao_atividade.atributo_id`, `peso_percentual` | version distribution `attribute_key`, `weight` | Bidirectional set equality |
-| `regra_fator_xp` plus distribution attribute | version XP rule tuple | Bidirectional set equality; legacy mode is `FIXED` |
-| `regra_fator_estresse` plus distribution attribute | version stress rule tuple | Bidirectional set equality |
-| every current `fator_calculo.id`, `tipo_input` | version factor `factor_key`, `tipo_input` | Bidirectional set equality using UUID text |
+The four concepts below are intentionally separate:
 
-V33 initially created the legacy-linked definition and revision 1, copied the
-legacy scalar/rule graph and the then-current FactDefinition input metadata,
-and set `current_version_id`. V35 made the legacy XP mapping explicitly
-`FIXED`; the audit therefore compares `calculation_mode = 'FIXED'` for every
-legacy XP rule.
+1. **Future runtime eligibility** — an existing ActivityConfig can be selected
+   by a supported execution path.
+2. **Current-version lookup success** — `findConfig` finds a definition whose
+   `current_version_id` joins to a version.
+3. **Live fallback attempt** — a supported `resolveVersioned` lookup misses and
+   invokes `snapshotForResolution` against the live ActivityConfig.
+4. **Successful lazy snapshot materialization** — the live values satisfy the
+   immutable schema and `snapshotConfiguration` completes successfully.
 
-`dias_para_penalidade` and `xp_perda_por_ciclo` have no immutable snapshot
-column and are not read by the current immutable materializer. They are
-classified as `LEGACY_NON_RUNTIME`, so their later presence does not create a
-false snapshot-parity failure. If a future runtime uses either field, the
-self-sufficiency contract must be revisited before reader removal.
+The audit reports all ActivityConfigs. `RUNTIME_RESOLVER_CANDIDATES_TOTAL`
+must equal `ACTIVITY_CONFIGS_TOTAL`. Legacy progression state and residual
+penalty metadata are separate diagnostic metrics only:
 
-The SQL marks an ActivityConfig `RUNTIME_RELEVANT` only when a persisted
-`registro_atividade` references it. An ActivityConfig without that evidence is
-`UNKNOWN_REACHABILITY` and therefore `AMBIGUOUS`; the audit does not invent a
-historical-only predicate. Detached immutable definitions are reported
-separately as historical data.
+- `LEGACY_RUNTIME_STATE_TOTAL` counts rows with legacy scalar or distribution
+  inputs used by the snapshot comparison.
+- `PENALTY_METADATA_ROWS` counts `dias_para_penalidade` or
+  `xp_perda_por_ciclo`. These fields are `LEGACY_NON_RUNTIME`; they are not
+  immutable progression inputs and do not cause `NEEDS_BACKFILL` by themselves.
 
-`SAFE_FROZEN` requires structural validity and exact set/scalar parity. Missing
-or null current versions are `NEEDS_BACKFILL`; ownership/reference defects are
-`BROKEN_REFERENCE`; duplicate tuples are `AMBIGUOUS`; parity mismatches are
-`NEEDS_BACKFILL` with reason flags.
+## Fallback and empty configurations
 
-The durable-reference result reports each immutable version separately for
-`progression_external_execution.configuration_version_id` and
-`registro_atividade.configuration_version_id`. These references are
-informational and must never be repointed or rewritten.
+The exact fallback-attempt condition is an ActivityConfig whose current
+immutable lookup misses:
 
-## Required access
+```sql
+LEFT JOIN progression_configuration_definition d
+  ON d.legacy_atividade_config_id = ac.id
+LEFT JOIN progression_configuration_version v
+  ON v.id = d.current_version_id
+WHERE v.id IS NULL
+```
 
-Use a PostgreSQL role with no `INSERT`, `UPDATE`, `DELETE`, DDL or execute
-privileges on application functions. Confirm the target environment and
-database before running the audit. Do not place credentials in this file or in
-the exported results.
+This means a newly created, unregistered ActivityConfig can be runtime
+selectable. It must not disappear from the audit. When its legacy `xp_base` or
+`estresse_base` is NULL, it cannot deterministically populate the immutable
+mandatory `base_xp` and `base_stress` columns. It is therefore `AMBIGUOUS` with
+`UNCONFIGURED_RUNTIME_CANDIDATE` or `INCOMPLETE_LEGACY_BASES`, not an ordinary
+backfill candidate. No zero/default value is inferred.
 
-## Procedure
+When both mandatory legacy bases exist but no usable current version exists,
+the row is `NEEDS_BACKFILL`; the audit does not perform the backfill. A fallback
+attempt is not evidence that lazy materialization succeeded.
 
-1. Verify the target host, database and operator-approved environment.
+## Snapshot generations and parity
+
+Both persisted fact-key generations are valid:
+
+- `LEGACY_UUID` uses `fator_calculo.id::text` for factor metadata and XP rules.
+- `SEMANTIC` uses `fator_calculo.semantic_key` for non-NULL semantic keys.
+
+XP and factor comparisons are generation-aware and use bidirectional exact set
+equality. A semantic XP rule whose source factor has no semantic key is
+`AMBIGUOUS` with `SEMANTIC_KEY_UNREPRESENTABLE`. Unknown generations are
+`BROKEN_REFERENCE`. Distribution, scalar and stress comparisons remain exact;
+scalar equality is NULL-aware where a comparable legacy snapshot exists.
+
+`SAFE_FROZEN` requires a usable current immutable version, valid ownership and
+revision, a supported generation, and exact applicable scalar, distribution,
+XP, stress and factor parity. Stale deterministic state is `NEEDS_BACKFILL`.
+Broken immutable references are `BROKEN_REFERENCE`. Duplicate tuples or state
+requiring a guess are `AMBIGUOUS`.
+
+An existing ActivityConfig with a valid immutable current version is not called
+`HISTORICAL_ONLY`: it may still be selected tomorrow, but it will not require
+the live legacy fallback under the current resolver. `HISTORICAL_DETACHED` is
+reserved for immutable definitions with no live ActivityConfig link. Detached
+history must not be relinked, repointed, rewritten or deleted.
+
+## Durable references
+
+The second result reports, per immutable version, the independent durable
+references from `progression_external_execution.configuration_version_id` and
+`registro_atividade.configuration_version_id`. These counts are informational
+and never affect the primary ActivityConfig classification. Historical
+immutable references must not be repointed.
+
+## Required access and procedure
+
+Use an operator-approved PostgreSQL role with no `INSERT`, `UPDATE`, `DELETE`,
+DDL or application-function execute privileges. Confirm the target environment
+and database before running the audit; do not put credentials in this file or
+exported results.
+
+1. Verify host, database and schema version (`V1` through `V41`).
 2. Connect with the read-only role.
-3. Verify the connected database and schema version:
+3. Execute `BEGIN TRANSACTION READ ONLY;` and set a short lock timeout.
+4. Execute `docs/audits/task-034b-legacy-snapshot-parity.sql`.
+5. Preserve exact IDs, classifications, reasons and environment metadata.
+6. Execute `ROLLBACK;` and close the connection.
 
-```sql
-SELECT current_database(), current_user, inet_server_addr(), inet_server_port();
-SELECT installed_rank, version, description, success
-FROM flyway_schema_history
-ORDER BY installed_rank DESC
-LIMIT 1;
-```
+The executable SQL contains only SELECT/CTE queries. Never invoke
+`snapshotConfiguration`, `snapshotForResolution`, a maintenance command or an
+application endpoint during the audit.
 
-4. Start a read-only transaction:
+## Summary and data gate
 
-```sql
-BEGIN TRANSACTION READ ONLY;
-SET LOCAL lock_timeout = '5s';
-```
-
-5. Execute `task-034b-legacy-snapshot-parity.sql` with `psql`, for example:
+The summary includes:
 
 ```text
-\i docs/audits/task-034b-legacy-snapshot-parity.sql
+ACTIVITY_CONFIGS_TOTAL
+RUNTIME_RESOLVER_CANDIDATES_TOTAL
+LEGACY_RUNTIME_STATE_TOTAL
+PENALTY_METADATA_ROWS
+SAFE_FROZEN
+NEEDS_BACKFILL
+BROKEN_REFERENCE
+AMBIGUOUS
+HISTORICAL_DETACHED
+BROKEN_IMMUTABLE_SNAPSHOTS
 ```
 
-6. Export the result sets with environment, database, timestamp and commit
-   metadata. Preserve exact problematic IDs and reason flags.
-7. Finish with:
-
-```sql
-ROLLBACK;
-```
-
-8. Close the connection.
-
-Never invoke `snapshotConfiguration(...)`, `snapshotForResolution(...)`, a
-maintenance command, or any application endpoint during this audit. Do not
-repair candidates while auditing them.
-
-## Interpretation
-
-The operational data gate passes only when all runtime-relevant legacy
-configurations are `SAFE_FROZEN` and:
-
-```text
-NEEDS_BACKFILL = 0
-BROKEN_REFERENCE = 0
-AMBIGUOUS = 0
-```
-
-`dias_para_penalidade` and `xp_perda_por_ciclo` are reported as legacy
-non-runtime fields because the current immutable snapshot schema and runtime
-materializer do not use them. They are not parity mismatches.
-
-Detached definitions with immutable versions are historical records. They are
-not backfill candidates and must not be relinked, deleted or repointed.
+The operational data gate can pass only when `NEEDS_BACKFILL = 0`,
+`BROKEN_REFERENCE = 0` and `AMBIGUOUS = 0` across the complete live
+ActivityConfig candidate universe. Production completeness is not established
+by CI or by this source-code correction.
 
 ## Local validation
 
-Validate the SQL against a disposable PostgreSQL database migrated from V1
-through V41. Use fixtures only to exercise parsing and classification cases;
-local results do not establish production completeness. The expected
-structural orphan result is empty because the foreign keys in V1, V6 and V9
-protect those relationships. Do not run the application resolver during this
-validation because its fallback writes snapshots.
-
 The repository test
 `LegacySnapshotParityAuditSqlTest.auditScriptExecutesReadOnlyAgainstV41Schema`
-reads this file from the checkout, sets the JDBC connection and transaction to
-read-only, executes every SQL statement, and rolls the transaction back. It is
-test-only and does not invoke snapshot or backfill services.
+reads this file, uses PostgreSQL with a read-only connection and transaction,
+executes all three result statements, and rolls back. Fixture writes, when
+used by characterization tests, must occur before the read-only audit boundary.
+Local PostgreSQL results validate the artifact only; they do not establish
+operational data completeness.
