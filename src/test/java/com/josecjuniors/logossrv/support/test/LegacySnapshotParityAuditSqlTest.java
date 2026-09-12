@@ -120,6 +120,9 @@ class LegacySnapshotParityAuditSqlTest {
         assertClassification(fallback.activity, "NEEDS_BACKFILL");
         assertClassification(empty, "AMBIGUOUS", "UNCONFIGURED_RUNTIME_CANDIDATE");
 
+        UUID incompleteDefinition = UUID.randomUUID();
+        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id) VALUES (?, ?, ?)",
+                incompleteDefinition, "audit-incomplete", fallback.activity);
         jdbc.update("UPDATE atividade_config SET xp_base = NULL WHERE id = ?", fallback.activity);
         assertClassification(fallback.activity, "AMBIGUOUS", "INCOMPLETE_LEGACY_BASES");
         jdbc.update("UPDATE atividade_config SET xp_base = 10, dias_para_penalidade = 3 WHERE id = ?", empty);
