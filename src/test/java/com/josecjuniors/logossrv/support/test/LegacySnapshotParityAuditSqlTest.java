@@ -112,6 +112,8 @@ class LegacySnapshotParityAuditSqlTest {
         Fixture semantic = fixture("semantic", true, true);
         Fixture fallback = fixture("fallback", false, false);
         UUID empty = activity("empty-matrix", null, null);
+        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) VALUES (?, ?, ?, 'NUMERICO')",
+                UUID.randomUUID(), legacy.version, semantic.factor.toString());
 
         assertClassification(legacy.activity, "SAFE_FROZEN");
         assertClassification(semantic.activity, "SAFE_FROZEN");
@@ -166,6 +168,8 @@ class LegacySnapshotParityAuditSqlTest {
         assertClassification(duplicate.activity, "AMBIGUOUS", "DUPLICATE_RULE");
 
         Fixture durable = fixture("durable", false, true);
+        String durableClassificationBeforeReference = String.valueOf(
+                detail(jdbc.queryForList(firstResult()), durable.activity).get("metric"));
         UUID user = UUID.randomUUID();
         UUID player = UUID.randomUUID();
         UUID registro = UUID.randomUUID();
@@ -177,6 +181,8 @@ class LegacySnapshotParityAuditSqlTest {
         jdbc.update("INSERT INTO progression_external_execution(id, source_system, idempotency_key, request_fingerprint, subject_namespace, subject_external_id, configuration_key, requested_revision, configuration_version_id, skill_policy_version_id, response_json, created_at, request_json, processing_status, attempt_count) VALUES (?, 'audit', ?, ?, 'audit', ?, 'audit', 1, ?, ?, '{}', now(), '{}', 'COMPLETED', 1)",
                 UUID.randomUUID(), "key-" + UUID.randomUUID(), "fingerprint", player.toString(), durable.version, policyVersion);
         assertClassification(durable.activity, "SAFE_FROZEN");
+        assertThat(String.valueOf(detail(jdbc.queryForList(firstResult()), durable.activity).get("metric")))
+                .isEqualTo(durableClassificationBeforeReference);
         Map<String, Object> durableRow = jdbc.queryForList("SELECT v.id AS configuration_version_id, COUNT(DISTINCT e.id) AS external_execution_reference_count, COUNT(DISTINCT ra.id) AS activity_execution_reference_count, COUNT(DISTINCT e.id) + COUNT(DISTINCT ra.id) AS total_durable_reference_count FROM progression_configuration_version v JOIN progression_configuration_definition d ON d.id = v.definition_id LEFT JOIN progression_external_execution e ON e.configuration_version_id = v.id LEFT JOIN registro_atividade ra ON ra.configuration_version_id = v.id WHERE v.id = ? GROUP BY v.id", durable.version).get(0);
         assertThat(durableRow).containsEntry("external_execution_reference_count", 1L)
                 .containsEntry("activity_execution_reference_count", 1L)
