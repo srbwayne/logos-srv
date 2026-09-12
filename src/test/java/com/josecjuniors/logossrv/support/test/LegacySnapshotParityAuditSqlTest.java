@@ -171,6 +171,7 @@ class LegacySnapshotParityAuditSqlTest {
         assertClassification(duplicate.activity, "AMBIGUOUS", "DUPLICATE_RULE");
 
         Fixture durable = fixture("durable", false, true);
+        completeFactorSnapshot(durable.version, false);
         String durableClassificationBeforeReference = String.valueOf(
                 detail(jdbc.queryForList(firstResult()), durable.activity).get("metric"));
         UUID user = UUID.randomUUID();
