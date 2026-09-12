@@ -1,4 +1,5 @@
 package com.josecjuniors.logossrv.core.regrafatorestresse.application.service;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.regrafatorestresse.application.port.in.DeleteRegraFatorEstresseUseCase;
@@ -24,11 +25,7 @@ public class DeleteRegraFatorEstresseService implements DeleteRegraFatorEstresse
 
     @Override
     public void delete(RegraFatorEstresseId id) {
-        RegraFatorEstresse regra = repository.findById(id)
-                .orElseThrow(RegraFatorEstresseNaoEncontradaException::new);
+        throw new LegacyProgressionAuthoringRetiredException();
 
-        repository.deleteById(id);
-
-        eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(regra.getRegraDistribuicaoAtividade().getAtividadeConfig().getId()));
     }
 }

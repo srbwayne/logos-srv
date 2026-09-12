@@ -109,9 +109,8 @@ class RegraFatorXPControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.fatorCalculoNome").value("Distância"))
-                .andExpect(jsonPath("$.pesoMultiplicador").value(1.5));
+                .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(regraFatorXPRepository.findRegrasByAtividadeConfigId(testRegraDistribuicao.getAtividadeConfig().getId())).isEmpty();
     }
 
     @Test
@@ -122,7 +121,7 @@ class RegraFatorXPControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -134,9 +133,12 @@ class RegraFatorXPControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.pesoMultiplicador").value(2.0))
-                .andExpect(jsonPath("$.pontoCorteMax").value(12.0));
+                .andExpect(status().isGone());
+        RegraFatorXP persisted = regraFatorXPRepository.findById(regra.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(persisted.getPesoMultiplicador()).isEqualTo(1.0);
+        org.assertj.core.api.Assertions.assertThat(persisted.getPontoCorteMin()).isEqualTo(1.0);
+        org.assertj.core.api.Assertions.assertThat(persisted.getPontoCorteMax()).isEqualTo(10.0);
+        org.assertj.core.api.Assertions.assertThat(persisted.getFatorCalculo().getId()).isEqualTo(testFatorCalculo.getId());
     }
 
     @Test
@@ -148,7 +150,8 @@ class RegraFatorXPControllerTest {
         int version = before.getVersao();
         String placeholder = before.getFormularioJson().campos().get(0).placeholder();
 
-        updateRegraFatorXPUseCase.update(new UpdateRegraFatorXPCommand(regra.getId(), testFatorCalculo.getId(), 2.0, 20.0, 30.0));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> updateRegraFatorXPUseCase.update(new UpdateRegraFatorXPCommand(regra.getId(), testFatorCalculo.getId(), 2.0, 20.0, 30.0)))
+                .isInstanceOf(com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException.class);
 
         AtividadeFormulario after = atividadeFormularioRepository.findByAtividadeConfigId(testRegraDistribuicao.getAtividadeConfig().getId()).orElseThrow();
         org.assertj.core.api.Assertions.assertThat(after.getVersao()).isEqualTo(version);
@@ -164,7 +167,7 @@ class RegraFatorXPControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 
     @Test
@@ -173,13 +176,14 @@ class RegraFatorXPControllerTest {
 
         mockMvc.perform(delete("/api/regras-distribuicao/{regraDistribuicaoId}/fatores-xp/{regraFatorXPId}", testRegraDistribuicao.getId().getValue(), regra.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(regraFatorXPRepository.findById(regra.getId())).isPresent();
     }
 
     @Test
     void delete_whenNotFound_shouldReturn404() throws Exception {
         mockMvc.perform(delete("/api/regras-distribuicao/{regraDistribuicaoId}/fatores-xp/{regraFatorXPId}", testRegraDistribuicao.getId().getValue(), UUID.randomUUID())
                         .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isGone());
     }
 }

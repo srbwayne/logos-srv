@@ -1,4 +1,5 @@
 package com.josecjuniors.logossrv.core.regrafatorxp.application.service;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoNaoEncontradoException;
@@ -35,24 +36,7 @@ public class CreateRegraFatorXPService implements CreateRegraFatorXPUseCase {
 
     @Override
     public RegraFatorXPDto create(CreateRegraFatorXPCommand command) {
-        RegraDistribuicaoAtividade regraDistribuicao = regraDistribuicaoRepository.findById(command.regraDistribuicaoId())
-                .orElseThrow(RegraDistribuicaoNaoEncontradaException::new);
-        FatorCalculo fatorCalculo = fatorCalculoRepository.findById(command.fatorCalculoId())
-                .orElseThrow(FatorCalculoNaoEncontradoException::new);
+        throw new LegacyProgressionAuthoringRetiredException();
 
-        RegraFatorXP novaRegra = new RegraFatorXP(
-                new RegraFatorXPId(),
-                regraDistribuicao,
-                fatorCalculo,
-                command.pesoMultiplicador(),
-                command.pontoCorteMin(),
-                command.pontoCorteMax()
-        );
-
-        RegraFatorXP regraSalva = regraFatorXPRepository.save(novaRegra);
-
-        eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(regraDistribuicao.getAtividadeConfig().getId()));
-
-        return RegraFatorXPDto.fromDomain(regraSalva);
     }
 }

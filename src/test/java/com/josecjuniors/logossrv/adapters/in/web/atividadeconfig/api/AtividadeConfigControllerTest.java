@@ -18,11 +18,26 @@ import com.josecjuniors.logossrv.core.atividadeformulario.domain.repository.Ativ
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
+import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
+import com.josecjuniors.logossrv.core.atributo.domain.model.AtributoId;
+import com.josecjuniors.logossrv.core.atributo.domain.repository.AtributoRepository;
+import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
+import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividadeId;
+import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.repository.RegraDistribuicaoAtividadeRepository;
+import com.josecjuniors.logossrv.core.regrafatorxp.domain.repository.RegraFatorXPRepository;
+import com.josecjuniors.logossrv.core.regrafatorestresse.domain.repository.RegraFatorEstresseRepository;
+import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
+import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXPId;
+import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
+import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresseId;
+import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.enums.TipoFatorEstresse;
+import com.josecjuniors.logossrv.adapters.out.atividadeconfig.jpa.AtividadeConfigJpaRepository;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.TipoInput;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -46,20 +61,34 @@ class AtividadeConfigControllerTest {
     @Autowired
     private AtividadeConfigRepository atividadeConfigRepository;
     @Autowired
+    private AtividadeConfigJpaRepository atividadeConfigPersistence;
+    @Autowired
     private AtividadeFormularioRepository atividadeFormularioRepository;
     @Autowired
     private FatorCalculoRepository fatorCalculoRepository;
+    @Autowired
+    private RegraDistribuicaoAtividadeRepository regraDistribuicaoRepository;
+    @Autowired
+    private RegraFatorXPRepository regraFatorXPRepository;
+    @Autowired
+    private RegraFatorEstresseRepository regraFatorEstresseRepository;
+    @Autowired
+    private AtributoRepository atributoRepository;
     @Autowired
     private AppUserJpaRepository appUserRepository;
     @Autowired
     private PasswordEncoder passwordEncoder;
     @Autowired
     private JwtService jwtService;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private String jwtToken;
 
     @BeforeEach
     void setUp() {
+        regraFatorEstresseRepository.deleteAll();
+        regraFatorXPRepository.deleteAll();
         atividadeFormularioRepository.deleteAll();
         atividadeConfigRepository.deleteAll();
         fatorCalculoRepository.deleteAll();
@@ -71,19 +100,25 @@ class AtividadeConfigControllerTest {
 
     @Test
     void create_withValidData_shouldReturn201() throws Exception {
-        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Corrida", "Corrida ao ar livre", 100, 10, null, null);
+        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Corrida", "Corrida ao ar livre", null, null, null, null);
 
-        mockMvc.perform(post("/api/atividades-config")
+        String location = mockMvc.perform(post("/api/atividades-config")
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.nome").value("Corrida"));
+                .andExpect(jsonPath("$.nome").value("Corrida"))
+                .andReturn().getResponse().getHeader("Location");
+        AtividadeConfig persisted = atividadeConfigRepository.findById(new AtividadeConfigId(UUID.fromString(location.substring(location.lastIndexOf('/') + 1)))).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpBase()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getEstresseBase()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getDiasParaPenalidade()).isNull();
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpPerdaPorCiclo()).isNull();
     }
 
     @Test
     void create_bootstrapsEmptyFormBeforeReturning() throws Exception {
-        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Leitura", "Ler", 50, 1, null, null);
+        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Leitura", "Ler", null, null, null, null);
 
         String location = mockMvc.perform(post("/api/atividades-config")
                         .header("Authorization", "Bearer " + jwtToken)
@@ -102,14 +137,14 @@ class AtividadeConfigControllerTest {
 
     @Test
     void updateMetadataPreservesAuthoredCaptureVersionAndFields() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Inicial", 50, 1, null, null));
+        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Inicial", 120, 15, 7, 25));
         FatorCalculo paginas = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Páginas", "pág", TipoInput.NUMERICO));
         AtividadeFormularioJson form = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(), atividade.getDescricao(),
                 java.util.List.of(new com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.CampoFormularioJson(
                         paginas.getId().getValue(), paginas.getNome(), paginas.getUnidadeMedida(), paginas.getTipoInput(), "Páginas lidas", true)));
         atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, form));
 
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Leitura diária", "Atualizada", 50, 1, null, null);
+        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Leitura diária", "Atualizada", null, null, null, null);
         mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -124,18 +159,83 @@ class AtividadeConfigControllerTest {
                 .andExpect(jsonPath("$.descricaoAtividade").value("Atualizada"))
                 .andExpect(jsonPath("$.campos", hasSize(1)))
                 .andExpect(jsonPath("$.campos[0].placeholder").value("Páginas lidas"));
+        AtividadeConfig metadataPersisted = atividadeConfigRepository.findById(atividade.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getXpBase()).isEqualTo(120);
+        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getEstresseBase()).isEqualTo(15);
+        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getDiasParaPenalidade()).isEqualTo(7);
+        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getXpPerdaPorCiclo()).isEqualTo(25);
+    }
+
+    @Test
+    void metadataOnlyUpdateDoesNotCreateLegacyProgressionSnapshot() throws Exception {
+        AtividadeConfig atividade = atividadeConfigPersistence.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Historica", "Inicial", 120, 15, 7, 25));
+        UUID activityId = atividade.getId().getValue();
+        UUID definitionId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        String logicalKey = "legacy:" + activityId;
+        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
+                definitionId, logicalKey, activityId);
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, 1, 120, 15, 'LEGACY_UUID')",
+                versionId, definitionId);
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", versionId, definitionId);
+        int beforeCount = jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definitionId);
+        UUID beforeCurrent = jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE id = ?", UUID.class, definitionId);
+
+        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Historica atualizada", "Descricao atualizada", null, null, null, null);
+        mockMvc.perform(put("/api/atividades-config/{id}", activityId)
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        UUID afterCurrent = jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE id = ?", UUID.class, definitionId);
+        int afterCount = jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definitionId);
+        org.assertj.core.api.Assertions.assertThat(afterCurrent).isEqualTo(beforeCurrent);
+        org.assertj.core.api.Assertions.assertThat(afterCount).isEqualTo(beforeCount);
     }
 
     @Test
     void create_whenNameIsTaken_shouldReturn409() throws Exception {
         atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", null, 50, -5, null, null));
-        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Leitura", null, 60, -10, null, null);
+        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Leitura", null, null, null, null, null);
 
         mockMvc.perform(post("/api/atividades-config")
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void create_withLegacyProgressionFields_shouldReturn410() throws Exception {
+        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Corrida", "Cat?logo", 100, null, null, null);
+
+        mockMvc.perform(post("/api/atividades-config")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isGone());
+        org.assertj.core.api.Assertions.assertThat(atividadeConfigRepository.existsByNome("Corrida")).isFalse();
+    }
+
+    @Test
+    void update_withLegacyProgressionFields_shouldReturn410() throws Exception {
+        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida", "Inicial", 120, 15, 7, 25));
+        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Corrida atualizada", "Cat?logo", null, 1, null, null);
+
+        mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isGone());
+        AtividadeConfig persisted = atividadeConfigRepository.findById(atividade.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(persisted.getNome()).isEqualTo("Corrida");
+        org.assertj.core.api.Assertions.assertThat(persisted.getDescricao()).isEqualTo("Inicial");
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpBase()).isEqualTo(120);
+        org.assertj.core.api.Assertions.assertThat(persisted.getEstresseBase()).isEqualTo(15);
+        org.assertj.core.api.Assertions.assertThat(persisted.getDiasParaPenalidade()).isEqualTo(7);
+        org.assertj.core.api.Assertions.assertThat(persisted.getXpPerdaPorCiclo()).isEqualTo(25);
+        org.assertj.core.api.Assertions.assertThat(atividadeFormularioRepository.findByAtividadeConfigId(atividade.getId())).isEmpty();
     }
 
     @Test
@@ -171,7 +271,7 @@ class AtividadeConfigControllerTest {
     @Test
     void update_withValidData_shouldReturn200() throws Exception {
         AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Musculação", null, 120, 15, null, null));
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Treino de Força", "Foco em hipertrofia", 150, 20, null, null);
+        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Treino de Força", "Foco em hipertrofia", null, null, null, null);
 
         mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken)
@@ -186,7 +286,7 @@ class AtividadeConfigControllerTest {
     void update_whenNameIsTaken_shouldReturn409() throws Exception {
         atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Ciclismo", null, 200, 10, null, null));
         AtividadeConfig atividadeToUpdate = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Yoga", null, 40, -15, null, null));
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Ciclismo", null, 0, 0, null, null);
+        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Ciclismo", null, null, null, null, null);
 
         mockMvc.perform(put("/api/atividades-config/{id}", atividadeToUpdate.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken)
@@ -202,6 +302,26 @@ class AtividadeConfigControllerTest {
         mockMvc.perform(delete("/api/atividades-config/{id}", atividade.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void delete_withLegacyProgressionHistory_shouldReturn409AndPreserveRows() throws Exception {
+        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Histórica", null, null, null, null, null));
+        Atributo atributo = atributoRepository.save(new Atributo(new AtributoId(), "Foco", null));
+        RegraDistribuicaoAtividade regra = regraDistribuicaoRepository.save(new RegraDistribuicaoAtividade(
+                new RegraDistribuicaoAtividadeId(), atividade, atributo, 1.0));
+        FatorCalculo fator = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Minutos", "min", TipoInput.NUMERICO));
+        RegraFatorXP xp = regraFatorXPRepository.save(new RegraFatorXP(new RegraFatorXPId(), regra, fator, 1.0, 1.0, 10.0));
+        RegraFatorEstresse stress = regraFatorEstresseRepository.save(new RegraFatorEstresse(new RegraFatorEstresseId(), regra, 1.0, 1.0, 10.0, TipoFatorEstresse.POSITIVO));
+
+        mockMvc.perform(delete("/api/atividades-config/{id}", atividade.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken))
+                .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(atividadeConfigRepository.findById(atividade.getId())).isPresent();
+        org.assertj.core.api.Assertions.assertThat(regraDistribuicaoRepository.findById(regra.getId())).isPresent();
+        org.assertj.core.api.Assertions.assertThat(regraFatorXPRepository.findById(xp.getId())).isPresent();
+        org.assertj.core.api.Assertions.assertThat(regraFatorEstresseRepository.findById(stress.getId())).isPresent();
     }
 
     @Test

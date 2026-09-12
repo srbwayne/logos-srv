@@ -1,4 +1,5 @@
 package com.josecjuniors.logossrv.core.regrafatorestresse.application.service;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.exception.RegraDistribuicaoNaoEncontradaException;
@@ -30,22 +31,7 @@ public class CreateRegraFatorEstresseService implements CreateRegraFatorEstresse
 
     @Override
     public RegraFatorEstresseDto create(CreateRegraFatorEstresseCommand command) {
-        RegraDistribuicaoAtividade regraDistribuicao = regraDistribuicaoRepository.findById(command.regraDistribuicaoId())
-                .orElseThrow(RegraDistribuicaoNaoEncontradaException::new);
+        throw new LegacyProgressionAuthoringRetiredException();
 
-        RegraFatorEstresse novaRegra = new RegraFatorEstresse(
-                new RegraFatorEstresseId(),
-                regraDistribuicao,
-                command.pesoMultiplicador(),
-                command.pontoCorteMin(),
-                command.pontoCorteMax(),
-                command.tipo()
-        );
-
-        RegraFatorEstresse regraSalva = regraFatorEstresseRepository.save(novaRegra);
-
-        eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(regraDistribuicao.getAtividadeConfig().getId()));
-
-        return RegraFatorEstresseDto.fromDomain(regraSalva);
     }
 }

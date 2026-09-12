@@ -3,8 +3,8 @@ package com.josecjuniors.logossrv.core.atividadeconfig.application.service;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.dto.AtividadeConfigDto;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.port.in.UpdateAtividadeConfigCommand;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.port.in.UpdateAtividadeConfigUseCase;
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeCatalogoSalvoEvent;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigJaExisteException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
@@ -27,6 +27,7 @@ public class UpdateAtividadeConfigService implements UpdateAtividadeConfigUseCas
 
     @Override
     public AtividadeConfigDto update(UpdateAtividadeConfigCommand command) {
+        rejectLegacyProgressionFields(command.xpBase(), command.estresseBase(), command.diasParaPenalidade(), command.xpPerdaPorCiclo());
         AtividadeConfig atividade = repository.findById(command.atividadeConfigId())
                 .orElseThrow(AtividadeConfigNaoEncontradaException::new);
 
@@ -34,20 +35,18 @@ public class UpdateAtividadeConfigService implements UpdateAtividadeConfigUseCas
             throw new AtividadeConfigJaExisteException(command.nome());
         }
 
-        atividade.atualizar(
-                command.nome(),
-                command.descricao(),
-                command.xpBase(),
-                command.estresseBase(),
-                command.diasParaPenalidade(),
-                command.xpPerdaPorCiclo()
-        );
+        atividade.atualizarCatalogo(command.nome(), command.descricao());
 
         AtividadeConfig atividadeAtualizada = repository.save(atividade);
 
-        eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(atividadeAtualizada.getId()));
         eventPublisher.publishEvent(new AtividadeCatalogoSalvoEvent(atividadeAtualizada.getId()));
 
         return AtividadeConfigDto.fromDomain(atividadeAtualizada);
+    }
+
+    private void rejectLegacyProgressionFields(Integer xpBase, Integer estresseBase, Integer diasParaPenalidade, Integer xpPerdaPorCiclo) {
+        if (xpBase != null || estresseBase != null || diasParaPenalidade != null || xpPerdaPorCiclo != null) {
+            throw new LegacyProgressionAuthoringRetiredException();
+        }
     }
 }

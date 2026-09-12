@@ -4,6 +4,8 @@ import com.josecjuniors.logossrv.core.appuser.domain.exception.EmailJaCadastrado
 import com.josecjuniors.logossrv.core.atividadeagendada.domain.exception.AtividadeAgendadaNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigJaExisteException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigNaoEncontradaException;
+import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigComHistoricoProgressaoException;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioConflitoException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoJaExisteException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoNaoEncontradoException;
@@ -87,6 +89,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(LegacyProgressionAuthoringRetiredException.class)
+    public ResponseEntity<Map<String, String>> handleLegacyProgressionAuthoringRetired(LegacyProgressionAuthoringRetiredException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.GONE);
+    }
+
+    @ExceptionHandler(AtividadeConfigComHistoricoProgressaoException.class)
+    public ResponseEntity<Map<String, String>> handleAtividadeConfigComHistoricoProgressao(AtividadeConfigComHistoricoProgressaoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(AtividadeFormularioConflitoException.class)

@@ -1,4 +1,5 @@
 package com.josecjuniors.logossrv.core.regrafatorxp.application.service;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.regrafatorxp.application.port.in.DeleteRegraFatorXPUseCase;
@@ -24,11 +25,7 @@ public class DeleteRegraFatorXPService implements DeleteRegraFatorXPUseCase {
 
     @Override
     public void delete(RegraFatorXPId id) {
-        RegraFatorXP regra = repository.findById(id)
-                .orElseThrow(RegraFatorXPNaoEncontradaException::new);
+        throw new LegacyProgressionAuthoringRetiredException();
 
-        repository.deleteById(id);
-
-        eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(regra.getRegraDistribuicaoAtividade().getAtividadeConfig().getId()));
     }
 }

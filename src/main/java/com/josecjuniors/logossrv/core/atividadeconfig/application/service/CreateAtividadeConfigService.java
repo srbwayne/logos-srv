@@ -3,8 +3,8 @@ package com.josecjuniors.logossrv.core.atividadeconfig.application.service;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.dto.AtividadeConfigDto;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.port.in.CreateAtividadeConfigCommand;
 import com.josecjuniors.logossrv.core.atividadeconfig.application.port.in.CreateAtividadeConfigUseCase;
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeCatalogoSalvoEvent;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigJaExisteException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
@@ -27,6 +27,7 @@ public class CreateAtividadeConfigService implements CreateAtividadeConfigUseCas
 
     @Override
     public AtividadeConfigDto create(CreateAtividadeConfigCommand command) {
+        rejectLegacyProgressionFields(command.xpBase(), command.estresseBase(), command.diasParaPenalidade(), command.xpPerdaPorCiclo());
         if (repository.existsByNome(command.nome())) {
             throw new AtividadeConfigJaExisteException(command.nome());
         }
@@ -34,16 +35,18 @@ public class CreateAtividadeConfigService implements CreateAtividadeConfigUseCas
                 new AtividadeConfigId(),
                 command.nome(),
                 command.descricao(),
-                command.xpBase(),
-                command.estresseBase(),
-                command.diasParaPenalidade(),
-                command.xpPerdaPorCiclo()
+                null, null, null, null
         );
         AtividadeConfig atividadeSalva = repository.save(novaAtividade);
 
-        eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(atividadeSalva.getId()));
         eventPublisher.publishEvent(new AtividadeCatalogoSalvoEvent(atividadeSalva.getId()));
 
         return AtividadeConfigDto.fromDomain(atividadeSalva);
+    }
+
+    private void rejectLegacyProgressionFields(Integer xpBase, Integer estresseBase, Integer diasParaPenalidade, Integer xpPerdaPorCiclo) {
+        if (xpBase != null || estresseBase != null || diasParaPenalidade != null || xpPerdaPorCiclo != null) {
+            throw new LegacyProgressionAuthoringRetiredException();
+        }
     }
 }

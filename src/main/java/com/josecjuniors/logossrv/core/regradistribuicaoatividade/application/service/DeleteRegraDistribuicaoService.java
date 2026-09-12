@@ -1,4 +1,5 @@
 package com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.service;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.port.in.DeleteRegraDistribuicaoUseCase;
@@ -24,12 +25,7 @@ public class DeleteRegraDistribuicaoService implements DeleteRegraDistribuicaoUs
 
     @Override
     public void delete(RegraDistribuicaoAtividadeId id) {
-        RegraDistribuicaoAtividade regra = repository.findById(id)
-                .orElseThrow(RegraDistribuicaoNaoEncontradaException::new);
+        throw new LegacyProgressionAuthoringRetiredException();
 
-        repository.deleteById(id);
-
-        // Publica o evento para que o formulário da AtividadeConfig seja regenerado
-        eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(regra.getAtividadeConfig().getId()));
     }
 }

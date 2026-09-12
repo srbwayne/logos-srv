@@ -1,4 +1,5 @@
 package com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.service;
+import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.dto.RegraDistribuicaoAtividadeDto;
@@ -25,16 +26,7 @@ public class UpdateRegraDistribuicaoService implements UpdateRegraDistribuicaoUs
 
     @Override
     public RegraDistribuicaoAtividadeDto update(UpdateRegraDistribuicaoCommand command) {
-        RegraDistribuicaoAtividade regra = repository.findById(command.regraId())
-                .orElseThrow(RegraDistribuicaoNaoEncontradaException::new);
+        throw new LegacyProgressionAuthoringRetiredException();
 
-        regra.atualizarPeso(command.pesoPercentual());
-        
-        RegraDistribuicaoAtividade regraAtualizada = repository.save(regra);
-
-        // Publica o evento para que o formulário da AtividadeConfig seja regenerado
-        eventPublisher.publishEvent(new AtividadeConfigSalvaEvent(regraAtualizada.getAtividadeConfig().getId()));
-
-        return RegraDistribuicaoAtividadeDto.fromDomain(regraAtualizada);
     }
 }
