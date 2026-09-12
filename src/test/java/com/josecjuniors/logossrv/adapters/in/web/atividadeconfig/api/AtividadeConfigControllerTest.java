@@ -165,12 +165,13 @@ class AtividadeConfigControllerTest {
 
     @Test
     void metadataOnlyUpdateDoesNotCreateLegacyProgressionSnapshot() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Historica", "Inicial", 120, 15, 7, 25));
+        UUID activityId = UUID.randomUUID();
+        jdbc.update("INSERT INTO atividade_config(id, nome, descricao, xp_base, estresse_base, dias_para_penalidade, xp_perda_por_ciclo) VALUES (?, 'Historica', 'Inicial', 120, 15, 7, 25)", activityId);
         UUID definitionId = UUID.randomUUID();
         UUID versionId = UUID.randomUUID();
-        String logicalKey = "legacy:" + atividade.getId().getValue();
+        String logicalKey = "legacy:" + activityId;
         jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
-                definitionId, logicalKey, atividade.getId().getValue());
+                definitionId, logicalKey, activityId);
         jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, 1, 120, 15, 'LEGACY_UUID')",
                 versionId, definitionId);
         jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", versionId, definitionId);
@@ -178,7 +179,7 @@ class AtividadeConfigControllerTest {
         UUID beforeCurrent = jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE id = ?", UUID.class, definitionId);
 
         UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Historica atualizada", "Descricao atualizada", null, null, null, null);
-        mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
+        mockMvc.perform(put("/api/atividades-config/{id}", activityId)
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
