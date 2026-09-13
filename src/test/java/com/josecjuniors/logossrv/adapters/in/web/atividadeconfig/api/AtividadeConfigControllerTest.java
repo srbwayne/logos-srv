@@ -245,7 +245,12 @@ class AtividadeConfigControllerTest {
         mockMvc.perform(get("/api/atividades-config/{id}", atividade.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(atividade.getId().getValue().toString()));
+                .andExpect(jsonPath("$.id").value(atividade.getId().getValue().toString()))
+                .andExpect(jsonPath("$.nome").value("Estudar"))
+                .andExpect(jsonPath("$.xpBase").doesNotExist())
+                .andExpect(jsonPath("$.estresseBase").doesNotExist())
+                .andExpect(jsonPath("$.diasParaPenalidade").doesNotExist())
+                .andExpect(jsonPath("$.xpPerdaPorCiclo").doesNotExist());
     }
 
     @Test
@@ -265,7 +270,12 @@ class AtividadeConfigControllerTest {
                         .header("Authorization", "Bearer " + jwtToken)
                         .param("searchTerm", "Corrida"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(2)));
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].nome").exists())
+                .andExpect(jsonPath("$.content[0].xpBase").doesNotExist())
+                .andExpect(jsonPath("$.content[0].estresseBase").doesNotExist())
+                .andExpect(jsonPath("$.content[0].diasParaPenalidade").doesNotExist())
+                .andExpect(jsonPath("$.content[0].xpPerdaPorCiclo").doesNotExist());
     }
 
     @Test

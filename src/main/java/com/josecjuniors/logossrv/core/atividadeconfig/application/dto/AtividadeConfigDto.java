@@ -5,21 +5,13 @@ import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConf
 public record AtividadeConfigDto(
         String id,
         String nome,
-        String descricao,
-        Integer xpBase,
-        Integer estresseBase,
-        Integer diasParaPenalidade,
-        Integer xpPerdaPorCiclo
+        String descricao
 ) {
     public static AtividadeConfigDto fromDomain(AtividadeConfig atividade) {
         return new AtividadeConfigDto(
                 atividade.getId().getValue().toString(),
                 atividade.getNome(),
-                atividade.getDescricao(),
-                atividade.getXpBase(),
-                atividade.getEstresseBase(),
-                atividade.getDiasParaPenalidade(),
-                atividade.getXpPerdaPorCiclo()
+                atividade.getDescricao()
         );
     }
 }

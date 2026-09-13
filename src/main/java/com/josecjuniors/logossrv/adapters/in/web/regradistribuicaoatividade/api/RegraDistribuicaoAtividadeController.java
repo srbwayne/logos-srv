@@ -9,7 +9,6 @@ import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.dto
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.port.in.CreateRegraDistribuicaoCommand;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.port.in.CreateRegraDistribuicaoUseCase;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.port.in.DeleteRegraDistribuicaoUseCase;
-import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.port.in.GetAllRegrasByAtividadeUseCase;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.port.in.UpdateRegraDistribuicaoCommand;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.port.in.UpdateRegraDistribuicaoUseCase;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividadeId;
@@ -25,9 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/atividades-config/{atividadeId}/regras-distribuicao")
@@ -36,13 +33,11 @@ public class RegraDistribuicaoAtividadeController {
     private final CreateRegraDistribuicaoUseCase createUseCase;
     private final UpdateRegraDistribuicaoUseCase updateUseCase;
     private final DeleteRegraDistribuicaoUseCase deleteUseCase;
-    private final GetAllRegrasByAtividadeUseCase getAllUseCase;
 
-    public RegraDistribuicaoAtividadeController(CreateRegraDistribuicaoUseCase createUseCase, UpdateRegraDistribuicaoUseCase updateUseCase, DeleteRegraDistribuicaoUseCase deleteUseCase, GetAllRegrasByAtividadeUseCase getAllUseCase) {
+    public RegraDistribuicaoAtividadeController(CreateRegraDistribuicaoUseCase createUseCase, UpdateRegraDistribuicaoUseCase updateUseCase, DeleteRegraDistribuicaoUseCase deleteUseCase) {
         this.createUseCase = createUseCase;
         this.updateUseCase = updateUseCase;
         this.deleteUseCase = deleteUseCase;
-        this.getAllUseCase = getAllUseCase;
     }
 
     @PostMapping
@@ -53,15 +48,6 @@ public class RegraDistribuicaoAtividadeController {
         RegraDistribuicaoAtividadeDto dto = createUseCase.create(command);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(dto.id()).toUri();
         return ResponseEntity.created(location).body(RegraDistribuicaoAtividadeResponse.fromDto(dto));
-    }
-
-    @GetMapping
-    public ResponseEntity<List<RegraDistribuicaoAtividadeResponse>> getAllByAtividade(@PathVariable UUID atividadeId) {
-        List<RegraDistribuicaoAtividadeDto> dtos = getAllUseCase.getAllByAtividade(new AtividadeConfigId(atividadeId));
-        List<RegraDistribuicaoAtividadeResponse> response = dtos.stream()
-                .map(RegraDistribuicaoAtividadeResponse::fromDto)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{regraId}")

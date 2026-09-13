@@ -26,12 +26,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @IntegrationTest
@@ -120,30 +117,11 @@ class RegraDistribuicaoAtividadeControllerTest {
 
     // --- GET /api/atividades-config/{atividadeId}/regras-distribuicao ---
     @Test
-    void getAllByAtividade_whenRulesExist_shouldReturn200AndListOfRules() throws Exception {
-        Atributo outroAtributo = atributoRepository.save(new Atributo(new AtributoId(), "Força", ""));
-        regraRepository.save(new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), testAtividade, testAtributo, 0.7));
-        regraRepository.save(new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), testAtividade, outroAtributo, 0.3));
-
-        mockMvc.perform(get("/api/atividades-config/{atividadeId}/regras-distribuicao", testAtividade.getId().getValue())
+    void getAllByAtividade_isNoLongerExposed() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                        "/api/atividades-config/{atividadeId}/regras-distribuicao", testAtividade.getId().getValue())
                         .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].atividadeConfigNome").value(testAtividade.getNome()));
-    }
-
-    @Test
-    void getAllByAtividade_whenNoRulesExist_shouldReturn200AndEmptyList() throws Exception {
-        mockMvc.perform(get("/api/atividades-config/{atividadeId}/regras-distribuicao", testAtividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
-    }
-
-    @Test
-    void getAllByAtividade_withoutToken_shouldReturn403() throws Exception {
-        mockMvc.perform(get("/api/atividades-config/{atividadeId}/regras-distribuicao", testAtividade.getId().getValue()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isMethodNotAllowed());
     }
 
     // --- PUT /api/atividades-config/{atividadeId}/regras-distribuicao/{regraDistribuicaoHabilidadeId} ---
