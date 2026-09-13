@@ -50,6 +50,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import jakarta.persistence.EntityManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -85,6 +86,7 @@ class ActivityProgressionAdapterPostgresIT {
     @Autowired CreateRegistroAtividadeService creator;
     @SpyBean ConfiguredStatefulProgressionApplicationService progression;
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManager entityManager;
     @Autowired PasswordEncoder encoder;
 
     @BeforeEach
@@ -606,7 +608,8 @@ class ActivityProgressionAdapterPostgresIT {
         var distribution = new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), config, learning, 1.0);
         distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
         config.adicionarRegraDistribuicao(distribution);
-        configs.saveAndFlush(config);
+        configs.save(config);
+        entityManager.flush();
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();
@@ -642,7 +645,8 @@ class ActivityProgressionAdapterPostgresIT {
         var distribution = new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), config, learning, 1.0);
         distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
         config.adicionarRegraDistribuicao(distribution);
-        configs.saveAndFlush(config);
+        configs.save(config);
+        entityManager.flush();
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();

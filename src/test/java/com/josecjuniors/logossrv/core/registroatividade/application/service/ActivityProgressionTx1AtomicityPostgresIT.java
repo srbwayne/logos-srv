@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import jakarta.persistence.EntityManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +52,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
     @Autowired VersionedProgressionConfigurationResolver resolver;
     @Autowired RegistroAtividadeRepository registros;
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManager entityManager;
     @Autowired PasswordEncoder encoder;
     @SpyBean ActivityProgressionExecutionStore executionStore;
 
@@ -82,7 +84,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
         var user = users.saveAndFlush(new AppUser(new AppUserId(), "tx1-" + UUID.randomUUID() + "@test",
                 encoder.encode("password")));
         var jogador = jogadores.save(new Jogador(JogadorId.generate(), user, "tx1-player-" + UUID.randomUUID()));
-        var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "tx1-" + UUID.randomUUID(),
+        var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-" + UUID.randomUUID(),
                 "fixture", 1, 0, null, null));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_pages_" + UUID.randomUUID().toString().replace("-", "")));
@@ -115,7 +117,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
         var user = users.saveAndFlush(new AppUser(new AppUserId(), "tx1-success-" + UUID.randomUUID() + "@test",
                 encoder.encode("password")));
         jogadores.save(new Jogador(JogadorId.generate(), user, "tx1-success-player-" + UUID.randomUUID()));
-        var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "tx1-success-" + UUID.randomUUID(),
+        var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-success-" + UUID.randomUUID(),
                 "fixture", 1, 0, null, null));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-success-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_success_pages_" + UUID.randomUUID().toString().replace("-", "")));
@@ -136,6 +138,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
     }
 
     private void activate(AtividadeConfig config, FatorCalculo factor) {
+        entityManager.flush();
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",

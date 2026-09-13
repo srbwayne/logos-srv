@@ -16,7 +16,6 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
-import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividade;
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.enums.SituacaoRegistroAtividade;
@@ -30,6 +29,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import jakarta.persistence.EntityManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -62,6 +62,8 @@ class RegistroAtividadeControllerTest {
     private JwtService jwtService;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private EntityManager entityManager;
 
     private String jwtToken;
     private Jogador testJogador;
@@ -81,8 +83,9 @@ class RegistroAtividadeControllerTest {
         jwtToken = jwtService.generateToken(testAppUser);
 
         testJogador = jogadorRepository.save(new Jogador(JogadorId.generate(), testAppUser, "Registrador"));
-        testAtividadeConfig = atividadeConfigRepository.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Corrida", null, 100, 10, null, null));
+        testAtividadeConfig = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida", null, 100, 10, null, null));
         fatorDistancia = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Distância", "km", TipoInput.NUMERICO, "distance_km"));
+        entityManager.flush();
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
