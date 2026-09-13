@@ -16,6 +16,8 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
+import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
+import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividade;
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.enums.SituacaoRegistroAtividade;
@@ -58,6 +60,8 @@ class RegistroAtividadeControllerTest {
     private PasswordEncoder passwordEncoder;
     @Autowired
     private JwtService jwtService;
+    @Autowired
+    private VersionedProgressionConfigurationResolver progressionResolver;
 
     private String jwtToken;
     private Jogador testJogador;
@@ -79,6 +83,7 @@ class RegistroAtividadeControllerTest {
         testJogador = jogadorRepository.save(new Jogador(JogadorId.generate(), testAppUser, "Registrador"));
         testAtividadeConfig = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida", null, 100, 10, null, null));
         fatorDistancia = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Distância", "km", TipoInput.NUMERICO, "distance_km"));
+        progressionResolver.resolveLegacyVersioned(new ProgressionConfigurationReference(testAtividadeConfig.getId().getValue())).orElseThrow();
     }
 
     @Test

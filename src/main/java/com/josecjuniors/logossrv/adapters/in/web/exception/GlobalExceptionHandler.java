@@ -21,6 +21,7 @@ import com.josecjuniors.logossrv.core.jogador.domain.exception.ApelidoJaEmUsoExc
 import com.josecjuniors.logossrv.core.jogador.domain.exception.JogadorNaoEncontradoException;
 import com.josecjuniors.logossrv.core.jogador.domain.exception.VicioJogadorNaoEncontradoException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotActiveException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionConflictException;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationActivationConflictException;
@@ -174,6 +175,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ProgressionConfigurationNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleProgressionConfigurationNotFound(ProgressionConfigurationNotFoundException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ProgressionConfigurationNotActiveException.class)
+    public ResponseEntity<Map<String, String>> handleProgressionConfigurationNotActive(ProgressionConfigurationNotActiveException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage(), "code", "PROGRESSION_CONFIGURATION_NOT_ACTIVE"), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(ProgressionExecutionConflictException.class)

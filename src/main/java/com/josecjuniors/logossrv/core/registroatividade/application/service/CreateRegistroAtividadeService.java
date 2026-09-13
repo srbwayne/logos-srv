@@ -29,6 +29,7 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfig
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
 import com.josecjuniors.logossrv.core.progression.domain.model.FactKeyGeneration;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionFactKeyNotRepresentedException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotActiveException;
 
 @Service
 @Transactional
@@ -72,24 +73,20 @@ public class CreateRegistroAtividadeService implements CreateRegistroAtividadeUs
             novoRegistro.adicionarDetalhe(fator, detalhe.valor());
         });
 
-        RegistroAtividade registroSalvo = registroRepository.save(novoRegistro);
-
+        RegistroAtividade registroSalvo;
         if (versionedResolver != null && executionStore != null) {
             var resolvedOptional = versionedResolver.resolveVersioned(new ProgressionConfigurationReference(atividadeConfig.getId().getValue()));
-            if (resolvedOptional.isEmpty()) {
-                eventPublisher.publishEvent(new RegistroAtividadeCriadoEvent(registroSalvo.getId()));
-                return;
-            }
-            var resolved = resolvedOptional.get();
+            var resolved = resolvedOptional.orElseThrow(ProgressionConfigurationNotActiveException::new);
             var facts = new ProgressionFact(novoRegistro.getDetalhes().stream()
                     .map(d -> factDetailFor(d, resolved))
                     .filter(java.util.Objects::nonNull)
                     .toList());
-            var identity = ActivityProgressionAdapter.identity(registroSalvo.getId().getValue());
+            var identity = ActivityProgressionAdapter.identity(novoRegistro.getId().getValue());
             var fingerprint = com.josecjuniors.logossrv.core.progression.application.service.ProgressionExecutionFingerprint.ofFrozen(
                     identity, new ExternalSubjectReference("logos", jogador.getId().getValue().toString()),
                     new ExternalProgressionConfigurationReference("activity-" + atividadeConfig.getId().getValue(), 1), facts,
                     resolved.configurationVersionId(), resolved.skillPolicyVersionId());
+            registroSalvo = registroRepository.save(novoRegistro);
             try {
                 executionStore.create(identity, fingerprint, jogador.getUser().getId().getValue(), facts, resolved,
                         "activity-" + atividadeConfig.getId().getValue(), 1);
@@ -97,8 +94,9 @@ public class CreateRegistroAtividadeService implements CreateRegistroAtividadeUs
                 TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
                 throw exception;
             }
+        } else {
+            registroSalvo = registroRepository.save(novoRegistro);
         }
-
         eventPublisher.publishEvent(new RegistroAtividadeCriadoEvent(registroSalvo.getId()));
     }
 

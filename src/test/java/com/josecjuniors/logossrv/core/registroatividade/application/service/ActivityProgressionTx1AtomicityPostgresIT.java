@@ -14,6 +14,8 @@ import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
 import com.josecjuniors.logossrv.core.progression.application.port.out.ActivityProgressionExecutionStore;
+import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
+import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.registroatividade.application.port.in.CreateRegistroAtividadeCommand;
 import com.josecjuniors.logossrv.adapters.in.web.registroatividade.dto.request.DetalheRegistroRequest;
 import com.josecjuniors.logossrv.core.registroatividade.domain.repository.RegistroAtividadeRepository;
@@ -46,10 +48,34 @@ class ActivityProgressionTx1AtomicityPostgresIT {
     @Autowired AtividadeConfigRepository configs;
     @Autowired FatorCalculoRepository fatores;
     @Autowired CreateRegistroAtividadeService creator;
+    @Autowired VersionedProgressionConfigurationResolver resolver;
     @Autowired RegistroAtividadeRepository registros;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder encoder;
     @SpyBean ActivityProgressionExecutionStore executionStore;
+
+    @Test
+    void rejectsNewActivityBeforePersistingWhenConfigurationIsNotActive() {
+        var user = users.saveAndFlush(new AppUser(new AppUserId(), "tx1-unconfigured-" + UUID.randomUUID() + "@test",
+                encoder.encode("password")));
+        var jogador = jogadores.save(new Jogador(JogadorId.generate(), user, "tx1-unconfigured-player-" + UUID.randomUUID()));
+        var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-unconfigured-" + UUID.randomUUID(),
+                "fixture", null, null, null, null));
+        var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-unconfigured-" + UUID.randomUUID(),
+                "pages", TipoInput.NUMERICO, "tx1_unconfigured_pages_" + UUID.randomUUID().toString().replace("-", "")));
+
+        var command = new CreateRegistroAtividadeCommand(user.getEmail(), config.getId().getValue(),
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
+                List.of(new DetalheRegistroRequest(factor.getId().getValue(), "30")));
+
+        assertThatThrownBy(() -> creator.create(command))
+                .isInstanceOf(com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotActiveException.class);
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM registro_atividade WHERE jogador_id = ?",
+                Long.class, jogador.getId().getValue())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_external_execution WHERE subject_external_id = ?",
+                Long.class, jogador.getUser().getId().getValue().toString())).isZero();
+    }
 
     @Test
     void sourceAndIntentRollBackTogetherWhenIntentPersistenceFails() {
@@ -60,6 +86,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 "fixture", 1, 0, null, null));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_pages_" + UUID.randomUUID().toString().replace("-", "")));
+        resolver.resolveLegacyVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
 
         doThrow(new IllegalStateException("controlled intent failure")).when(executionStore).create(
                 any(), anyString(), any(), any(), any(), anyString(), anyInt());
@@ -92,6 +119,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 "fixture", 1, 0, null, null));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-success-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_success_pages_" + UUID.randomUUID().toString().replace("-", "")));
+        resolver.resolveLegacyVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
 
         var command = new CreateRegistroAtividadeCommand(user.getEmail(), config.getId().getValue(),
                 LocalDateTime.now().minusHours(1), LocalDateTime.now(),
