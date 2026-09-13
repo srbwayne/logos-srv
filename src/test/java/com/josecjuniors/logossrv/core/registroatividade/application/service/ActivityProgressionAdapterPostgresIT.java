@@ -606,7 +606,7 @@ class ActivityProgressionAdapterPostgresIT {
         var distribution = new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), config, learning, 1.0);
         distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
         config.adicionarRegraDistribuicao(distribution);
-        configs.save(config);
+        configs.saveAndFlush(config);
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();
@@ -642,7 +642,7 @@ class ActivityProgressionAdapterPostgresIT {
         var distribution = new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), config, learning, 1.0);
         distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
         config.adicionarRegraDistribuicao(distribution);
-        configs.save(config);
+        configs.saveAndFlush(config);
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();
