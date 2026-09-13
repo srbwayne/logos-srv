@@ -6,6 +6,7 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfig
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
 import com.josecjuniors.logossrv.core.progression.domain.model.SubjectId;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotActiveException;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionInput;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfile;
 import org.junit.jupiter.api.Test;
@@ -41,7 +42,7 @@ class ConfiguredStatefulProgressionApplicationServiceTest {
     }
 
     @Test
-    void retornaNotFoundQuandoConfiguracaoNaoExiste() {
+    void rejeitaExecucaoQuandoConfiguracaoNaoEstaAtiva() {
         var repository = new RecordingRepository(new ProgressionProfile(0, 1, 0, 1, List.of(), List.of()), null);
         var resolver = (ProgressionConfigurationResolver) ignored -> Optional.empty();
         var delegate = new StatefulProgressionApplicationService(repository,
@@ -52,7 +53,8 @@ class ConfiguredStatefulProgressionApplicationServiceTest {
 
         assertThatThrownBy(() -> service.execute(new SubjectId(UUID.randomUUID()),
                 new ProgressionConfigurationReference(UUID.randomUUID()), new ProgressionFact(List.of())))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(ProgressionConfigurationNotActiveException.class)
+                .hasMessage("Progression configuration is not active for execution.");
     }
 
     private static final class RecordingRepository implements ProgressionProfileRepository {

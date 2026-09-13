@@ -6,6 +6,7 @@ import com.josecjuniors.logossrv.adapters.in.web.progression.dto.request.Progres
 import com.josecjuniors.logossrv.core.progression.application.port.in.ExecuteConfiguredSubjectProgressionUseCase;
 import com.josecjuniors.logossrv.core.progression.application.service.ProgressionOutcome;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotActiveException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
@@ -93,6 +94,17 @@ class ProgressionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(validRequest())))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void converteConfiguracaoNaoAtivaPara409() throws Exception {
+        when(useCase.execute(any(), any(), any())).thenThrow(new ProgressionConfigurationNotActiveException());
+
+        mockMvc.perform(post("/api/internal/v1/progression/{subjectId}/evaluate", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PROGRESSION_CONFIGURATION_NOT_ACTIVE"));
     }
 
     @Test

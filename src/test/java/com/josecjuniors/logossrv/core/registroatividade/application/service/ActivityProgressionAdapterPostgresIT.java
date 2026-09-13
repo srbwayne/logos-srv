@@ -609,7 +609,7 @@ class ActivityProgressionAdapterPostgresIT {
         distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
         config.adicionarRegraDistribuicao(distribution);
         configs.save(config);
-        var resolved = resolver.resolveVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
+        var resolved = resolver.resolveLegacyVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
         jdbc.update("UPDATE progression_configuration_version_xp_rule SET calculation_mode = 'FACT_VALUE' "
                         + "WHERE distribution_id IN (SELECT id FROM progression_configuration_version_distribution WHERE configuration_version_id = ?)",
                 resolved.configurationVersionId());

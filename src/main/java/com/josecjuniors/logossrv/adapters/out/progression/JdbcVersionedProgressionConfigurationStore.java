@@ -45,11 +45,11 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     @Transactional
     public Optional<ResolvedProgressionConfiguration> resolveVersioned(ProgressionConfigurationReference reference) {
         UUID legacyId = reference.value();
-        ConfigRow row = findConfig(legacyId).orElseGet(() -> snapshotForResolution(legacyId, false));
-        if (row == null) return Optional.empty();
+        Optional<ConfigRow> row = findConfig(legacyId);
+        if (row.isEmpty()) return Optional.empty();
 
         PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
-        return Optional.of(materialize(row, policy));
+        return Optional.of(materialize(row.get(), policy));
     }
 
     @Override
@@ -130,12 +130,28 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     }
 
     private Optional<ConfigRow> findConfig(UUID legacyId) {
-        return jdbc.query("""
-                SELECT v.id, v.base_xp, v.base_stress, v.fact_key_generation
+        var rows = jdbc.query("""
+                SELECT d.id AS definition_id, d.current_version_id,
+                       v.id, v.definition_id AS version_definition_id,
+                       v.base_xp, v.base_stress, v.fact_key_generation
                 FROM progression_configuration_definition d
-                JOIN progression_configuration_version v ON v.id = d.current_version_id
+                LEFT JOIN progression_configuration_version v ON v.id = d.current_version_id
                 WHERE d.legacy_atividade_config_id = ?
-                """, this::configRow, legacyId).stream().findFirst();
+                """, (rs, n) -> new ActiveConfigRow(
+                        rs.getObject("definition_id", UUID.class),
+                        rs.getObject("current_version_id", UUID.class),
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("version_definition_id", UUID.class),
+                        (Integer) rs.getObject("base_xp"),
+                        (Integer) rs.getObject("base_stress"),
+                        rs.getString("fact_key_generation")), legacyId);
+        if (rows.isEmpty() || rows.get(0).currentVersionId() == null) return Optional.empty();
+        ActiveConfigRow row = rows.get(0);
+        if (row.versionId() == null || !row.definitionId().equals(row.versionDefinitionId())) {
+            throw new IllegalStateException("Active progression configuration has an invalid owner reference.");
+        }
+        return Optional.of(new ConfigRow(row.versionId(), row.baseXp(), row.baseStress(),
+                FactKeyGeneration.valueOf(row.factKeyGeneration())));
     }
 
     private Optional<ConfigRow> findConfigByVersion(UUID versionId) {
@@ -251,6 +267,9 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
     }
 
     private record ConfigRow(UUID versionId, int baseXp, int baseStress, FactKeyGeneration factKeyGeneration) {}
+    private record ActiveConfigRow(UUID definitionId, UUID currentVersionId, UUID versionId,
+                                   UUID versionDefinitionId, Integer baseXp, Integer baseStress,
+                                   String factKeyGeneration) {}
     private record PolicyRow(UUID versionId) {}
     private record DistributionRow(UUID id, String attributeKey, double weight) {}
 }

@@ -10,6 +10,7 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionFact;
 import com.josecjuniors.logossrv.core.progression.domain.model.SubjectId;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotActiveException;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfile;
 import org.springframework.stereotype.Service;
 
@@ -48,7 +49,7 @@ public class ConfiguredStatefulProgressionApplicationService implements ExecuteC
     public ProgressionOutcome execute(SubjectId subjectId, ProgressionConfigurationReference configurationReference,
                                       ProgressionFact fact) {
         var configuration = configurationResolver.resolve(configurationReference)
-                .orElseThrow(ProgressionConfigurationNotFoundException::new);
+                .orElseThrow(ProgressionConfigurationNotActiveException::new);
         ProgressionProfile profile = profileRepository.findBySubjectIdForUpdate(subjectId)
                 .orElseThrow(ProgressionSubjectNotFoundException::new);
         return statefulProgression.executeLoaded(subjectId, inputFactory.create(fact, configuration, profile), profile);
