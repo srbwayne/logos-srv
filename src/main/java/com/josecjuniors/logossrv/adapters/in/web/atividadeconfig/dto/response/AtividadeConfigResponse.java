@@ -5,21 +5,13 @@ import com.josecjuniors.logossrv.core.atividadeconfig.application.dto.AtividadeC
 public record AtividadeConfigResponse(
         String id,
         String nome,
-        String descricao,
-        Integer xpBase,
-        Integer estresseBase,
-        Integer diasParaPenalidade,
-        Integer xpPerdaPorCiclo
+        String descricao
 ) {
     public static AtividadeConfigResponse fromDto(AtividadeConfigDto dto) {
         return new AtividadeConfigResponse(
                 dto.id(),
                 dto.nome(),
-                dto.descricao(),
-                dto.xpBase(),
-                dto.estresseBase(),
-                dto.diasParaPenalidade(),
-                dto.xpPerdaPorCiclo()
+                dto.descricao()
         );
     }
 }
