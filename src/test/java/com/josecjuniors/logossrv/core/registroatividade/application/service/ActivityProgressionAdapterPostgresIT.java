@@ -168,6 +168,15 @@ class ActivityProgressionAdapterPostgresIT {
                 + "WHERE d.configuration_version_id = ?", String.class, fixture.resolved().configurationVersionId()))
                 .isEqualTo(legacyKey);
 
+        jdbc.update("DELETE FROM regra_fator_xp WHERE regra_distribuicao_atividade_id IN "
+                + "(SELECT id FROM regra_distribuicao_atividade WHERE atividade_config_id = ?)",
+                fixture.config().getId().getValue());
+        jdbc.update("DELETE FROM regra_distribuicao_atividade WHERE atividade_config_id = ?",
+                fixture.config().getId().getValue());
+        jdbc.update("UPDATE atividade_config SET xp_base = NULL, estresse_base = NULL, "
+                + "dias_para_penalidade = NULL, xp_perda_por_ciclo = NULL WHERE id = ?",
+                fixture.config().getId().getValue());
+
         String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
         creator.create(new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
                 LocalDateTime.now().minusHours(1), LocalDateTime.now(),
