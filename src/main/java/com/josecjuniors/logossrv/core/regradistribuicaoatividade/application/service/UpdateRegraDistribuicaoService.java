@@ -1,7 +1,6 @@
 package com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.service;
 import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.dto.RegraDistribuicaoAtividadeDto;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.port.in.UpdateRegraDistribuicaoCommand;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.port.in.UpdateRegraDistribuicaoUseCase;

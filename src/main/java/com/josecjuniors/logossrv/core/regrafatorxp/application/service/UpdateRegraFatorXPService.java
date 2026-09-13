@@ -1,7 +1,6 @@
 package com.josecjuniors.logossrv.core.regrafatorxp.application.service;
 import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoNaoEncontradoException;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;

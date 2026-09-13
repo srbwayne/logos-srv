@@ -47,9 +47,9 @@ import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,7 +83,6 @@ class ActivityProgressionAdapterPostgresIT {
     @Autowired ActivityProgressionAdapter adapter;
     @Autowired ActivityProgressionRecovery recovery;
     @Autowired CreateRegistroAtividadeService creator;
-    @SpyBean ProcessarRegistroAtividadeService legacyProcessor;
     @SpyBean ConfiguredStatefulProgressionApplicationService progression;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder encoder;
@@ -142,7 +141,6 @@ class ActivityProgressionAdapterPostgresIT {
                     String.class, activityId)).isEqualTo("PROCESSADO");
         });
 
-        verify(legacyProcessor, never()).processar(any());
     }
 
     @Test
@@ -609,7 +607,21 @@ class ActivityProgressionAdapterPostgresIT {
         distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
         config.adicionarRegraDistribuicao(distribution);
         configs.save(config);
-        var resolved = resolver.resolveLegacyVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
+        UUID definition = UUID.randomUUID();
+        UUID version = UUID.randomUUID();
+        UUID versionDistribution = UUID.randomUUID();
+        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
+                definition, "activity:" + config.getId().getValue(), config.getId().getValue());
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, 1, 1, 0, 'SEMANTIC')",
+                version, definition);
+        jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) VALUES (?, ?, ?, 1)",
+                versionDistribution, version, learning.getId().getValue().toString());
+        jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) VALUES (?, ?, ?, 1, 0, NULL, 'FACT_VALUE')",
+                UUID.randomUUID(), versionDistribution, factor.getSemanticKey());
+        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) VALUES (?, ?, ?, 'NUMERICO')",
+                UUID.randomUUID(), version, factor.getSemanticKey());
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
+        var resolved = resolver.resolveVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
         jdbc.update("UPDATE progression_configuration_version_xp_rule SET calculation_mode = 'FACT_VALUE' "
                         + "WHERE distribution_id IN (SELECT id FROM progression_configuration_version_distribution WHERE configuration_version_id = ?)",
                 resolved.configurationVersionId());
@@ -631,7 +643,21 @@ class ActivityProgressionAdapterPostgresIT {
         distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
         config.adicionarRegraDistribuicao(distribution);
         configs.save(config);
-        resolver.resolveLegacyVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
+        UUID definition = UUID.randomUUID();
+        UUID version = UUID.randomUUID();
+        UUID versionDistribution = UUID.randomUUID();
+        String legacyKey = factor.getId().getValue().toString();
+        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
+                definition, "activity:" + config.getId().getValue(), config.getId().getValue());
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, 1, 1, 0, 'LEGACY_UUID')",
+                version, definition);
+        jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) VALUES (?, ?, ?, 1)",
+                versionDistribution, version, learning.getId().getValue().toString());
+        jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) VALUES (?, ?, ?, 1, 0, NULL, 'FIXED')",
+                UUID.randomUUID(), versionDistribution, legacyKey);
+        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) VALUES (?, ?, ?, 'NUMERICO')",
+                UUID.randomUUID(), version, legacyKey);
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
         factor.assignSemanticKey("legacy_pages");
         fatores.save(factor);
         var resolved = resolver.resolveVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();

@@ -1,7 +1,6 @@
 package com.josecjuniors.logossrv.core.regradistribuicaoatividade.application.service;
 import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
