@@ -13,7 +13,11 @@ import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.TipoInput;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.repository.AtividadeFormularioRepository;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
+import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,13 +29,14 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @IntegrationTest
 class AtividadeConfigControllerTest {
-  @Autowired MockMvc mockMvc;
-  @Autowired ObjectMapper objectMapper;
-  @Autowired AtividadeConfigRepository repository;
-  @Autowired AtividadeFormularioRepository formularioRepository;
-  @Autowired AppUserJpaRepository users;
-  @Autowired PasswordEncoder passwordEncoder;
-  @Autowired JwtService jwtService;
+  @Autowired private MockMvc mockMvc;
+  @Autowired private ObjectMapper objectMapper;
+  @Autowired private AtividadeConfigRepository repository;
+  @Autowired private AtividadeFormularioRepository formularioRepository;
+  @Autowired private FatorCalculoRepository fatorCalculoRepository;
+  @Autowired private AppUserJpaRepository users;
+  @Autowired private PasswordEncoder passwordEncoder;
+  @Autowired private JwtService jwtService;
   private String token;
 
   @BeforeEach
@@ -275,5 +280,55 @@ class AtividadeConfigControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(replacement))
         .andExpect(status().isConflict());
+  }
+
+  @Test
+  void metadataUpdatePreservesAuthoredFormState() throws Exception {
+    var activity =
+        repository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Antes"));
+    var factor =
+        fatorCalculoRepository.save(
+            new FatorCalculo(
+                FatorCalculoId.generate(),
+                "Páginas " + UUID.randomUUID(),
+                "páginas",
+                TipoInput.NUMERICO));
+
+    String authoredForm =
+        "{\"expectedVersion\":1,\"campos\":[{\"fatorCalculoId\":\""
+            + factor.getId().getValue()
+            + "\",\"placeholder\":\"Páginas lidas\"}]}";
+    mockMvc
+        .perform(
+            put("/api/atividades-config/{id}/formulario", activity.getId().getValue())
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(authoredForm))
+        .andExpect(status().isOk())
+        .andExpect(header().string("X-Activity-Form-Version", "2"));
+
+    var metadata =
+        new UpdateAtividadeConfigRequest("Leitura diária", "Depois", null, null, null, null);
+    mockMvc
+        .perform(
+            put("/api/atividades-config/{id}", activity.getId().getValue())
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(metadata)))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            get("/api/atividades-config/{id}/formulario", activity.getId().getValue())
+                .header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(header().string("X-Activity-Form-Version", "2"))
+        .andExpect(jsonPath("$.nomeAtividade").value("Leitura diária"))
+        .andExpect(jsonPath("$.descricaoAtividade").value("Depois"))
+        .andExpect(jsonPath("$.campos", org.hamcrest.Matchers.hasSize(1)))
+        .andExpect(
+            jsonPath("$.campos[0].fatorCalculoId").value(factor.getId().getValue().toString()))
+        .andExpect(jsonPath("$.campos[0].placeholder").value("Páginas lidas"))
+        .andExpect(jsonPath("$.campos[0].obrigatorio").value(false));
   }
 }
