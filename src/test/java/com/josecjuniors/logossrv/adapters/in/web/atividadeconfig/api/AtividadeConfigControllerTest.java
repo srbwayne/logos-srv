@@ -295,8 +295,19 @@ class AtividadeConfigControllerTest {
 
   @Test
   void metadataUpdatePreservesAuthoredFormState() throws Exception {
-    var activity =
-        repository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Antes"));
+    var createRequest =
+        new CreateAtividadeConfigRequest("Leitura", "Antes", null, null, null, null);
+    var createResult =
+        mockMvc
+            .perform(
+                post("/api/atividades-config")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(createRequest)))
+            .andExpect(status().isCreated())
+            .andReturn();
+    UUID activityId =
+        UUID.fromString(createResult.getResponse().getHeader("Location").replaceAll(".*/", ""));
     var factor =
         fatorCalculoRepository.save(
             new FatorCalculo(
@@ -312,7 +323,7 @@ class AtividadeConfigControllerTest {
             + "\",\"placeholder\":\"Páginas lidas\"}]}";
     mockMvc
         .perform(
-            put("/api/atividades-config/{id}/formulario", activity.getId().getValue())
+            put("/api/atividades-config/{id}/formulario", activityId)
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(authoredForm))
@@ -323,7 +334,7 @@ class AtividadeConfigControllerTest {
         new UpdateAtividadeConfigRequest("Leitura diária", "Depois", null, null, null, null);
     mockMvc
         .perform(
-            put("/api/atividades-config/{id}", activity.getId().getValue())
+            put("/api/atividades-config/{id}", activityId)
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(metadata)))
@@ -331,7 +342,7 @@ class AtividadeConfigControllerTest {
 
     mockMvc
         .perform(
-            get("/api/atividades-config/{id}/formulario", activity.getId().getValue())
+            get("/api/atividades-config/{id}/formulario", activityId)
                 .header("Authorization", "Bearer " + token))
         .andExpect(status().isOk())
         .andExpect(header().string("X-Activity-Form-Version", "2"))
