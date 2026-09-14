@@ -16,8 +16,6 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
-import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
-import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividade;
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.enums.SituacaoRegistroAtividade;
@@ -27,9 +25,11 @@ import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import jakarta.persistence.EntityManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -61,7 +61,9 @@ class RegistroAtividadeControllerTest {
     @Autowired
     private JwtService jwtService;
     @Autowired
-    private VersionedProgressionConfigurationResolver progressionResolver;
+    private JdbcTemplate jdbc;
+    @Autowired
+    private EntityManager entityManager;
 
     private String jwtToken;
     private Jogador testJogador;
@@ -83,7 +85,16 @@ class RegistroAtividadeControllerTest {
         testJogador = jogadorRepository.save(new Jogador(JogadorId.generate(), testAppUser, "Registrador"));
         testAtividadeConfig = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida", null, 100, 10, null, null));
         fatorDistancia = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Distância", "km", TipoInput.NUMERICO, "distance_km"));
-        progressionResolver.resolveLegacyVersioned(new ProgressionConfigurationReference(testAtividadeConfig.getId().getValue())).orElseThrow();
+        entityManager.flush();
+        UUID definition = UUID.randomUUID();
+        UUID version = UUID.randomUUID();
+        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
+                definition, "activity:" + testAtividadeConfig.getId().getValue(), testAtividadeConfig.getId().getValue());
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, 1, 100, 10, 'SEMANTIC')",
+                version, definition);
+        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) VALUES (?, ?, ?, 'NUMERICO')",
+                UUID.randomUUID(), version, fatorDistancia.getSemanticKey());
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
     }
 
     @Test

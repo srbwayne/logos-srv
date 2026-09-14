@@ -1,22 +1,14 @@
 package com.josecjuniors.logossrv.adapters.out.progression;
 
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
 import com.josecjuniors.logossrv.core.habilidade.domain.repository.HabilidadeRepository;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfiguration;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration;
 import com.josecjuniors.logossrv.core.progression.domain.model.FactKeyGeneration;
-import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
-import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
-import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
-import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.SemanticKeyRequiredException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
-import jakarta.persistence.EntityManager;
 
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -29,16 +21,11 @@ import com.josecjuniors.logossrv.core.progression.domain.model.XpCalculationMode
 @Repository
 class JdbcVersionedProgressionConfigurationStore implements VersionedProgressionConfigurationStore {
     private final JdbcTemplate jdbc;
-    private final AtividadeConfigRepository configs;
     private final HabilidadeRepository habilidades;
-    private final EntityManager entityManager;
 
-    JdbcVersionedProgressionConfigurationStore(JdbcTemplate jdbc, AtividadeConfigRepository configs,
-                                                HabilidadeRepository habilidades, EntityManager entityManager) {
+    JdbcVersionedProgressionConfigurationStore(JdbcTemplate jdbc, HabilidadeRepository habilidades) {
         this.jdbc = jdbc;
-        this.configs = configs;
         this.habilidades = habilidades;
-        this.entityManager = entityManager;
     }
 
     @Override
@@ -50,26 +37,6 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
 
         PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
         return Optional.of(materialize(row.get(), policy));
-    }
-
-    @Override
-    @Transactional
-    public Optional<ResolvedProgressionConfiguration> resolveLegacyVersioned(ProgressionConfigurationReference reference) {
-        UUID legacyId = reference.value();
-        ConfigRow row = findConfig(legacyId).orElseGet(() -> snapshotForResolution(legacyId, true));
-        if (row == null) return Optional.empty();
-        PolicyRow policy = currentPolicy().orElseGet(this::snapshotPolicy);
-        return Optional.of(materialize(row, policy));
-    }
-
-    private ConfigRow snapshotForResolution(UUID legacyId, boolean legacyKeys) {
-        return configs.findById(new AtividadeConfigId(legacyId))
-                .map(config -> {
-                    entityManager.flush();
-                    return snapshotConfiguration(config, legacyKeys);
-                })
-                .flatMap(this::findConfigByVersion)
-                .orElse(null);
     }
 
     @Override
@@ -152,81 +119,6 @@ class JdbcVersionedProgressionConfigurationStore implements VersionedProgression
         }
         return Optional.of(new ConfigRow(row.versionId(), row.baseXp(), row.baseStress(),
                 FactKeyGeneration.valueOf(row.factKeyGeneration())));
-    }
-
-    private Optional<ConfigRow> findConfigByVersion(UUID versionId) {
-        return jdbc.query("SELECT id, base_xp, base_stress, fact_key_generation FROM progression_configuration_version WHERE id = ?",
-                this::configRow, versionId)
-                .stream().findFirst();
-    }
-
-    private UUID snapshotConfiguration(AtividadeConfig config) {
-        return snapshotConfiguration(config, false);
-    }
-
-    private UUID snapshotConfiguration(AtividadeConfig config, boolean legacyKeys) {
-        if (!legacyKeys) ensureSemanticKeysAvailable(config);
-        UUID legacyId = config.getId().getValue();
-        UUID definition = jdbc.query("SELECT id FROM progression_configuration_definition WHERE legacy_atividade_config_id = ?",
-                (rs, n) -> rs.getObject(1, UUID.class), legacyId).stream().findFirst().orElseGet(() -> {
-                    UUID id = UUID.randomUUID();
-                    jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id) VALUES (?, ?, ?)",
-                            id, "legacy:" + legacyId, legacyId);
-                    return id;
-                });
-        int revision = jdbc.queryForObject("SELECT COALESCE(MAX(revision), 0) + 1 FROM progression_configuration_version WHERE definition_id = ?",
-                Integer.class, definition);
-        UUID version = UUID.randomUUID();
-        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, ?, ?, ?, ?)",
-                version, definition, revision, config.getXpBase(), config.getEstresseBase(),
-                legacyKeys ? FactKeyGeneration.LEGACY_UUID.name() : FactKeyGeneration.SEMANTIC.name());
-        for (RegraDistribuicaoAtividade d : config.getRegrasDistribuicao()) {
-            UUID distribution = UUID.randomUUID();
-            jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) VALUES (?, ?, ?, ?)",
-                    distribution, version, d.getAtributo().getId().getValue().toString(), d.getPesoPercentual());
-            for (RegraFatorXP r : d.getRegraFatorXPS()) {
-                jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        UUID.randomUUID(), distribution, factorKey(r.getFatorCalculo(), legacyKeys), r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), XpCalculationMode.FIXED.name());
-            }
-            for (RegraFatorEstresse r : d.getRegraFatorEstresses()) {
-                jdbc.update("INSERT INTO progression_configuration_version_stress_rule(id, distribution_id, multiplier, min_cutoff, max_cutoff, type) VALUES (?, ?, ?, ?, ?, ?)",
-                        UUID.randomUUID(), distribution, r.getPesoMultiplicador(), r.getPontoCorteMin(), r.getPontoCorteMax(), r.getTipo().name());
-            }
-        }
-        if (legacyKeys) {
-            jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, id::text, tipo_input FROM fator_calculo", version);
-        } else {
-            jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) SELECT gen_random_uuid(), ?, semantic_key, tipo_input FROM fator_calculo WHERE semantic_key IS NOT NULL", version);
-        }
-        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
-        return version;
-    }
-
-    private String factorKey(com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo factor, boolean legacyKeys) {
-        if (legacyKeys) return factor.getId().getValue().toString();
-        return requiredSemanticKey(factor.getSemanticKey());
-    }
-
-    private String requiredSemanticKey(String semanticKey) {
-        if (semanticKey == null || semanticKey.isBlank()) {
-            throw new SemanticKeyRequiredException();
-        }
-        return semanticKey;
-    }
-
-    private void ensureSemanticKeysAvailable(AtividadeConfig config) {
-        boolean missing = config.getRegrasDistribuicao().stream()
-                .flatMap(distribution -> distribution.getRegraFatorXPS().stream())
-                .anyMatch(rule -> rule.getFatorCalculo().getSemanticKey() == null);
-        if (missing) {
-            throw new SemanticKeyRequiredException();
-        }
-    }
-
-    @Override
-    @Transactional
-    public void snapshotConfiguration(UUID legacyId) {
-        configs.findById(new AtividadeConfigId(legacyId)).ifPresent(this::snapshotConfiguration);
     }
 
     @Override

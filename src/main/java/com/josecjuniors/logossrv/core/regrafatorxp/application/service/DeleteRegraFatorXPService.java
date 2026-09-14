@@ -1,7 +1,6 @@
 package com.josecjuniors.logossrv.core.regrafatorxp.application.service;
 import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 
-import com.josecjuniors.logossrv.core.atividadeconfig.domain.events.AtividadeConfigSalvaEvent;
 import com.josecjuniors.logossrv.core.regrafatorxp.application.port.in.DeleteRegraFatorXPUseCase;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.exception.RegraFatorXPNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;

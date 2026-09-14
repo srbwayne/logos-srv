@@ -7,8 +7,4 @@ import java.util.Optional;
 
 public interface VersionedProgressionConfigurationResolver {
     Optional<ResolvedProgressionConfiguration> resolveVersioned(ProgressionConfigurationReference reference);
-
-    default Optional<ResolvedProgressionConfiguration> resolveLegacyVersioned(ProgressionConfigurationReference reference) {
-        return resolveVersioned(reference);
-    }
 }

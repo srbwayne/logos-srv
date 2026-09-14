@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import jakarta.persistence.EntityManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +52,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
     @Autowired VersionedProgressionConfigurationResolver resolver;
     @Autowired RegistroAtividadeRepository registros;
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManager entityManager;
     @Autowired PasswordEncoder encoder;
     @SpyBean ActivityProgressionExecutionStore executionStore;
 
@@ -86,7 +88,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 "fixture", 1, 0, null, null));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_pages_" + UUID.randomUUID().toString().replace("-", "")));
-        resolver.resolveLegacyVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
+        activate(config, factor);
 
         doThrow(new IllegalStateException("controlled intent failure")).when(executionStore).create(
                 any(), anyString(), any(), any(), any(), anyString(), anyInt());
@@ -119,7 +121,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 "fixture", 1, 0, null, null));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-success-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_success_pages_" + UUID.randomUUID().toString().replace("-", "")));
-        resolver.resolveLegacyVersioned(new ProgressionConfigurationReference(config.getId().getValue())).orElseThrow();
+        activate(config, factor);
 
         var command = new CreateRegistroAtividadeCommand(user.getEmail(), config.getId().getValue(),
                 LocalDateTime.now().minusHours(1), LocalDateTime.now(),
@@ -133,5 +135,18 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 + "JOIN registro_atividade r ON e.idempotency_key = r.id::text "
                 + "WHERE r.jogador_id = (SELECT id FROM jogador WHERE user_id = ?) "
                 + "AND e.source_system = 'logos.activity'", Long.class, user.getId().getValue())).isEqualTo(1L);
+    }
+
+    private void activate(AtividadeConfig config, FatorCalculo factor) {
+        entityManager.flush();
+        UUID definition = UUID.randomUUID();
+        UUID version = UUID.randomUUID();
+        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
+                definition, "activity:" + config.getId().getValue(), config.getId().getValue());
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, 1, 1, 0, 'SEMANTIC')",
+                version, definition);
+        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) VALUES (?, ?, ?, 'NUMERICO')",
+                UUID.randomUUID(), version, factor.getSemanticKey());
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
     }
 }
