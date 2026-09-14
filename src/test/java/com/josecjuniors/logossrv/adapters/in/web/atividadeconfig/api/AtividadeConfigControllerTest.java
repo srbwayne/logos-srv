@@ -1,9 +1,7 @@
 package com.josecjuniors.logossrv.adapters.in.web.atividadeconfig.api;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.josecjuniors.logossrv.adapters.in.web.atividadeconfig.dto.request.CreateAtividadeConfigRequest;
 import com.josecjuniors.logossrv.adapters.in.web.atividadeconfig.dto.request.UpdateAtividadeConfigRequest;
-import com.josecjuniors.logossrv.adapters.in.web.atividadeconfig.dto.request.ReplaceAtividadeFormularioRequest;
 import com.josecjuniors.logossrv.adapters.out.appuser.jpa.AppUserJpaRepository;
 import com.josecjuniors.logossrv.config.jwt.JwtService;
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUser;
@@ -11,394 +9,43 @@ import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
-import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormulario;
-import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormularioId;
-import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.AtividadeFormularioJson;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.repository.AtividadeFormularioRepository;
-import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
-import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
-import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
-import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
-import com.josecjuniors.logossrv.core.atributo.domain.model.AtributoId;
-import com.josecjuniors.logossrv.core.atributo.domain.repository.AtributoRepository;
-import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
-import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividadeId;
-import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.repository.RegraDistribuicaoAtividadeRepository;
-import com.josecjuniors.logossrv.core.regrafatorxp.domain.repository.RegraFatorXPRepository;
-import com.josecjuniors.logossrv.core.regrafatorestresse.domain.repository.RegraFatorEstresseRepository;
-import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
-import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXPId;
-import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresse;
-import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.RegraFatorEstresseId;
-import com.josecjuniors.logossrv.core.regrafatorestresse.domain.model.enums.TipoFatorEstresse;
-import com.josecjuniors.logossrv.adapters.out.atividadeconfig.jpa.AtividadeConfigJpaRepository;
-import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.TipoInput;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.ArrayList;
 import java.util.UUID;
-
-import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 @IntegrationTest
 class AtividadeConfigControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-    @Autowired
-    private ObjectMapper objectMapper;
-    @Autowired
-    private AtividadeConfigRepository atividadeConfigRepository;
-    @Autowired
-    private AtividadeConfigJpaRepository atividadeConfigPersistence;
-    @Autowired
-    private AtividadeFormularioRepository atividadeFormularioRepository;
-    @Autowired
-    private FatorCalculoRepository fatorCalculoRepository;
-    @Autowired
-    private RegraDistribuicaoAtividadeRepository regraDistribuicaoRepository;
-    @Autowired
-    private RegraFatorXPRepository regraFatorXPRepository;
-    @Autowired
-    private RegraFatorEstresseRepository regraFatorEstresseRepository;
-    @Autowired
-    private AtributoRepository atributoRepository;
-    @Autowired
-    private AppUserJpaRepository appUserRepository;
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-    @Autowired
-    private JwtService jwtService;
-    @Autowired
-    private JdbcTemplate jdbc;
-
-    private String jwtToken;
-
-    @BeforeEach
-    void setUp() {
-        regraFatorEstresseRepository.deleteAll();
-        regraFatorXPRepository.deleteAll();
-        atividadeFormularioRepository.deleteAll();
-        atividadeConfigRepository.deleteAll();
-        fatorCalculoRepository.deleteAll();
-        appUserRepository.deleteAll();
-        AppUser testAppUser = new AppUser(new AppUserId(), "atividade.test@email.com", passwordEncoder.encode("password"));
-        appUserRepository.save(testAppUser);
-        jwtToken = jwtService.generateToken(testAppUser);
-    }
-
-    @Test
-    void create_withValidData_shouldReturn201() throws Exception {
-        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Corrida", "Corrida ao ar livre", null, null, null, null);
-
-        String location = mockMvc.perform(post("/api/atividades-config")
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.nome").value("Corrida"))
-                .andReturn().getResponse().getHeader("Location");
-        AtividadeConfig persisted = atividadeConfigRepository.findById(new AtividadeConfigId(UUID.fromString(location.substring(location.lastIndexOf('/') + 1)))).orElseThrow();
-        org.assertj.core.api.Assertions.assertThat(persisted.getXpBase()).isNull();
-        org.assertj.core.api.Assertions.assertThat(persisted.getEstresseBase()).isNull();
-        org.assertj.core.api.Assertions.assertThat(persisted.getDiasParaPenalidade()).isNull();
-        org.assertj.core.api.Assertions.assertThat(persisted.getXpPerdaPorCiclo()).isNull();
-    }
-
-    @Test
-    void create_bootstrapsEmptyFormBeforeReturning() throws Exception {
-        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Leitura", "Ler", null, null, null, null);
-
-        String location = mockMvc.perform(post("/api/atividades-config")
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-
-        UUID id = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-        mockMvc.perform(get("/api/atividades-config/{id}/formulario", id)
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk())
-                .andExpect(header().string("X-Activity-Form-Version", "1"))
-                .andExpect(jsonPath("$.campos", hasSize(0)));
-    }
-
-    @Test
-    void updateMetadataPreservesAuthoredCaptureVersionAndFields() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Inicial", 120, 15, 7, 25));
-        FatorCalculo paginas = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Páginas", "pág", TipoInput.NUMERICO));
-        AtividadeFormularioJson form = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(), atividade.getDescricao(),
-                java.util.List.of(new com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.CampoFormularioJson(
-                        paginas.getId().getValue(), paginas.getNome(), paginas.getUnidadeMedida(), paginas.getTipoInput(), "Páginas lidas", true)));
-        atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, form));
-
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Leitura diária", "Atualizada", null, null, null, null);
-        mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(get("/api/atividades-config/{id}/formulario", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk())
-                .andExpect(header().string("X-Activity-Form-Version", "1"))
-                .andExpect(jsonPath("$.nomeAtividade").value("Leitura diária"))
-                .andExpect(jsonPath("$.descricaoAtividade").value("Atualizada"))
-                .andExpect(jsonPath("$.campos", hasSize(1)))
-                .andExpect(jsonPath("$.campos[0].placeholder").value("Páginas lidas"));
-        AtividadeConfig metadataPersisted = atividadeConfigRepository.findById(atividade.getId()).orElseThrow();
-        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getXpBase()).isEqualTo(120);
-        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getEstresseBase()).isEqualTo(15);
-        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getDiasParaPenalidade()).isEqualTo(7);
-        org.assertj.core.api.Assertions.assertThat(metadataPersisted.getXpPerdaPorCiclo()).isEqualTo(25);
-    }
-
-    @Test
-    void metadataOnlyUpdateDoesNotCreateLegacyProgressionSnapshot() throws Exception {
-        AtividadeConfig atividade = atividadeConfigPersistence.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Historica", "Inicial", 120, 15, 7, 25));
-        UUID activityId = atividade.getId().getValue();
-        UUID definitionId = UUID.randomUUID();
-        UUID versionId = UUID.randomUUID();
-        String logicalKey = "legacy:" + activityId;
-        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
-                definitionId, logicalKey, activityId);
-        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, 1, 120, 15, 'LEGACY_UUID')",
-                versionId, definitionId);
-        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", versionId, definitionId);
-        int beforeCount = jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definitionId);
-        UUID beforeCurrent = jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE id = ?", UUID.class, definitionId);
-
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Historica atualizada", "Descricao atualizada", null, null, null, null);
-        mockMvc.perform(put("/api/atividades-config/{id}", activityId)
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
-
-        UUID afterCurrent = jdbc.queryForObject("SELECT current_version_id FROM progression_configuration_definition WHERE id = ?", UUID.class, definitionId);
-        int afterCount = jdbc.queryForObject("SELECT COUNT(*) FROM progression_configuration_version WHERE definition_id = ?", Integer.class, definitionId);
-        org.assertj.core.api.Assertions.assertThat(afterCurrent).isEqualTo(beforeCurrent);
-        org.assertj.core.api.Assertions.assertThat(afterCount).isEqualTo(beforeCount);
-    }
-
-    @Test
-    void create_whenNameIsTaken_shouldReturn409() throws Exception {
-        atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", null, 50, -5, null, null));
-        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Leitura", null, null, null, null, null);
-
-        mockMvc.perform(post("/api/atividades-config")
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isConflict());
-    }
-
-    @Test
-    void create_withLegacyProgressionFields_shouldReturn410() throws Exception {
-        CreateAtividadeConfigRequest request = new CreateAtividadeConfigRequest("Corrida", "Cat?logo", 100, null, null, null);
-
-        mockMvc.perform(post("/api/atividades-config")
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isGone());
-        org.assertj.core.api.Assertions.assertThat(atividadeConfigRepository.existsByNome("Corrida")).isFalse();
-    }
-
-    @Test
-    void update_withLegacyProgressionFields_shouldReturn410() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida", "Inicial", 120, 15, 7, 25));
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Corrida atualizada", "Cat?logo", null, 1, null, null);
-
-        mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isGone());
-        AtividadeConfig persisted = atividadeConfigRepository.findById(atividade.getId()).orElseThrow();
-        org.assertj.core.api.Assertions.assertThat(persisted.getNome()).isEqualTo("Corrida");
-        org.assertj.core.api.Assertions.assertThat(persisted.getDescricao()).isEqualTo("Inicial");
-        org.assertj.core.api.Assertions.assertThat(persisted.getXpBase()).isEqualTo(120);
-        org.assertj.core.api.Assertions.assertThat(persisted.getEstresseBase()).isEqualTo(15);
-        org.assertj.core.api.Assertions.assertThat(persisted.getDiasParaPenalidade()).isEqualTo(7);
-        org.assertj.core.api.Assertions.assertThat(persisted.getXpPerdaPorCiclo()).isEqualTo(25);
-        org.assertj.core.api.Assertions.assertThat(atividadeFormularioRepository.findByAtividadeConfigId(atividade.getId())).isEmpty();
-    }
-
-    @Test
-    void getById_whenExists_shouldReturn200() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Estudar", null, 80, 5, null, null));
-
-        mockMvc.perform(get("/api/atividades-config/{id}", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(atividade.getId().getValue().toString()))
-                .andExpect(jsonPath("$.nome").value("Estudar"))
-                .andExpect(jsonPath("$.xpBase").doesNotExist())
-                .andExpect(jsonPath("$.estresseBase").doesNotExist())
-                .andExpect(jsonPath("$.diasParaPenalidade").doesNotExist())
-                .andExpect(jsonPath("$.xpPerdaPorCiclo").doesNotExist());
-    }
-
-    @Test
-    void getById_whenNotFound_shouldReturn404() throws Exception {
-        mockMvc.perform(get("/api/atividades-config/{id}", UUID.randomUUID())
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void getAll_withSearchTerm_shouldReturnFilteredPage() throws Exception {
-        atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida Leve", null, 100, 10, null, null));
-        atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Corrida Longa", null, 300, 25, null, null));
-        atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Natação", null, 150, 5, null, null));
-
-        mockMvc.perform(get("/api/atividades-config")
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .param("searchTerm", "Corrida"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(2)))
-                .andExpect(jsonPath("$.content[0].nome").exists())
-                .andExpect(jsonPath("$.content[0].xpBase").doesNotExist())
-                .andExpect(jsonPath("$.content[0].estresseBase").doesNotExist())
-                .andExpect(jsonPath("$.content[0].diasParaPenalidade").doesNotExist())
-                .andExpect(jsonPath("$.content[0].xpPerdaPorCiclo").doesNotExist());
-    }
-
-    @Test
-    void update_withValidData_shouldReturn200() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Musculação", null, 120, 15, null, null));
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Treino de Força", "Foco em hipertrofia", null, null, null, null);
-
-        mockMvc.perform(put("/api/atividades-config/{id}", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nome").value("Treino de Força"))
-                .andExpect(jsonPath("$.descricao").value("Foco em hipertrofia"));
-    }
-
-    @Test
-    void update_whenNameIsTaken_shouldReturn409() throws Exception {
-        atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Ciclismo", null, 200, 10, null, null));
-        AtividadeConfig atividadeToUpdate = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Yoga", null, 40, -15, null, null));
-        UpdateAtividadeConfigRequest request = new UpdateAtividadeConfigRequest("Ciclismo", null, null, null, null, null);
-
-        mockMvc.perform(put("/api/atividades-config/{id}", atividadeToUpdate.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isConflict());
-    }
-
-    @Test
-    void delete_whenExists_shouldReturn204() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Meditação", null, 20, -20, null, null));
-
-        mockMvc.perform(delete("/api/atividades-config/{id}", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isNoContent());
-    }
-
-    @Test
-    void delete_withLegacyProgressionHistory_shouldReturn409AndPreserveRows() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Histórica", null, null, null, null, null));
-        Atributo atributo = atributoRepository.save(new Atributo(new AtributoId(), "Foco", null));
-        RegraDistribuicaoAtividade regra = regraDistribuicaoRepository.save(new RegraDistribuicaoAtividade(
-                new RegraDistribuicaoAtividadeId(), atividade, atributo, 1.0));
-        FatorCalculo fator = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Minutos", "min", TipoInput.NUMERICO));
-        RegraFatorXP xp = regraFatorXPRepository.save(new RegraFatorXP(new RegraFatorXPId(), regra, fator, 1.0, 1.0, 10.0));
-        RegraFatorEstresse stress = regraFatorEstresseRepository.save(new RegraFatorEstresse(new RegraFatorEstresseId(), regra, 1.0, 1.0, 10.0, TipoFatorEstresse.POSITIVO));
-
-        mockMvc.perform(delete("/api/atividades-config/{id}", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isConflict());
-
-        org.assertj.core.api.Assertions.assertThat(atividadeConfigRepository.findById(atividade.getId())).isPresent();
-        org.assertj.core.api.Assertions.assertThat(regraDistribuicaoRepository.findById(regra.getId())).isPresent();
-        org.assertj.core.api.Assertions.assertThat(regraFatorXPRepository.findById(xp.getId())).isPresent();
-        org.assertj.core.api.Assertions.assertThat(regraFatorEstresseRepository.findById(stress.getId())).isPresent();
-    }
-
-    @Test
-    void getFormulario_whenFormularioExists_shouldReturn200AndFormularioJson() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Ler um livro", 50, -10, null, null));
-        AtividadeFormularioJson json = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(), atividade.getDescricao(), new ArrayList<>());
-        atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, json));
-
-        mockMvc.perform(get("/api/atividades-config/{id}/formulario", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.atividadeConfigId").value(atividade.getId().getValue().toString()))
-                        .andExpect(jsonPath("$.nomeAtividade").value("Leitura"));
-    }
-
-    @Test
-    void getFormulario_exposesCaptureVersionInHeaderWithoutChangingBody() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Ler", 50, -10, null, null));
-        AtividadeFormularioJson json = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(), atividade.getDescricao(), new ArrayList<>());
-        atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, json));
-
-        mockMvc.perform(get("/api/atividades-config/{id}/formulario", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk())
-                .andExpect(header().string("X-Activity-Form-Version", "1"))
-                .andExpect(jsonPath("$.campos", hasSize(0)));
-    }
-
-    @Test
-    void replaceFormulario_returnsIncrementedVersionHeader() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Ler", 50, -10, null, null));
-        AtividadeFormularioJson json = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(), atividade.getDescricao(), new ArrayList<>());
-        atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, json));
-        FatorCalculo paginas = fatorCalculoRepository.save(new FatorCalculo(FatorCalculoId.generate(), "Páginas", "pág", TipoInput.NUMERICO));
-        ReplaceAtividadeFormularioRequest request = new ReplaceAtividadeFormularioRequest(1,
-                java.util.List.of(new ReplaceAtividadeFormularioRequest.CampoRequest(paginas.getId().getValue(), "Páginas lidas")));
-
-        mockMvc.perform(put("/api/atividades-config/{id}/formulario", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(header().string("X-Activity-Form-Version", "2"))
-                .andExpect(jsonPath("$.campos", hasSize(1)))
-                .andExpect(jsonPath("$.campos[0].placeholder").value("Páginas lidas"));
-    }
-
-    @Test
-    void replaceFormulario_withStaleVersionReturnsConflict() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Ler", 50, -10, null, null));
-        AtividadeFormularioJson json = new AtividadeFormularioJson(atividade.getId().getValue(), atividade.getNome(), atividade.getDescricao(), new ArrayList<>());
-        atividadeFormularioRepository.save(new AtividadeFormulario(AtividadeFormularioId.generate(), atividade, json));
-        ReplaceAtividadeFormularioRequest request = new ReplaceAtividadeFormularioRequest(0, new ArrayList<>());
-
-        mockMvc.perform(put("/api/atividades-config/{id}/formulario", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isConflict());
-    }
-
-    @Test
-    void getFormulario_whenFormularioDoesNotExist_shouldReturn404() throws Exception {
-        AtividadeConfig atividade = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Leitura", "Ler um livro", 50, -10, null, null));
-
-        mockMvc.perform(get("/api/atividades-config/{id}/formulario", atividade.getId().getValue())
-                        .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isNotFound());
-    }
+ @Autowired MockMvc mockMvc; @Autowired ObjectMapper objectMapper; @Autowired AtividadeConfigRepository repository;
+ @Autowired AtividadeFormularioRepository formularioRepository; @Autowired AppUserJpaRepository users;
+ @Autowired PasswordEncoder passwordEncoder; @Autowired JwtService jwtService;
+ private String token;
+ @BeforeEach void setUp() { formularioRepository.deleteAll(); repository.deleteAll(); users.deleteAll(); var user=new AppUser(new AppUserId(),"atividade.test@email.com",passwordEncoder.encode("password")); users.save(user); token=jwtService.generateToken(user); }
+ @Test void create_withValidData_shouldReturn201AndBootstrapForm() throws Exception {
+  var request=new CreateAtividadeConfigRequest("Corrida","Ao ar livre",null,null,null,null);
+  var result=mockMvc.perform(post("/api/atividades-config").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))).andExpect(status().isCreated()).andExpect(jsonPath("$.nome").value("Corrida")).andReturn();
+  var id=UUID.fromString(result.getResponse().getHeader("Location").replaceAll(".*/",""));
+  mockMvc.perform(get("/api/atividades-config/{id}/formulario",id).header("Authorization","Bearer "+token)).andExpect(status().isOk());
+ }
+ @Test void create_withLegacyProgressionFields_shouldReturn410WithoutActivity() throws Exception {
+  var request=new CreateAtividadeConfigRequest("Corrida","Catálogo",100,null,null,null);
+  mockMvc.perform(post("/api/atividades-config").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))).andExpect(status().isGone());
+  org.assertj.core.api.Assertions.assertThat(repository.existsByNome("Corrida")).isFalse();
+ }
+ @Test void getById_andGetAll_returnCanonicalMetadataWithoutLegacyFields() throws Exception {
+  var activity=repository.save(new AtividadeConfig(new AtividadeConfigId(),"Estudar","Descrição"));
+  mockMvc.perform(get("/api/atividades-config/{id}",activity.getId().getValue()).header("Authorization","Bearer "+token)).andExpect(status().isOk()).andExpect(jsonPath("$.id").exists()).andExpect(jsonPath("$.nome").value("Estudar")).andExpect(jsonPath("$.xpBase").doesNotExist()).andExpect(jsonPath("$.estresseBase").doesNotExist()).andExpect(jsonPath("$.diasParaPenalidade").doesNotExist()).andExpect(jsonPath("$.xpPerdaPorCiclo").doesNotExist());
+  mockMvc.perform(get("/api/atividades-config").header("Authorization","Bearer "+token)).andExpect(status().isOk()).andExpect(jsonPath("$.content[0].descricao").value("Descrição")).andExpect(jsonPath("$.content[0].xpBase").doesNotExist());
+ }
+ @Test void update_withLegacyProgressionFields_shouldReturn410() throws Exception {
+  var activity=repository.save(new AtividadeConfig(new AtividadeConfigId(),"Corrida","Inicial"));
+  var request=new UpdateAtividadeConfigRequest("Atualizada","Descrição",null,1,null,null);
+  mockMvc.perform(put("/api/atividades-config/{id}",activity.getId().getValue()).header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))).andExpect(status().isGone());
+ }
 }

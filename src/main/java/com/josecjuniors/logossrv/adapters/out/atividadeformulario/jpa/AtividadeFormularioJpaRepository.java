@@ -25,5 +25,10 @@ public interface AtividadeFormularioJpaRepository extends AtividadeFormularioRep
     Optional<AtividadeFormulario> findByAtividadeConfigIdForUpdate(@Param("atividadeConfigId") AtividadeConfigId atividadeConfigId);
 
     @Override
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("delete from AtividadeFormulario f where f.atividadeConfig.id = :atividadeConfigId")
+    void deleteByAtividadeConfigId(@Param("atividadeConfigId") AtividadeConfigId atividadeConfigId);
+
+    @Override
     void deleteAll(); // Adicionado
 }

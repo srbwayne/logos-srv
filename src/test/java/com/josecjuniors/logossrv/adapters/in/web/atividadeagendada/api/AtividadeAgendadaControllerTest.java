@@ -76,7 +76,7 @@ class AtividadeAgendadaControllerTest {
         testJogador = new Jogador(JogadorId.generate(), testAppUser, "Testador");
         testJogador.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), testJogador));
         jogadorRepository.save(testJogador);
-        testAtividadeConfig = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Trabalho", null, 0, 0, null, null));
+testAtividadeConfig = atividadeConfigRepository.save(new AtividadeConfig(new AtividadeConfigId(), "Trabalho", null));
     }
 
     @Test

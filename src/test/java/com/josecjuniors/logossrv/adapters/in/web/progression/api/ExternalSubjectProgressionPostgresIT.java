@@ -67,7 +67,7 @@ class ExternalSubjectProgressionPostgresIT {
         identityRepository.saveAndFlush(new ProgressionSubjectIdentity(
                 UUID.randomUUID(), "experiment", "subject-001", jogador));
         var config = configRepository.save(new AtividadeConfig(
-                new AtividadeConfigId(), "External HTTP", "fixture", 10, 0, null, null));
+                new AtividadeConfigId(), "External HTTP", "fixture"));
         configurationId = config.getId().getValue();
         token = jwtService.generateToken(user);
     }

@@ -10,6 +10,7 @@ import java.util.Optional;
 public interface AtividadeConfigRepository {
     AtividadeConfig save(AtividadeConfig atividade);
     Optional<AtividadeConfig> findById(AtividadeConfigId id);
+    Optional<AtividadeConfig> findByIdForUpdate(AtividadeConfigId id);
     Page<AtividadeConfig> findByNomeContainingIgnoreCase(String nome, Pageable pageable);
     boolean existsByNome(String nome);
     boolean existsByNomeAndIdNot(String nome, AtividadeConfigId id);

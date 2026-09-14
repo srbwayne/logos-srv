@@ -38,7 +38,7 @@ class AtividadeFormularioServiceTest {
     @Test
     void replacesFormWithFactThatHasNoXpRuleAndKeepsCallerPlaceholder() {
         AtividadeConfig atividade = atividadeRepository.save(new AtividadeConfig(
-                new AtividadeConfigId(), "Corrida", "Rua", 100, 10, null, null));
+                new AtividadeConfigId(), "Corrida", "Rua"));
         FatorCalculo distancia = fatorRepository.save(new FatorCalculo(
                 FatorCalculoId.generate(), "Distância", "km", TipoInput.NUMERICO));
 
@@ -57,7 +57,7 @@ class AtividadeFormularioServiceTest {
     @Test
     void staleReplacementIsRejectedAndPersistedFormIsUnchanged() {
         AtividadeConfig atividade = atividadeRepository.save(new AtividadeConfig(
-                new AtividadeConfigId(), "Foco", null, 10, 1, null, null));
+                new AtividadeConfigId(), "Foco", null));
         FatorCalculo minutos = fatorRepository.save(new FatorCalculo(
                 FatorCalculoId.generate(), "Minutos", "min", TipoInput.NUMERICO));
         service.replace(new ReplaceAtividadeFormularioCommand(atividade.getId(), 0,

@@ -9,5 +9,6 @@ public interface AtividadeFormularioRepository {
     AtividadeFormulario save(AtividadeFormulario formulario);
     Optional<AtividadeFormulario> findByAtividadeConfigId(AtividadeConfigId atividadeConfigId);
     Optional<AtividadeFormulario> findByAtividadeConfigIdForUpdate(AtividadeConfigId atividadeConfigId);
-    void deleteAll(); // Adicionado
+    void deleteByAtividadeConfigId(AtividadeConfigId atividadeConfigId);
+    void deleteAll();
 }
