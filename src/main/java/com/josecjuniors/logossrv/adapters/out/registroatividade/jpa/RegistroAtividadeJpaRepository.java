@@ -23,10 +23,7 @@ public interface RegistroAtividadeJpaRepository extends RegistroAtividadeReposit
     @Query("SELECT r FROM RegistroAtividade r " +
            "LEFT JOIN FETCH r.detalhes d " +
            "LEFT JOIN FETCH d.fatorCalculo " +
-           "LEFT JOIN FETCH r.atividadeConfig ac " +
-           "LEFT JOIN FETCH ac.regrasDistribuicao rd " +
-           "LEFT JOIN FETCH rd.regraFatorXPS rfx " +
-           "LEFT JOIN FETCH rd.regraFatorEstresses rfe " +
+           "LEFT JOIN FETCH r.atividadeConfig " +
            "WHERE r.id = :id")
     Optional<RegistroAtividade> findByIdWithDetails(@Param("id") RegistroAtividadeId id);
 
