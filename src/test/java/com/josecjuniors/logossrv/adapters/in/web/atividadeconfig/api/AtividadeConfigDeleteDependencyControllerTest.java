@@ -24,6 +24,7 @@ import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.persistence.EntityManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -59,6 +60,8 @@ class AtividadeConfigDeleteDependencyControllerTest {
     private JwtService jwtService;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private EntityManager entityManager;
 
     private String token;
 
@@ -75,6 +78,7 @@ class AtividadeConfigDeleteDependencyControllerTest {
     void modernProgressionDefinition_blocksDeleteAndPreservesBinding() throws Exception {
         AtividadeConfig activity = activityRepository.save(new AtividadeConfig(
                 new AtividadeConfigId(), "Definition guarded", "Activity"));
+        entityManager.flush();
         UUID definitionId = UUID.randomUUID();
         jdbc.update("INSERT INTO progression_configuration_definition "
                         + "(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
@@ -127,6 +131,7 @@ class AtividadeConfigDeleteDependencyControllerTest {
                 new AtividadeConfigId(), "Legacy guard", "Activity"));
         Atributo attribute = attributeRepository.save(new Atributo(
                 new AtributoId(), "attribute-" + UUID.randomUUID(), "Test attribute"));
+        entityManager.flush();
         UUID ruleId = UUID.randomUUID();
         jdbc.update("INSERT INTO regra_distribuicao_atividade "
                         + "(id, atividade_config_id, atributo_id, peso_percentual) VALUES (?, ?, ?, ?)",
