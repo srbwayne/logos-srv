@@ -20,6 +20,7 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import java.util.UUID;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,14 +30,24 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @IntegrationTest
 class AtividadeConfigControllerTest {
-  @Autowired private MockMvc mockMvc;
-  @Autowired private ObjectMapper objectMapper;
-  @Autowired private AtividadeConfigRepository repository;
-  @Autowired private AtividadeFormularioRepository formularioRepository;
-  @Autowired private FatorCalculoRepository fatorCalculoRepository;
-  @Autowired private AppUserJpaRepository users;
-  @Autowired private PasswordEncoder passwordEncoder;
-  @Autowired private JwtService jwtService;
+  @Autowired
+  private MockMvc mockMvc;
+  @Autowired
+  private ObjectMapper objectMapper;
+  @Autowired
+  private AtividadeConfigRepository repository;
+  @Autowired
+  private AtividadeFormularioRepository formularioRepository;
+  @Autowired
+  private FatorCalculoRepository fatorCalculoRepository;
+  @Autowired
+  private EntityManager entityManager;
+  @Autowired
+  private AppUserJpaRepository users;
+  @Autowired
+  private PasswordEncoder passwordEncoder;
+  @Autowired
+  private JwtService jwtService;
   private String token;
 
   @BeforeEach
@@ -293,6 +304,7 @@ class AtividadeConfigControllerTest {
                 "Páginas " + UUID.randomUUID(),
                 "páginas",
                 TipoInput.NUMERICO));
+    entityManager.flush();
 
     String authoredForm =
         "{\"expectedVersion\":1,\"campos\":[{\"fatorCalculoId\":\""
@@ -329,6 +341,6 @@ class AtividadeConfigControllerTest {
         .andExpect(
             jsonPath("$.campos[0].fatorCalculoId").value(factor.getId().getValue().toString()))
         .andExpect(jsonPath("$.campos[0].placeholder").value("Páginas lidas"))
-        .andExpect(jsonPath("$.campos[0].obrigatorio").value(false));
+        .andExpect(jsonPath("$.campos[0].obrigatorio").value(true));
   }
 }
