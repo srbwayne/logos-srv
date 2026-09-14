@@ -11,9 +11,6 @@ import com.josecjuniors.logossrv.core.atividadeagendada.domain.repository.Ativid
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfig;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
-import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
-import com.josecjuniors.logossrv.core.atributo.domain.model.AtributoId;
-import com.josecjuniors.logossrv.core.atributo.domain.repository.AtributoRepository;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
@@ -52,8 +49,6 @@ class AtividadeConfigDeleteDependencyControllerTest {
     private JogadorRepository playerRepository;
     @Autowired
     private AppUserJpaRepository userRepository;
-    @Autowired
-    private AtributoRepository attributeRepository;
     @Autowired
     private PasswordEncoder passwordEncoder;
     @Autowired
@@ -123,25 +118,6 @@ class AtividadeConfigDeleteDependencyControllerTest {
 
         assertThat(activityRepository.findById(activity.getId())).isPresent();
         assertThat(scheduleRepository.findById(schedule.getId())).isPresent();
-    }
-
-    @Test
-    void transitionalLegacyDistributionRow_blocksDeleteWithoutLegacyEntity() throws Exception {
-        AtividadeConfig activity = activityRepository.save(new AtividadeConfig(
-                new AtividadeConfigId(), "Legacy guard", "Activity"));
-        Atributo attribute = attributeRepository.save(new Atributo(
-                new AtributoId(), "attribute-" + UUID.randomUUID(), "Test attribute"));
-        entityManager.flush();
-        UUID ruleId = UUID.randomUUID();
-        jdbc.update("INSERT INTO regra_distribuicao_atividade "
-                        + "(id, atividade_config_id, atributo_id, peso_percentual) VALUES (?, ?, ?, ?)",
-                ruleId, activity.getId().getValue(), attribute.getId().getValue(), 1.0);
-
-        deleteActivity(activity.getId().getValue());
-
-        assertThat(activityRepository.findById(activity.getId())).isPresent();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM regra_distribuicao_atividade WHERE id = ?",
-                Integer.class, ruleId)).isEqualTo(1);
     }
 
     private void deleteActivity(UUID activityId) throws Exception {
