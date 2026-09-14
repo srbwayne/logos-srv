@@ -37,10 +37,6 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfig
 import com.josecjuniors.logossrv.core.progression.domain.model.FactKeyGeneration;
 import com.josecjuniors.logossrv.core.progression.domain.model.ResolvedProgressionConfiguration;
 import com.josecjuniors.logossrv.core.progression.domain.model.XpCalculationMode;
-import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXP;
-import com.josecjuniors.logossrv.core.regrafatorxp.domain.model.RegraFatorXPId;
-import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividade;
-import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.model.RegraDistribuicaoAtividadeId;
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividade;
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividadeId;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
@@ -613,10 +609,7 @@ class ActivityProgressionAdapterPostgresIT {
                 UUID.randomUUID(), jogador.getId().getValue(), learning.getId().getValue());
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO,
                 "pages_" + UUID.randomUUID().toString().replace("-", "")));
-        var config = new AtividadeConfig(new AtividadeConfigId(), "activity-" + UUID.randomUUID(), "fixture", 1, 0, null, null);
-        var distribution = new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), config, learning, 1.0);
-        distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
-        config.adicionarRegraDistribuicao(distribution);
+        var config = new AtividadeConfig(new AtividadeConfigId(), "activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
         entityManager.flush();
         UUID definition = UUID.randomUUID();
@@ -650,10 +643,7 @@ class ActivityProgressionAdapterPostgresIT {
         jdbc.update("INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual) VALUES (?, ?, ?, 0, 1)",
                 UUID.randomUUID(), jogador.getId().getValue(), learning.getId().getValue());
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "legacy-pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO));
-        var config = new AtividadeConfig(new AtividadeConfigId(), "legacy-activity-" + UUID.randomUUID(), "fixture", 1, 0, null, null);
-        var distribution = new RegraDistribuicaoAtividade(new RegraDistribuicaoAtividadeId(), config, learning, 1.0);
-        distribution.adicionarRegraFatorXPS(new RegraFatorXP(new RegraFatorXPId(), distribution, factor, 1.0, 0.0, null));
-        config.adicionarRegraDistribuicao(distribution);
+        var config = new AtividadeConfig(new AtividadeConfigId(), "legacy-activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
         entityManager.flush();
         UUID definition = UUID.randomUUID();

@@ -62,7 +62,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 encoder.encode("password")));
         var jogador = jogadores.save(new Jogador(JogadorId.generate(), user, "tx1-unconfigured-player-" + UUID.randomUUID()));
         var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-unconfigured-" + UUID.randomUUID(),
-                "fixture", null, null, null, null));
+                "fixture"));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-unconfigured-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_unconfigured_pages_" + UUID.randomUUID().toString().replace("-", "")));
 
@@ -85,7 +85,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 encoder.encode("password")));
         var jogador = jogadores.save(new Jogador(JogadorId.generate(), user, "tx1-player-" + UUID.randomUUID()));
         var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-" + UUID.randomUUID(),
-                "fixture", 1, 0, null, null));
+                "fixture"));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_pages_" + UUID.randomUUID().toString().replace("-", "")));
         activate(config, factor);
@@ -118,7 +118,7 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 encoder.encode("password")));
         jogadores.save(new Jogador(JogadorId.generate(), user, "tx1-success-player-" + UUID.randomUUID()));
         var config = configs.save(new AtividadeConfig(new AtividadeConfigId(), "tx1-success-" + UUID.randomUUID(),
-                "fixture", 1, 0, null, null));
+                "fixture"));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-success-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_success_pages_" + UUID.randomUUID().toString().replace("-", "")));
         activate(config, factor);

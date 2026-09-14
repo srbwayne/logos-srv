@@ -65,7 +65,7 @@ class VersionedProgressionControllerPostgresIT {
         player.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), player));
         jogadores.saveAndFlush(player);
         identities.saveAndFlush(new ProgressionSubjectIdentity(java.util.UUID.randomUUID(), "experiment", "versioned-player", player));
-        var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Versioned", "fixture", 10, 0, null, null));
+var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Versioned", "fixture"));
         resolver.resolve(new ProgressionConfigurationReference(config.getId().getValue()));
         key = "legacy:" + config.getId().getValue();
         token = jwt.generateToken(user);

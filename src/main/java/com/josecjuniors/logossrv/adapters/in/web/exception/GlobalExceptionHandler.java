@@ -4,6 +4,7 @@ import com.josecjuniors.logossrv.core.appuser.domain.exception.EmailJaCadastrado
 import com.josecjuniors.logossrv.core.atividadeagendada.domain.exception.AtividadeAgendadaNaoEncontradaException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigJaExisteException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigNaoEncontradaException;
+import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigEmUsoException;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigComHistoricoProgressaoException;
 import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioConflitoException;
@@ -125,6 +126,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AtividadeConfigNaoEncontradaException.class)
     public ResponseEntity<Map<String, String>> handleAtividadeConfigNaoEncontrada(AtividadeConfigNaoEncontradaException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(AtividadeConfigEmUsoException.class)
+    public ResponseEntity<Map<String, String>> handleAtividadeConfigEmUso(AtividadeConfigEmUsoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(FatorCalculoJaExisteException.class)

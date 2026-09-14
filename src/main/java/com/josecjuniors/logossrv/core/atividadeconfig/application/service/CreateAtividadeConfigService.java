@@ -34,8 +34,7 @@ public class CreateAtividadeConfigService implements CreateAtividadeConfigUseCas
         AtividadeConfig novaAtividade = new AtividadeConfig(
                 new AtividadeConfigId(),
                 command.nome(),
-                command.descricao(),
-                null, null, null, null
+                command.descricao()
         );
         AtividadeConfig atividadeSalva = repository.save(novaAtividade);
 

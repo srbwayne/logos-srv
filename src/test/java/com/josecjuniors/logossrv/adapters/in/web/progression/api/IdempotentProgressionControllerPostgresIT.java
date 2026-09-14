@@ -91,7 +91,7 @@ class IdempotentProgressionControllerPostgresIT {
                 VALUES (?, ?, ?, 0, 1)
                 """, UUID.randomUUID(), jogadorId, learningId);
         identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "user-1", player));
-        var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Reading", "fixture", 10, 0, null, null));
+var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Reading", "fixture"));
         resolver.resolve(new ProgressionConfigurationReference(config.getId().getValue()));
         configurationKey = "legacy:" + config.getId().getValue();
         token = jwt.generateToken(user);
