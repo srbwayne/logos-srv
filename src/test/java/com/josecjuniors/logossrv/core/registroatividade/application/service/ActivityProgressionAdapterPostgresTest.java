@@ -41,17 +41,20 @@ import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAti
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividadeId;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import jakarta.persistence.EntityManager;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.Set;
@@ -66,8 +69,14 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 
 @IntegrationTest
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class ActivityProgressionAdapterPostgresIT {
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class ActivityProgressionAdapterPostgresTest {
+    private final Set<UUID> createdSkillIds = new HashSet<>();
+    private final Set<UUID> createdAttributeIds = new HashSet<>();
+    private final Set<UUID> createdFactorIds = new HashSet<>();
+
     @Autowired AppUserJpaRepository users;
     @Autowired JogadorRepository jogadores;
     @Autowired AtributoJpaRepository atributos;
@@ -82,12 +91,89 @@ class ActivityProgressionAdapterPostgresIT {
     @Autowired CreateRegistroAtividadeService creator;
     @SpyBean ConfiguredStatefulProgressionApplicationService progression;
     @Autowired JdbcTemplate jdbc;
-    @Autowired EntityManager entityManager;
     @Autowired PasswordEncoder encoder;
 
     @BeforeEach
     void isolateExecutions() {
         executions.deleteAll();
+    }
+
+    @AfterAll
+    void removeFixturesCreatedByThisTestClass() {
+        jdbc.update("DELETE FROM registro_atividade_detalhe WHERE registro_atividade_id IN "
+                + "(SELECT r.id FROM registro_atividade r JOIN atividade_config c "
+                + "ON c.id = r.atividade_config_id WHERE c.nome LIKE 'activity-%' "
+                + "OR c.nome LIKE 'legacy-activity-%')");
+        jdbc.update("DELETE FROM progression_external_execution WHERE source_system = ?",
+                ActivityProgressionAdapter.SOURCE);
+        jdbc.update("DELETE FROM registro_atividade WHERE atividade_config_id IN "
+                + "(SELECT id FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%')");
+        jdbc.update("DELETE FROM atividade_formulario WHERE atividade_config_id IN "
+                + "(SELECT id FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%')");
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = NULL "
+                + "WHERE legacy_atividade_config_id IN (SELECT id FROM atividade_config WHERE "
+                + "nome LIKE 'activity-%' OR nome LIKE 'legacy-activity-%')");
+        jdbc.update("DELETE FROM progression_configuration_version_xp_rule WHERE distribution_id IN "
+                + "(SELECT d.id FROM progression_configuration_version_distribution d "
+                + "JOIN progression_configuration_version v ON v.id = d.configuration_version_id "
+                + "JOIN progression_configuration_definition p ON p.id = v.definition_id "
+                + "WHERE p.legacy_atividade_config_id IN (SELECT id FROM atividade_config WHERE "
+                + "nome LIKE 'activity-%' OR nome LIKE 'legacy-activity-%'))");
+        jdbc.update("DELETE FROM progression_configuration_version_factor WHERE configuration_version_id IN "
+                + "(SELECT v.id FROM progression_configuration_version v "
+                + "JOIN progression_configuration_definition p ON p.id = v.definition_id "
+                + "WHERE p.legacy_atividade_config_id IN (SELECT id FROM atividade_config WHERE "
+                + "nome LIKE 'activity-%' OR nome LIKE 'legacy-activity-%'))");
+        jdbc.update("DELETE FROM progression_configuration_version_distribution WHERE configuration_version_id IN "
+                + "(SELECT v.id FROM progression_configuration_version v "
+                + "JOIN progression_configuration_definition p ON p.id = v.definition_id "
+                + "WHERE p.legacy_atividade_config_id IN (SELECT id FROM atividade_config WHERE "
+                + "nome LIKE 'activity-%' OR nome LIKE 'legacy-activity-%'))");
+        jdbc.update("DELETE FROM progression_configuration_version WHERE definition_id IN "
+                + "(SELECT id FROM progression_configuration_definition WHERE legacy_atividade_config_id IN "
+                + "(SELECT id FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%'))");
+        jdbc.update("DELETE FROM progression_configuration_definition WHERE legacy_atividade_config_id IN "
+                + "(SELECT id FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%')");
+        jdbc.update("DELETE FROM debuff_jogador WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM registro_vicio WHERE vicio_jogador_id IN "
+                + "(SELECT vj.id FROM vicio_jogador vj JOIN jogador j ON j.id = vj.jogador_id "
+                + "JOIN app_user u ON u.id = j.user_id WHERE u.email LIKE 'activity-%@test' "
+                + "OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM vicio_jogador WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM habilidade_jogador WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        for (UUID skillId : createdSkillIds) {
+            jdbc.update("DELETE FROM habilidade_jogador WHERE habilidade_id = ?", skillId);
+            jdbc.update("DELETE FROM habilidade WHERE id = ?", skillId);
+        }
+        jdbc.update("DELETE FROM atributo_jogador WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        for (UUID attributeId : createdAttributeIds) {
+            jdbc.update("DELETE FROM atributo_jogador WHERE atributo_id = ?", attributeId);
+            jdbc.update("DELETE FROM atributo WHERE id = ?", attributeId);
+        }
+        for (UUID factorId : createdFactorIds) {
+            jdbc.update("DELETE FROM fator_calculo WHERE id = ?", factorId);
+        }
+        jdbc.update("DELETE FROM estresse_global WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%'");
+        jdbc.update("DELETE FROM jogador WHERE user_id IN (SELECT id FROM app_user WHERE "
+                + "email LIKE 'activity-%@test' OR email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM app_user WHERE email LIKE 'activity-%@test' "
+                + "OR email LIKE 'legacy-activity-%@test'");
     }
 
     @Test
@@ -164,15 +250,6 @@ class ActivityProgressionAdapterPostgresIT {
                 + "WHERE d.configuration_version_id = ?", String.class, fixture.resolved().configurationVersionId()))
                 .isEqualTo(legacyKey);
 
-        jdbc.update("DELETE FROM regra_fator_xp WHERE regra_distribuicao_atividade_id IN "
-                + "(SELECT id FROM regra_distribuicao_atividade WHERE atividade_config_id = ?)",
-                fixture.config().getId().getValue());
-        jdbc.update("DELETE FROM regra_distribuicao_atividade WHERE atividade_config_id = ?",
-                fixture.config().getId().getValue());
-        jdbc.update("UPDATE atividade_config SET xp_base = NULL, estresse_base = NULL, "
-                + "dias_para_penalidade = NULL, xp_perda_por_ciclo = NULL WHERE id = ?",
-                fixture.config().getId().getValue());
-
         String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
         creator.create(new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
                 LocalDateTime.now().minusHours(1), LocalDateTime.now(),
@@ -190,6 +267,7 @@ class ActivityProgressionAdapterPostgresIT {
     void modernSemanticExecutionRejectsUnrepresentedLegacyNumericFactWithoutPersistingIncompleteIntent() {
         var fixture = fixture();
         var legacyFactor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "legacy-" + UUID.randomUUID(), "un", TipoInput.NUMERICO));
+        createdFactorIds.add(legacyFactor.getId().getValue());
         String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
         var command = new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
                 LocalDateTime.now().minusHours(1), LocalDateTime.now(),
@@ -397,6 +475,7 @@ class ActivityProgressionAdapterPostgresIT {
         var fixture = fixture();
         var secondFactor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "minutes-" + UUID.randomUUID(), "minutes", TipoInput.NUMERICO,
                 "minutes_" + UUID.randomUUID().toString().replace("-", "")));
+        createdFactorIds.add(secondFactor.getId().getValue());
         var attributeKey = attributeKey(fixture);
         var configuration = new ProgressionConfiguration(10, 0,
                 List.of(new ProgressionConfiguration.AttributeDistribution(attributeKey, 1,
@@ -522,6 +601,7 @@ class ActivityProgressionAdapterPostgresIT {
 
     private String addAttribute(Fixture fixture, String name) {
         var attribute = atributos.save(new Atributo(new AtributoId(), name + "-" + UUID.randomUUID(), ""));
+        createdAttributeIds.add(attribute.getId().getValue());
         jdbc.update("INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual) VALUES (?, (SELECT id FROM jogador WHERE user_id = ?), ?, 0, 1)",
                 UUID.randomUUID(), fixture.userId(), attribute.getId().getValue());
         return attribute.getId().getValue().toString();
@@ -529,7 +609,8 @@ class ActivityProgressionAdapterPostgresIT {
 
     private String addSkillAtLevel(Fixture fixture, int level) {
         UUID skillId = UUID.randomUUID();
-        jdbc.update("INSERT INTO habilidade (id, nome, descricao) VALUES (?, ?, ?)", skillId, "skill-" + UUID.randomUUID(), "");
+        createdSkillIds.add(skillId);
+        jdbc.update("INSERT INTO habilidade (id, nome, descricao) VALUES (?, ?, ?)", skillId, "skill-" + UUID.randomUUID(), null);
         jdbc.update("INSERT INTO habilidade_jogador (id, jogador_id, habilidade_id, nivel_atual) VALUES (?, (SELECT id FROM jogador WHERE user_id = ?), ?, ?)",
                 UUID.randomUUID(), fixture.userId(), skillId, level);
         return skillId.toString();
@@ -609,9 +690,9 @@ class ActivityProgressionAdapterPostgresIT {
                 UUID.randomUUID(), jogador.getId().getValue(), learning.getId().getValue());
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO,
                 "pages_" + UUID.randomUUID().toString().replace("-", "")));
+        createdFactorIds.add(factor.getId().getValue());
         var config = new AtividadeConfig(new AtividadeConfigId(), "activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
-        entityManager.flush();
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();
@@ -643,9 +724,9 @@ class ActivityProgressionAdapterPostgresIT {
         jdbc.update("INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual) VALUES (?, ?, ?, 0, 1)",
                 UUID.randomUUID(), jogador.getId().getValue(), learning.getId().getValue());
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "legacy-pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO));
+        createdFactorIds.add(factor.getId().getValue());
         var config = new AtividadeConfig(new AtividadeConfigId(), "legacy-activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
-        entityManager.flush();
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();
