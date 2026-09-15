@@ -41,7 +41,9 @@ import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAti
 import com.josecjuniors.logossrv.core.registroatividade.domain.model.RegistroAtividadeId;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -68,6 +70,7 @@ import static org.mockito.Mockito.verify;
 @IntegrationTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ActivityProgressionAdapterPostgresTest {
     @Autowired AppUserJpaRepository users;
     @Autowired JogadorRepository jogadores;
@@ -88,6 +91,73 @@ class ActivityProgressionAdapterPostgresTest {
     @BeforeEach
     void isolateExecutions() {
         executions.deleteAll();
+    }
+
+    @AfterAll
+    void removeFixturesCreatedByThisTestClass() {
+        jdbc.update("DELETE FROM registro_atividade_detalhe WHERE registro_atividade_id IN "
+                + "(SELECT r.id FROM registro_atividade r JOIN atividade_config c "
+                + "ON c.id = r.atividade_config_id WHERE c.nome LIKE 'activity-%' "
+                + "OR c.nome LIKE 'legacy-activity-%')");
+        jdbc.update("DELETE FROM progression_external_execution WHERE source_system = ?",
+                ActivityProgressionAdapter.SOURCE);
+        jdbc.update("DELETE FROM registro_atividade WHERE atividade_config_id IN "
+                + "(SELECT id FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%')");
+        jdbc.update("DELETE FROM atividade_formulario WHERE atividade_config_id IN "
+                + "(SELECT id FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%')");
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = NULL "
+                + "WHERE legacy_atividade_config_id IN (SELECT id FROM atividade_config WHERE "
+                + "nome LIKE 'activity-%' OR nome LIKE 'legacy-activity-%')");
+        jdbc.update("DELETE FROM progression_configuration_version_xp_rule WHERE distribution_id IN "
+                + "(SELECT d.id FROM progression_configuration_version_distribution d "
+                + "JOIN progression_configuration_version v ON v.id = d.configuration_version_id "
+                + "JOIN progression_configuration_definition p ON p.id = v.definition_id "
+                + "WHERE p.legacy_atividade_config_id IN (SELECT id FROM atividade_config WHERE "
+                + "nome LIKE 'activity-%' OR nome LIKE 'legacy-activity-%'))");
+        jdbc.update("DELETE FROM progression_configuration_version_factor WHERE configuration_version_id IN "
+                + "(SELECT v.id FROM progression_configuration_version v "
+                + "JOIN progression_configuration_definition p ON p.id = v.definition_id "
+                + "WHERE p.legacy_atividade_config_id IN (SELECT id FROM atividade_config WHERE "
+                + "nome LIKE 'activity-%' OR nome LIKE 'legacy-activity-%'))");
+        jdbc.update("DELETE FROM progression_configuration_version_distribution WHERE configuration_version_id IN "
+                + "(SELECT v.id FROM progression_configuration_version v "
+                + "JOIN progression_configuration_definition p ON p.id = v.definition_id "
+                + "WHERE p.legacy_atividade_config_id IN (SELECT id FROM atividade_config WHERE "
+                + "nome LIKE 'activity-%' OR nome LIKE 'legacy-activity-%'))");
+        jdbc.update("DELETE FROM progression_configuration_version WHERE definition_id IN "
+                + "(SELECT id FROM progression_configuration_definition WHERE legacy_atividade_config_id IN "
+                + "(SELECT id FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%'))");
+        jdbc.update("DELETE FROM progression_configuration_definition WHERE legacy_atividade_config_id IN "
+                + "(SELECT id FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%')");
+        jdbc.update("DELETE FROM debuff_jogador WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM registro_vicio WHERE vicio_jogador_id IN "
+                + "(SELECT vj.id FROM vicio_jogador vj JOIN jogador j ON j.id = vj.jogador_id "
+                + "JOIN app_user u ON u.id = j.user_id WHERE u.email LIKE 'activity-%@test' "
+                + "OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM vicio_jogador WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM habilidade_jogador WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM atributo_jogador WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM estresse_global WHERE jogador_id IN "
+                + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
+                + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM atividade_config WHERE nome LIKE 'activity-%' "
+                + "OR nome LIKE 'legacy-activity-%'");
+        jdbc.update("DELETE FROM jogador WHERE user_id IN (SELECT id FROM app_user WHERE "
+                + "email LIKE 'activity-%@test' OR email LIKE 'legacy-activity-%@test')");
+        jdbc.update("DELETE FROM app_user WHERE email LIKE 'activity-%@test' "
+                + "OR email LIKE 'legacy-activity-%@test'");
     }
 
     @Test
