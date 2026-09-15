@@ -54,6 +54,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.Set;
@@ -72,6 +73,10 @@ import static org.mockito.Mockito.verify;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ActivityProgressionAdapterPostgresTest {
+    private final Set<UUID> createdSkillIds = new HashSet<>();
+    private final Set<UUID> createdAttributeIds = new HashSet<>();
+    private final Set<UUID> createdFactorIds = new HashSet<>();
+
     @Autowired AppUserJpaRepository users;
     @Autowired JogadorRepository jogadores;
     @Autowired AtributoJpaRepository atributos;
@@ -146,9 +151,20 @@ class ActivityProgressionAdapterPostgresTest {
         jdbc.update("DELETE FROM habilidade_jogador WHERE jogador_id IN "
                 + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
                 + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        for (UUID skillId : createdSkillIds) {
+            jdbc.update("DELETE FROM habilidade_jogador WHERE habilidade_id = ?", skillId);
+            jdbc.update("DELETE FROM habilidade WHERE id = ?", skillId);
+        }
         jdbc.update("DELETE FROM atributo_jogador WHERE jogador_id IN "
                 + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
                 + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
+        for (UUID attributeId : createdAttributeIds) {
+            jdbc.update("DELETE FROM atributo_jogador WHERE atributo_id = ?", attributeId);
+            jdbc.update("DELETE FROM atributo WHERE id = ?", attributeId);
+        }
+        for (UUID factorId : createdFactorIds) {
+            jdbc.update("DELETE FROM fator_calculo WHERE id = ?", factorId);
+        }
         jdbc.update("DELETE FROM estresse_global WHERE jogador_id IN "
                 + "(SELECT j.id FROM jogador j JOIN app_user u ON u.id = j.user_id "
                 + "WHERE u.email LIKE 'activity-%@test' OR u.email LIKE 'legacy-activity-%@test')");
@@ -251,6 +267,7 @@ class ActivityProgressionAdapterPostgresTest {
     void modernSemanticExecutionRejectsUnrepresentedLegacyNumericFactWithoutPersistingIncompleteIntent() {
         var fixture = fixture();
         var legacyFactor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "legacy-" + UUID.randomUUID(), "un", TipoInput.NUMERICO));
+        createdFactorIds.add(legacyFactor.getId().getValue());
         String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
         var command = new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
                 LocalDateTime.now().minusHours(1), LocalDateTime.now(),
@@ -458,6 +475,7 @@ class ActivityProgressionAdapterPostgresTest {
         var fixture = fixture();
         var secondFactor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "minutes-" + UUID.randomUUID(), "minutes", TipoInput.NUMERICO,
                 "minutes_" + UUID.randomUUID().toString().replace("-", "")));
+        createdFactorIds.add(secondFactor.getId().getValue());
         var attributeKey = attributeKey(fixture);
         var configuration = new ProgressionConfiguration(10, 0,
                 List.of(new ProgressionConfiguration.AttributeDistribution(attributeKey, 1,
@@ -583,6 +601,7 @@ class ActivityProgressionAdapterPostgresTest {
 
     private String addAttribute(Fixture fixture, String name) {
         var attribute = atributos.save(new Atributo(new AtributoId(), name + "-" + UUID.randomUUID(), ""));
+        createdAttributeIds.add(attribute.getId().getValue());
         jdbc.update("INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual) VALUES (?, (SELECT id FROM jogador WHERE user_id = ?), ?, 0, 1)",
                 UUID.randomUUID(), fixture.userId(), attribute.getId().getValue());
         return attribute.getId().getValue().toString();
@@ -590,7 +609,8 @@ class ActivityProgressionAdapterPostgresTest {
 
     private String addSkillAtLevel(Fixture fixture, int level) {
         UUID skillId = UUID.randomUUID();
-        jdbc.update("INSERT INTO habilidade (id, nome, descricao) VALUES (?, ?, ?)", skillId, "skill-" + UUID.randomUUID(), "");
+        createdSkillIds.add(skillId);
+        jdbc.update("INSERT INTO habilidade (id, nome, descricao) VALUES (?, ?, ?)", skillId, "skill-" + UUID.randomUUID(), null);
         jdbc.update("INSERT INTO habilidade_jogador (id, jogador_id, habilidade_id, nivel_atual) VALUES (?, (SELECT id FROM jogador WHERE user_id = ?), ?, ?)",
                 UUID.randomUUID(), fixture.userId(), skillId, level);
         return skillId.toString();
@@ -670,6 +690,7 @@ class ActivityProgressionAdapterPostgresTest {
                 UUID.randomUUID(), jogador.getId().getValue(), learning.getId().getValue());
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO,
                 "pages_" + UUID.randomUUID().toString().replace("-", "")));
+        createdFactorIds.add(factor.getId().getValue());
         var config = new AtividadeConfig(new AtividadeConfigId(), "activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
         UUID definition = UUID.randomUUID();
@@ -703,6 +724,7 @@ class ActivityProgressionAdapterPostgresTest {
         jdbc.update("INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual) VALUES (?, ?, ?, 0, 1)",
                 UUID.randomUUID(), jogador.getId().getValue(), learning.getId().getValue());
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "legacy-pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO));
+        createdFactorIds.add(factor.getId().getValue());
         var config = new AtividadeConfig(new AtividadeConfigId(), "legacy-activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
         UUID definition = UUID.randomUUID();
