@@ -46,7 +46,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import jakarta.persistence.EntityManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,7 +66,7 @@ import static org.mockito.Mockito.verify;
 
 @IntegrationTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class ActivityProgressionAdapterPostgresIT {
+class ActivityProgressionAdapterPostgresTest {
     @Autowired AppUserJpaRepository users;
     @Autowired JogadorRepository jogadores;
     @Autowired AtributoJpaRepository atributos;
@@ -82,7 +81,6 @@ class ActivityProgressionAdapterPostgresIT {
     @Autowired CreateRegistroAtividadeService creator;
     @SpyBean ConfiguredStatefulProgressionApplicationService progression;
     @Autowired JdbcTemplate jdbc;
-    @Autowired EntityManager entityManager;
     @Autowired PasswordEncoder encoder;
 
     @BeforeEach
@@ -163,15 +161,6 @@ class ActivityProgressionAdapterPostgresIT {
                 + "JOIN progression_configuration_version_distribution d ON d.id = r.distribution_id "
                 + "WHERE d.configuration_version_id = ?", String.class, fixture.resolved().configurationVersionId()))
                 .isEqualTo(legacyKey);
-
-        jdbc.update("DELETE FROM regra_fator_xp WHERE regra_distribuicao_atividade_id IN "
-                + "(SELECT id FROM regra_distribuicao_atividade WHERE atividade_config_id = ?)",
-                fixture.config().getId().getValue());
-        jdbc.update("DELETE FROM regra_distribuicao_atividade WHERE atividade_config_id = ?",
-                fixture.config().getId().getValue());
-        jdbc.update("UPDATE atividade_config SET xp_base = NULL, estresse_base = NULL, "
-                + "dias_para_penalidade = NULL, xp_perda_por_ciclo = NULL WHERE id = ?",
-                fixture.config().getId().getValue());
 
         String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
         creator.create(new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
@@ -611,7 +600,6 @@ class ActivityProgressionAdapterPostgresIT {
                 "pages_" + UUID.randomUUID().toString().replace("-", "")));
         var config = new AtividadeConfig(new AtividadeConfigId(), "activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
-        entityManager.flush();
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();
@@ -645,7 +633,6 @@ class ActivityProgressionAdapterPostgresIT {
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "legacy-pages-" + UUID.randomUUID(), "pages", TipoInput.NUMERICO));
         var config = new AtividadeConfig(new AtividadeConfigId(), "legacy-activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
-        entityManager.flush();
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();
