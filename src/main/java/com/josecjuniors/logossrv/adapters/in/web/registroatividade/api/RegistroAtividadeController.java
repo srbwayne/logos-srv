@@ -3,6 +3,7 @@ package com.josecjuniors.logossrv.adapters.in.web.registroatividade.api;
 import com.josecjuniors.logossrv.adapters.in.web.registroatividade.dto.request.CreateRegistroAtividadeRequest;
 import com.josecjuniors.logossrv.core.registroatividade.application.port.in.CreateRegistroAtividadeCommand;
 import com.josecjuniors.logossrv.core.registroatividade.application.port.in.CreateRegistroAtividadeUseCase;
+import com.josecjuniors.logossrv.core.registroatividade.application.port.in.RegistroAtividadeDetalheCommand;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,7 +35,10 @@ public class RegistroAtividadeController {
                 request.atividadeConfigId(),
                 request.dataHoraInicio(),
                 request.dataHoraFim(),
-                request.detalhes()
+                request.formVersion(),
+                request.detalhes() == null ? null : request.detalhes().stream()
+                        .map(detalhe -> new RegistroAtividadeDetalheCommand(detalhe.fatorCalculoId(), detalhe.valor()))
+                        .toList()
         );
 
         createUseCase.create(command);
