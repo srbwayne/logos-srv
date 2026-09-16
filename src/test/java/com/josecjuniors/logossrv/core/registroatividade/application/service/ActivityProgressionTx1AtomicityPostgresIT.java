@@ -7,6 +7,11 @@ import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConf
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.model.AtividadeConfigId;
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.repository.AtividadeConfigRepository;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.TipoInput;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormulario;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormularioId;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.AtividadeFormularioJson;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.CampoFormularioJson;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.repository.AtividadeFormularioRepository;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
@@ -17,7 +22,7 @@ import com.josecjuniors.logossrv.core.progression.application.port.out.ActivityP
 import com.josecjuniors.logossrv.core.progression.application.port.out.VersionedProgressionConfigurationResolver;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.registroatividade.application.port.in.CreateRegistroAtividadeCommand;
-import com.josecjuniors.logossrv.adapters.in.web.registroatividade.dto.request.DetalheRegistroRequest;
+import com.josecjuniors.logossrv.core.registroatividade.application.port.in.RegistroAtividadeDetalheCommand;
 import com.josecjuniors.logossrv.core.registroatividade.domain.repository.RegistroAtividadeRepository;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -25,7 +30,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import jakarta.persistence.EntityManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,12 +51,12 @@ class ActivityProgressionTx1AtomicityPostgresIT {
     @Autowired AppUserJpaRepository users;
     @Autowired JogadorRepository jogadores;
     @Autowired AtividadeConfigRepository configs;
+    @Autowired AtividadeFormularioRepository formularios;
     @Autowired FatorCalculoRepository fatores;
     @Autowired CreateRegistroAtividadeService creator;
     @Autowired VersionedProgressionConfigurationResolver resolver;
     @Autowired RegistroAtividadeRepository registros;
     @Autowired JdbcTemplate jdbc;
-    @Autowired EntityManager entityManager;
     @Autowired PasswordEncoder encoder;
     @SpyBean ActivityProgressionExecutionStore executionStore;
 
@@ -65,10 +69,11 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 "fixture"));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-unconfigured-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_unconfigured_pages_" + UUID.randomUUID().toString().replace("-", "")));
+        addForm(config, factor);
 
         var command = new CreateRegistroAtividadeCommand(user.getEmail(), config.getId().getValue(),
-                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
-                List.of(new DetalheRegistroRequest(factor.getId().getValue(), "30")));
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(), 1,
+                List.of(new RegistroAtividadeDetalheCommand(factor.getId().getValue(), "30")));
 
         assertThatThrownBy(() -> creator.create(command))
                 .isInstanceOf(com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotActiveException.class);
@@ -88,14 +93,15 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 "fixture"));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_pages_" + UUID.randomUUID().toString().replace("-", "")));
+        addForm(config, factor);
         activate(config, factor);
 
         doThrow(new IllegalStateException("controlled intent failure")).when(executionStore).create(
                 any(), anyString(), any(), any(), any(), anyString(), anyInt());
 
         var command = new CreateRegistroAtividadeCommand(user.getEmail(), config.getId().getValue(),
-                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
-                List.of(new DetalheRegistroRequest(factor.getId().getValue(), "30")));
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(), 1,
+                List.of(new RegistroAtividadeDetalheCommand(factor.getId().getValue(), "30")));
 
         try {
             assertThatThrownBy(() -> creator.create(command))
@@ -121,11 +127,12 @@ class ActivityProgressionTx1AtomicityPostgresIT {
                 "fixture"));
         var factor = fatores.save(new FatorCalculo(FatorCalculoId.generate(), "tx1-success-" + UUID.randomUUID(),
                 "pages", TipoInput.NUMERICO, "tx1_success_pages_" + UUID.randomUUID().toString().replace("-", "")));
+        addForm(config, factor);
         activate(config, factor);
 
         var command = new CreateRegistroAtividadeCommand(user.getEmail(), config.getId().getValue(),
-                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
-                List.of(new DetalheRegistroRequest(factor.getId().getValue(), "30")));
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(), 1,
+                List.of(new RegistroAtividadeDetalheCommand(factor.getId().getValue(), "30")));
 
         creator.create(command);
 
@@ -138,7 +145,6 @@ class ActivityProgressionTx1AtomicityPostgresIT {
     }
 
     private void activate(AtividadeConfig config, FatorCalculo factor) {
-        entityManager.flush();
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, legacy_atividade_config_id, current_version_id) VALUES (?, ?, ?, NULL)",
@@ -148,5 +154,11 @@ class ActivityProgressionTx1AtomicityPostgresIT {
         jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) VALUES (?, ?, ?, 'NUMERICO')",
                 UUID.randomUUID(), version, factor.getSemanticKey());
         jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?", version, definition);
+    }
+
+    private void addForm(AtividadeConfig config, FatorCalculo factor) {
+        formularios.save(new AtividadeFormulario(AtividadeFormularioId.generate(), config,
+                new AtividadeFormularioJson(config.getId().getValue(), config.getNome(), config.getDescricao(),
+                        List.of(new CampoFormularioJson(factor.getId().getValue(), factor.getNome(), factor.getUnidadeMedida(), factor.getTipoInput(), "", true)))));
     }
 }

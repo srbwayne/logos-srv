@@ -8,6 +8,7 @@ public record CreateRegistroAtividadeRequest(
         UUID atividadeConfigId,
         LocalDateTime dataHoraInicio,
         LocalDateTime dataHoraFim,
+        Integer formVersion,
         List<DetalheRegistroRequest> detalhes
 ) {
 }

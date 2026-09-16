@@ -8,6 +8,8 @@ import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.Atividade
 import com.josecjuniors.logossrv.core.atividadeconfig.domain.exception.AtividadeConfigComHistoricoProgressaoException;
 import com.josecjuniors.logossrv.core.progression.authoring.domain.exception.LegacyProgressionAuthoringRetiredException;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioConflitoException;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioConfiguracaoException;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioValidacaoException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoJaExisteException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoNaoEncontradoException;
 import com.josecjuniors.logossrv.core.debuff.domain.exception.DebuffJaExisteException;
@@ -106,6 +108,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AtividadeFormularioConflitoException.class)
     public ResponseEntity<Map<String, String>> handleAtividadeFormularioConflito(AtividadeFormularioConflitoException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(AtividadeFormularioValidacaoException.class)
+    public ResponseEntity<Map<String, String>> handleAtividadeFormularioValidacao(AtividadeFormularioValidacaoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage(), "code", ex.getCode()), HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(AtividadeFormularioConfiguracaoException.class)
+    public ResponseEntity<Map<String, String>> handleAtividadeFormularioConfiguracao(AtividadeFormularioConfiguracaoException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage(), "code", ex.getCode()), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(RegraFatorXPNaoEncontradaException.class)

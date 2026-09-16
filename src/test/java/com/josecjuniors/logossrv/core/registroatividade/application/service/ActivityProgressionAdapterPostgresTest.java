@@ -15,6 +15,11 @@ import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculo;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.model.FatorCalculoId;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.repository.FatorCalculoRepository;
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.TipoInput;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormulario;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.AtividadeFormularioId;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.AtividadeFormularioJson;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.model.json.CampoFormularioJson;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.repository.AtividadeFormularioRepository;
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
@@ -25,9 +30,9 @@ import com.josecjuniors.logossrv.core.progression.application.port.out.Versioned
 import com.josecjuniors.logossrv.core.progression.application.service.ConfiguredStatefulProgressionApplicationService;
 import com.josecjuniors.logossrv.core.progression.application.service.ProgressionExecutionFingerprint;
 import com.josecjuniors.logossrv.core.registroatividade.application.port.in.CreateRegistroAtividadeCommand;
-import com.josecjuniors.logossrv.adapters.in.web.registroatividade.dto.request.DetalheRegistroRequest;
+import com.josecjuniors.logossrv.core.registroatividade.application.port.in.RegistroAtividadeDetalheCommand;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionConflictException;
-import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionFactKeyNotRepresentedException;
+import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioValidacaoException;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
@@ -81,6 +86,7 @@ class ActivityProgressionAdapterPostgresTest {
     @Autowired JogadorRepository jogadores;
     @Autowired AtributoJpaRepository atributos;
     @Autowired AtividadeConfigRepository configs;
+    @Autowired AtividadeFormularioRepository formularios;
     @Autowired FatorCalculoRepository fatores;
     @Autowired RegistroAtividadeJpaRepository registros;
     @Autowired ProgressionExternalExecutionJpaRepository executions;
@@ -210,8 +216,8 @@ class ActivityProgressionAdapterPostgresTest {
         var fixture = fixture();
         String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
         creator.create(new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
-                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
-                List.of(new DetalheRegistroRequest(fixture.factor().getId().getValue(), "1"))));
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(), 1,
+                List.of(new RegistroAtividadeDetalheCommand(fixture.factor().getId().getValue(), "1"))));
 
         UUID activityId = jdbc.queryForObject("SELECT r.id FROM registro_atividade r "
                 + "JOIN jogador j ON j.id = r.jogador_id WHERE j.user_id = ?", UUID.class, fixture.userId());
@@ -252,8 +258,8 @@ class ActivityProgressionAdapterPostgresTest {
 
         String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
         creator.create(new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
-                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
-                List.of(new DetalheRegistroRequest(fixture.factor().getId().getValue(), "1"))));
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(), 1,
+                List.of(new RegistroAtividadeDetalheCommand(fixture.factor().getId().getValue(), "1"))));
         UUID activityId = jdbc.queryForObject("SELECT r.id FROM registro_atividade r "
                 + "JOIN jogador j ON j.id = r.jogador_id WHERE j.user_id = ?", UUID.class, fixture.userId());
         assertThat(adapter.process(activityId)).isTrue();
@@ -270,12 +276,13 @@ class ActivityProgressionAdapterPostgresTest {
         createdFactorIds.add(legacyFactor.getId().getValue());
         String email = jdbc.queryForObject("SELECT email FROM app_user WHERE id = ?", String.class, fixture.userId());
         var command = new CreateRegistroAtividadeCommand(email, fixture.config().getId().getValue(),
-                LocalDateTime.now().minusHours(1), LocalDateTime.now(),
-                List.of(new DetalheRegistroRequest(fixture.factor().getId().getValue(), "1"),
-                        new DetalheRegistroRequest(legacyFactor.getId().getValue(), "2")));
+                LocalDateTime.now().minusHours(1), LocalDateTime.now(), 1,
+                List.of(new RegistroAtividadeDetalheCommand(fixture.factor().getId().getValue(), "1"),
+                        new RegistroAtividadeDetalheCommand(legacyFactor.getId().getValue(), "2")));
 
         assertThatThrownBy(() -> creator.create(command))
-                .isInstanceOf(ProgressionFactKeyNotRepresentedException.class);
+                .isInstanceOf(AtividadeFormularioValidacaoException.class)
+                .hasMessage("submitted field is not part of the activity form");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM registro_atividade WHERE jogador_id = "
                 + "(SELECT id FROM jogador WHERE user_id = ?)", Long.class, fixture.userId())).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_external_execution WHERE subject_external_id = ?",
@@ -693,6 +700,9 @@ class ActivityProgressionAdapterPostgresTest {
         createdFactorIds.add(factor.getId().getValue());
         var config = new AtividadeConfig(new AtividadeConfigId(), "activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
+        formularios.save(new AtividadeFormulario(AtividadeFormularioId.generate(), config,
+                new AtividadeFormularioJson(config.getId().getValue(), config.getNome(), config.getDescricao(),
+                        List.of(new CampoFormularioJson(factor.getId().getValue(), factor.getNome(), factor.getUnidadeMedida(), factor.getTipoInput(), "", true)))));
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();
@@ -727,6 +737,9 @@ class ActivityProgressionAdapterPostgresTest {
         createdFactorIds.add(factor.getId().getValue());
         var config = new AtividadeConfig(new AtividadeConfigId(), "legacy-activity-" + UUID.randomUUID(), "fixture");
         configs.save(config);
+        formularios.save(new AtividadeFormulario(AtividadeFormularioId.generate(), config,
+                new AtividadeFormularioJson(config.getId().getValue(), config.getNome(), config.getDescricao(),
+                        List.of(new CampoFormularioJson(factor.getId().getValue(), factor.getNome(), factor.getUnidadeMedida(), factor.getTipoInput(), "", true)))));
         UUID definition = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID versionDistribution = UUID.randomUUID();
