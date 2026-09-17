@@ -40,25 +40,13 @@ The POST request carries the external subject in the body:
 }
 ```
 
-Example request:
+This V1 execution resource is the first supported progression HTTP contract.
+The earlier progression V1/V2/V3 evaluate routes were pre-release experiments
+and are not supported compatibility surfaces.
 
-```json
-{
-  "execution": {
-    "source": "lifeos",
-    "idempotencyKey": "reading-session-123"
-  },
-  "configuration": {
-    "key": "reading"
-  },
-  "details": [
-    { "factorKey": "pages_read", "value": 30 }
-  ]
-}
-```
-
-The V1 and V2 contracts remain unchanged. V3 does not expose internal
-configuration, subject, or skill-policy IDs.
+Compatible additions remain on V1. Flyway migration versions, internal task
+numbers, and persistence evolution do not increment the HTTP major version.
+A future V2 requires a breaking change to an already supported HTTP contract.
 
 ## Processing semantics
 
