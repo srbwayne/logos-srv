@@ -26,6 +26,8 @@ import com.josecjuniors.logossrv.core.jogador.domain.exception.VicioJogadorNaoEn
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotFoundException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionConfigurationNotActiveException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionConflictException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionNotFoundException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionReadCorruptedException;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationActivationConflictException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
@@ -203,6 +205,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ProgressionExecutionConflictException.class)
     public ResponseEntity<Map<String, String>> handleProgressionExecutionConflict(ProgressionExecutionConflictException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(ProgressionExecutionNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleProgressionExecutionNotFound(ProgressionExecutionNotFoundException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage(), "code", "PROGRESSION_EXECUTION_NOT_FOUND"), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ProgressionExecutionReadCorruptedException.class)
+    public ResponseEntity<Map<String, String>> handleProgressionExecutionReadCorrupted(ProgressionExecutionReadCorruptedException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage(), "code", "PROGRESSION_EXECUTION_READ_CORRUPTED"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(ProgressionConfigurationAuthoringConflictException.class)
