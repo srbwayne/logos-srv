@@ -1,4 +1,7 @@
-# External Progression Configuration HTTP Contract
+# Historical Pre-Release Contract — External Progression Configuration HTTP
+
+This document records the superseded V2 non-durable pre-release adapter. It
+is retained as history; it is not a first-supported Logos HTTP contract.
 
 The V2 progression boundary accepts a stable configuration key and an
 optional positive integer revision. The key is trimmed and normalized to

@@ -1,4 +1,7 @@
-# External Subject Progression HTTP Contract
+# Historical Pre-Release Contract — External Subject Progression HTTP
+
+This document records the superseded non-durable pre-release adapter. It is
+retained as history; it is not a first-supported Logos HTTP contract.
 
 ```http
 POST /api/internal/v1/progression/external/{namespace}/{externalId}/evaluate

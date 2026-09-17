@@ -1,6 +1,6 @@
-# Progression Execution Idempotency
+# Progression Execution HTTP V1 — Durable Progression Execution
 
-Status: IMPLEMENTED for the V3 external execution boundary.
+Status: CURRENT — first supported progression HTTP surface.
 
 ## Identity
 
@@ -15,7 +15,29 @@ identity.
 The idempotent boundary is:
 
 ```http
-POST /api/internal/v3/progression/external/{namespace}/{externalId}/evaluate
+POST /api/internal/v1/progression/executions
+```
+
+The durable execution resource also exposes:
+
+```http
+GET /api/internal/v1/progression/executions
+    ?sourceSystem={sourceSystem}&idempotencyKey={idempotencyKey}
+
+GET /api/internal/v1/progression/executions/history
+    ?subjectNamespace={namespace}&subjectExternalId={externalId}
+    &page={page}&size={size}
+```
+
+The POST request carries the external subject in the body:
+
+```json
+{
+  "subject": {"namespace": "lifeos", "externalId": "user-123"},
+  "execution": {"source": "lifeos", "idempotencyKey": "reading-session-123"},
+  "configuration": {"key": "reading", "revision": 3},
+  "details": [{"factorKey": "pages_read", "value": 30}]
+}
 ```
 
 Example request:

@@ -17,7 +17,7 @@ class ProgressionExecutionSecurityPostgresTest {
 
     @Test
     void exactReadRequiresAuthentication() throws Exception {
-        mockMvc.perform(get("/api/internal/v3/progression/executions")
+        mockMvc.perform(get("/api/internal/v1/progression/executions")
                         .queryParam("sourceSystem", "lifeos")
                         .queryParam("idempotencyKey", "missing"))
                 .andExpect(status().isForbidden());
@@ -25,7 +25,7 @@ class ProgressionExecutionSecurityPostgresTest {
 
     @Test
     void historyReadRequiresAuthentication() throws Exception {
-        mockMvc.perform(get("/api/internal/v3/progression/executions/history")
+        mockMvc.perform(get("/api/internal/v1/progression/executions/history")
                         .queryParam("subjectNamespace", "lifeos")
                         .queryParam("subjectExternalId", "missing"))
                 .andExpect(status().isForbidden());

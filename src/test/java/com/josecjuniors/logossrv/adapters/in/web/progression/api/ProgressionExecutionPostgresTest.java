@@ -1,7 +1,7 @@
 package com.josecjuniors.logossrv.adapters.in.web.progression.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.josecjuniors.logossrv.adapters.in.web.progression.dto.request.IdempotentProgressionEvaluationRequest;
+import com.josecjuniors.logossrv.adapters.in.web.progression.dto.request.ProgressionExecutionRequest;
 import com.josecjuniors.logossrv.adapters.out.appuser.jpa.AppUserJpaRepository;
 import com.josecjuniors.logossrv.adapters.out.atividadeconfig.jpa.AtividadeConfigJpaRepository;
 import com.josecjuniors.logossrv.adapters.out.estresseglobal.jpa.EstresseGlobalJpaRepository;
@@ -22,6 +22,7 @@ import com.josecjuniors.logossrv.core.progression.application.port.out.Progressi
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionConfigurationReference;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -49,7 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @IntegrationTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class IdempotentProgressionControllerPostgresIT {
+class ProgressionExecutionPostgresTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @Autowired AppUserJpaRepository users;
@@ -91,10 +92,51 @@ class IdempotentProgressionControllerPostgresIT {
                 VALUES (?, ?, ?, 0, 1)
                 """, UUID.randomUUID(), jogadorId, learningId);
         identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "user-1", player));
-var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Reading", "fixture"));
-        resolver.resolve(new ProgressionConfigurationReference(config.getId().getValue()));
-        configurationKey = "legacy:" + config.getId().getValue();
+        var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Reading", "fixture"));
+        configurationKey = "task041-execution-" + UUID.randomUUID();
+        var definitionId = UUID.randomUUID();
+        var versionId = UUID.randomUUID();
+        var distributionId = UUID.randomUUID();
+        jdbc.update("INSERT INTO progression_configuration_definition(id, logical_key, current_version_id) VALUES (?, ?, NULL)",
+                definitionId, configurationKey);
+        jdbc.update("INSERT INTO progression_configuration_version(id, definition_id, revision, base_xp, base_stress, fact_key_generation) VALUES (?, ?, 1, 1, 0, 'SEMANTIC')",
+                versionId, definitionId);
+        jdbc.update("INSERT INTO progression_configuration_version_distribution(id, configuration_version_id, attribute_key, weight) VALUES (?, ?, ?, 1)",
+                distributionId, versionId, learningId.toString());
+        jdbc.update("INSERT INTO progression_configuration_version_xp_rule(id, distribution_id, factor_key, multiplier, min_cutoff, max_cutoff, calculation_mode) VALUES (?, ?, 'pages_read', 1, 0, NULL, 'FACT_VALUE')",
+                UUID.randomUUID(), distributionId);
+        jdbc.update("INSERT INTO progression_configuration_version_factor(id, configuration_version_id, factor_key, tipo_input) VALUES (?, ?, 'pages_read', 'NUMERICO')",
+                UUID.randomUUID(), versionId);
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = ? WHERE id = ?",
+                versionId, definitionId);
         token = jwt.generateToken(user);
+    }
+
+    @AfterEach
+    void tearDown() {
+        executions.deleteAll();
+        identities.deleteAll();
+        jdbc.update("DELETE FROM progression_configuration_version_xp_rule WHERE distribution_id IN "
+                + "(SELECT d.id FROM progression_configuration_version_distribution d "
+                + "JOIN progression_configuration_version v ON v.id = d.configuration_version_id "
+                + "JOIN progression_configuration_definition c ON c.id = v.definition_id "
+                + "WHERE c.logical_key LIKE 'task041-execution-%')");
+        jdbc.update("DELETE FROM progression_configuration_version_distribution WHERE configuration_version_id IN "
+                + "(SELECT v.id FROM progression_configuration_version v "
+                + "JOIN progression_configuration_definition c ON c.id = v.definition_id "
+                + "WHERE c.logical_key LIKE 'task041-execution-%')");
+        jdbc.update("DELETE FROM progression_configuration_version_factor WHERE configuration_version_id IN "
+                + "(SELECT v.id FROM progression_configuration_version v "
+                + "JOIN progression_configuration_definition c ON c.id = v.definition_id "
+                + "WHERE c.logical_key LIKE 'task041-execution-%')");
+        jdbc.update("UPDATE progression_configuration_definition SET current_version_id = NULL WHERE logical_key LIKE 'task041-execution-%'");
+        jdbc.update("DELETE FROM progression_configuration_version WHERE definition_id IN "
+                + "(SELECT id FROM progression_configuration_definition WHERE logical_key LIKE 'task041-execution-%')");
+        jdbc.update("DELETE FROM progression_configuration_definition WHERE logical_key LIKE 'task041-execution-%'");
+        estresses.deleteAll();
+        jogadores.deleteAll();
+        configs.deleteAll();
+        users.deleteAll();
     }
 
     @Test
@@ -172,15 +214,16 @@ var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "
         assertThat(attributeXp()).isEqualTo(50L);
     }
 
-    private IdempotentProgressionEvaluationRequest request(String source, String key, double pages) {
-        return new IdempotentProgressionEvaluationRequest(
-                new IdempotentProgressionEvaluationRequest.ExecutionIdentity(source, key),
-                new com.josecjuniors.logossrv.adapters.in.web.progression.dto.request.VersionedProgressionEvaluationRequest.ConfigurationReference(configurationKey, null),
-                List.of(new com.josecjuniors.logossrv.adapters.in.web.progression.dto.request.VersionedProgressionEvaluationRequest.DetailRequest("pages_read", pages)));
+    private ProgressionExecutionRequest request(String source, String key, double pages) {
+        return new ProgressionExecutionRequest(
+                new ProgressionExecutionRequest.SubjectReference("lifeos", "user-1"),
+                new ProgressionExecutionRequest.ExecutionIdentity(source, key),
+                new ProgressionExecutionRequest.ConfigurationReference(configurationKey, null),
+                List.of(new ProgressionExecutionRequest.DetailRequest("pages_read", pages)));
     }
 
-    private org.springframework.test.web.servlet.ResultActions call(IdempotentProgressionEvaluationRequest request) throws Exception {
-        return mockMvc.perform(post("/api/internal/v3/progression/external/lifeos/user-1/evaluate")
+    private org.springframework.test.web.servlet.ResultActions call(ProgressionExecutionRequest request) throws Exception {
+        return mockMvc.perform(post("/api/internal/v1/progression/executions")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)));

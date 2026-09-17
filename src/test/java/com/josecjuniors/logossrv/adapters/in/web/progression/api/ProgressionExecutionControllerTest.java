@@ -2,8 +2,10 @@ package com.josecjuniors.logossrv.adapters.in.web.progression.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.josecjuniors.logossrv.adapters.in.web.exception.GlobalExceptionHandler;
+import com.josecjuniors.logossrv.adapters.in.web.progression.dto.request.ProgressionExecutionRequest;
 import com.josecjuniors.logossrv.adapters.in.web.progression.dto.response.ProgressionExecutionReadResponse;
 import com.josecjuniors.logossrv.core.progression.application.port.in.GetProgressionExecutionQuery;
+import com.josecjuniors.logossrv.core.progression.application.port.in.ExecuteIdempotentExternalSubjectProgressionUseCase;
 import com.josecjuniors.logossrv.core.progression.application.query.ProgressionExecutionRead;
 import com.josecjuniors.logossrv.core.progression.application.service.ProgressionOutcome;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionNotFoundException;
@@ -28,6 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -36,14 +39,58 @@ import static org.hamcrest.Matchers.not;
 
 class ProgressionExecutionControllerTest {
     private final GetProgressionExecutionQuery query = mock(GetProgressionExecutionQuery.class);
+    private final ExecuteIdempotentExternalSubjectProgressionUseCase executionUseCase = mock(ExecuteIdempotentExternalSubjectProgressionUseCase.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new ProgressionExecutionController(query))
+        mockMvc = MockMvcBuilders.standaloneSetup(new ProgressionExecutionController(query,
+                        (subject, request) -> { throw new UnsupportedOperationException("history query not configured"); },
+                        executionUseCase))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void createsDurableExecutionFromSupportedV1Envelope() throws Exception {
+        var outcome = new ProgressionOutcome(
+                new ProgressionResult(30, 2, List.of()),
+                new ProgressionProfile(30, 1, 2, 0, List.of(), List.of()));
+        when(executionUseCase.execute(any(), any(), any(), any())).thenReturn(outcome);
+
+        var request = new ProgressionExecutionRequest(
+                new ProgressionExecutionRequest.SubjectReference(" LIFEOS ", " user-1 "),
+                new ProgressionExecutionRequest.ExecutionIdentity(" LifeOS ", " session-1 "),
+                new ProgressionExecutionRequest.ConfigurationReference(" Reading ", 3),
+                List.of(new ProgressionExecutionRequest.DetailRequest("pages_read", 30)));
+
+        mockMvc.perform(post("/api/internal/v1/progression/executions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.globalXpDelta").value(30))
+                .andExpect(jsonPath("$.profile.globalXp").value(30));
+
+        var identity = org.mockito.ArgumentCaptor.forClass(ProgressionExecutionIdentity.class);
+        var subject = org.mockito.ArgumentCaptor.forClass(ExternalSubjectReference.class);
+        var configuration = org.mockito.ArgumentCaptor.forClass(
+                com.josecjuniors.logossrv.core.progression.domain.model.ExternalProgressionConfigurationReference.class);
+        verify(executionUseCase).execute(identity.capture(), subject.capture(), configuration.capture(), any());
+        assertThat(identity.getValue().source()).isEqualTo("lifeos");
+        assertThat(identity.getValue().idempotencyKey()).isEqualTo("session-1");
+        assertThat(subject.getValue().namespace()).isEqualTo("lifeos");
+        assertThat(subject.getValue().externalId()).isEqualTo("user-1");
+        assertThat(configuration.getValue().key()).isEqualTo("reading");
+        assertThat(configuration.getValue().revision()).isEqualTo(3);
+    }
+
+    @Test
+    void rejectsMissingExecutionEnvelopeSafely() throws Exception {
+        mockMvc.perform(post("/api/internal/v1/progression/executions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"subject\":null}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -57,7 +104,7 @@ class ProgressionExecutionControllerTest {
         when(query.get(any())).thenReturn(read(ProgressionExecutionStatus.COMPLETED, outcome,
                 configurationVersionId, skillPolicyVersionId));
 
-        mockMvc.perform(get("/api/internal/v3/progression/executions")
+        mockMvc.perform(get("/api/internal/v1/progression/executions")
                         .queryParam("sourceSystem", "  LIFEOS ")
                         .queryParam("idempotencyKey", "  Session-1  ")
                         .accept(MediaType.APPLICATION_JSON))
@@ -92,7 +139,7 @@ class ProgressionExecutionControllerTest {
         when(query.get(any())).thenReturn(read(ProgressionExecutionStatus.COMPLETED, null,
                 UUID.randomUUID(), UUID.randomUUID(), null));
 
-        mockMvc.perform(get("/api/internal/v3/progression/executions")
+        mockMvc.perform(get("/api/internal/v1/progression/executions")
                         .queryParam("sourceSystem", "lifeos")
                         .queryParam("idempotencyKey", "nullable-revision"))
                 .andExpect(status().isOk())
@@ -109,7 +156,7 @@ class ProgressionExecutionControllerTest {
                 ProgressionExecutionStatus.PROCESSING, ProgressionExecutionStatus.FAILED)) {
             when(query.get(any())).thenReturn(read(statusValue, null, UUID.randomUUID(), UUID.randomUUID()));
 
-            mockMvc.perform(get("/api/internal/v3/progression/executions")
+            mockMvc.perform(get("/api/internal/v1/progression/executions")
                             .queryParam("sourceSystem", "lifeos")
                             .queryParam("idempotencyKey", statusValue.name()))
                     .andExpect(status().isOk())
@@ -122,7 +169,7 @@ class ProgressionExecutionControllerTest {
     void mapsUnknownExecutionToStableNotFoundContract() throws Exception {
         when(query.get(any())).thenThrow(new ProgressionExecutionNotFoundException());
 
-        mockMvc.perform(get("/api/internal/v3/progression/executions")
+        mockMvc.perform(get("/api/internal/v1/progression/executions")
                         .queryParam("sourceSystem", "lifeos")
                         .queryParam("idempotencyKey", "missing"))
                 .andExpect(status().isNotFound())
@@ -135,7 +182,7 @@ class ProgressionExecutionControllerTest {
                 new IllegalArgumentException("SENSITIVE_RAW_PERSISTENCE_CONTENT"));
         when(query.get(any())).thenThrow(corrupted);
 
-        mockMvc.perform(get("/api/internal/v3/progression/executions")
+        mockMvc.perform(get("/api/internal/v1/progression/executions")
                         .queryParam("sourceSystem", "lifeos")
                         .queryParam("idempotencyKey", "corrupt"))
                 .andExpect(status().isInternalServerError())
