@@ -8,6 +8,8 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionExecut
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfile;
 import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionResult;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.List;
 import java.util.UUID;
@@ -39,17 +41,18 @@ class JpaProgressionExecutionReadAdapterTest {
         verifyNoMoreInteractions(repository);
     }
 
-    @Test
-    void doesNotDeserializeResponseForNonCompletedExecution() {
-        var entity = entity("lifeos", "pending", "PENDING", "not-an-outcome");
-        when(repository.findBySourceSystemAndIdempotencyKey("lifeos", "pending"))
+    @ParameterizedTest
+    @EnumSource(value = ProgressionExecutionStatus.class, names = {"PENDING", "PROCESSING", "FAILED"})
+    void doesNotDeserializeResponseForAnyNonCompletedExecution(ProgressionExecutionStatus statusValue) {
+        var entity = entity("lifeos", statusValue.name(), statusValue.name(), "not-an-outcome");
+        when(repository.findBySourceSystemAndIdempotencyKey("lifeos", statusValue.name()))
                 .thenReturn(java.util.Optional.of(entity));
 
-        var read = adapter.find(new ProgressionExecutionIdentity("lifeos", "pending")).orElseThrow();
+        var read = adapter.find(new ProgressionExecutionIdentity("lifeos", statusValue.name())).orElseThrow();
 
-        assertThat(read.status()).isEqualTo(ProgressionExecutionStatus.PENDING);
+        assertThat(read.status()).isEqualTo(statusValue);
         assertThat(read.outcome()).isNull();
-        verify(repository).findBySourceSystemAndIdempotencyKey("lifeos", "pending");
+        verify(repository).findBySourceSystemAndIdempotencyKey("lifeos", statusValue.name());
         verifyNoMoreInteractions(repository);
     }
 

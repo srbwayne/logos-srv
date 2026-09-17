@@ -7,6 +7,7 @@ import com.josecjuniors.logossrv.core.progression.application.port.in.GetProgres
 import com.josecjuniors.logossrv.core.progression.application.query.ProgressionExecutionRead;
 import com.josecjuniors.logossrv.core.progression.application.service.ProgressionOutcome;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionNotFoundException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionReadCorruptedException;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionExecutionIdentity;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionExecutionStatus;
@@ -29,6 +30,9 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 class ProgressionExecutionControllerTest {
     private final GetProgressionExecutionQuery query = mock(GetProgressionExecutionQuery.class);
@@ -83,6 +87,22 @@ class ProgressionExecutionControllerTest {
     }
 
     @Test
+    void preservesNullableRequestedRevisionAsExplicitJsonNull() throws Exception {
+        when(query.get(any())).thenReturn(read(ProgressionExecutionStatus.COMPLETED, null,
+                UUID.randomUUID(), UUID.randomUUID(), null));
+
+        mockMvc.perform(get("/api/internal/v3/progression/executions")
+                        .queryParam("sourceSystem", "lifeos")
+                        .queryParam("idempotencyKey", "nullable-revision"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"requestedRevision\":null")))
+                .andExpect(jsonPath("$.requestedRevision").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.identity.source").value("lifeos"))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.outcome").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     void returnsNullOutcomeForEveryNonCompletedStatus() throws Exception {
         for (var statusValue : List.of(ProgressionExecutionStatus.PENDING,
                 ProgressionExecutionStatus.PROCESSING, ProgressionExecutionStatus.FAILED)) {
@@ -108,11 +128,33 @@ class ProgressionExecutionControllerTest {
                 .andExpect(jsonPath("$.code").value("PROGRESSION_EXECUTION_NOT_FOUND"));
     }
 
+    @Test
+    void mapsCorruptedCompletedExecutionToSafeInternalServerError() throws Exception {
+        var corrupted = new ProgressionExecutionReadCorruptedException(
+                new IllegalArgumentException("SENSITIVE_RAW_PERSISTENCE_CONTENT"));
+        when(query.get(any())).thenThrow(corrupted);
+
+        mockMvc.perform(get("/api/internal/v3/progression/executions")
+                        .queryParam("sourceSystem", "lifeos")
+                        .queryParam("idempotencyKey", "corrupt"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("Progression execution data is corrupted."))
+                .andExpect(jsonPath("$.code").value("PROGRESSION_EXECUTION_READ_CORRUPTED"))
+                .andExpect(content().string(not(containsString("SENSITIVE_RAW_PERSISTENCE_CONTENT"))))
+                .andExpect(content().string(not(containsString("IllegalArgumentException"))));
+    }
+
     private ProgressionExecutionRead read(ProgressionExecutionStatus status, ProgressionOutcome outcome,
                                           UUID configurationVersionId, UUID skillPolicyVersionId) {
+        return read(status, outcome, configurationVersionId, skillPolicyVersionId, 2);
+    }
+
+    private ProgressionExecutionRead read(ProgressionExecutionStatus status, ProgressionOutcome outcome,
+                                          UUID configurationVersionId, UUID skillPolicyVersionId,
+                                          Integer requestedRevision) {
         return new ProgressionExecutionRead(
                 new ProgressionExecutionIdentity("lifeos", "Session-1"),
-                new ExternalSubjectReference("lifeos", "user-1"), "reading", 2,
+                new ExternalSubjectReference("lifeos", "user-1"), "reading", requestedRevision,
                 configurationVersionId, skillPolicyVersionId, status, outcome);
     }
 }
