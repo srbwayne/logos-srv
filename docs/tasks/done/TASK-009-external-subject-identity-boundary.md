@@ -2,7 +2,14 @@
 
 ## Status
 
-BLOCKED record superseded by the approved decisions and implemented through TASK-009R.
+COMPLETE / SUPERSEDED HISTORICAL RECORD
+
+The original TASK-009 blocker was resolved by the approved decisions in
+TASK-009R and ADR-0003. The implemented identity boundary remains part of the
+current architecture.
+
+Later HTTP and lifecycle work was intentionally split into subsequent tasks
+and does not leave TASK-009 itself open.
 
 The original blocker was the absence of decisions for namespace semantics, identity cardinality, lifecycle, onboarding, and existing-user backfill. Those decisions are now frozen in TASK-009R and ADR-0003.
 
