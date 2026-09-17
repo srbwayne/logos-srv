@@ -56,7 +56,7 @@ class LegacyActivityProgressionSchemaRetirementTest {
         assertThat(jdbc.queryForObject(
                 "SELECT version FROM flyway_schema_history "
                         + "WHERE success = true ORDER BY installed_rank DESC LIMIT 1",
-                String.class)).isEqualTo("42");
+                String.class)).isEqualTo("43");
 
         for (String table : RETIRED_TABLES) {
             assertThat(tableExists(table)).as("retired table %s", table).isFalse();

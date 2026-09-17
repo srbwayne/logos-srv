@@ -12,7 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @IntegrationTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class ProgressionExecutionSecurityPostgresIT {
+class ProgressionExecutionSecurityPostgresTest {
     @Autowired MockMvc mockMvc;
 
     @Test
@@ -20,6 +20,14 @@ class ProgressionExecutionSecurityPostgresIT {
         mockMvc.perform(get("/api/internal/v3/progression/executions")
                         .queryParam("sourceSystem", "lifeos")
                         .queryParam("idempotencyKey", "missing"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void historyReadRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/internal/v3/progression/executions/history")
+                        .queryParam("subjectNamespace", "lifeos")
+                        .queryParam("subjectExternalId", "missing"))
                 .andExpect(status().isForbidden());
     }
 }
