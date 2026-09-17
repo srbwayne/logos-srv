@@ -1,8 +1,18 @@
 # TASK-009H — Expose External Subject HTTP Boundary
 
-Status: COMPLETE
+Status: COMPLETE — HISTORICAL PRE-RELEASE CONTRACT
 
-## Resultado
+This task was completed at the time it was implemented.
+
+The evaluate HTTP boundary documented below was later superseded and removed
+by TASK-041 when Logos established its first supported progression HTTP
+contract:
+
+```http
+/api/internal/v1/progression/executions
+```
+
+## Resultado histórico
 
 Foi exposta a fronteira autenticada:
 
@@ -18,6 +28,10 @@ HTTP → ExternalSubjectReference → ExternalSubjectResolver → SubjectId
 ```
 
 O endpoint legado `POST /api/internal/v1/progression/{subjectId}/evaluate` foi preservado.
+
+Essas rotas de evaluate eram uma fronteira HTTP de pré-lançamento e foram
+substituídas antes do primeiro contrato HTTP de progressão Logos suportado.
+Não estão mais mapeadas após TASK-041.
 Não houve alteração de migration, schema, autenticação, configuração ou regras do core de progressão.
 
 ## Semantics e erros
