@@ -9,6 +9,8 @@ import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface ProgressionExternalExecutionJpaRepository extends JpaRepository<ProgressionExternalExecutionEntity, UUID> {
     Optional<ProgressionExternalExecutionEntity> findBySourceSystemAndIdempotencyKey(String sourceSystem, String idempotencyKey);
@@ -19,4 +21,20 @@ public interface ProgressionExternalExecutionJpaRepository extends JpaRepository
                                                                                                 @Param("idempotencyKey") String idempotencyKey);
 
     List<ProgressionExternalExecutionEntity> findByProcessingStatusInOrderByCreatedAtAsc(List<String> statuses);
+
+    @Query(value = """
+            select * from progression_external_execution
+            where subject_namespace = :namespace
+              and subject_external_id = :externalId
+            order by occurred_at desc nulls last, created_at desc, id desc
+            """,
+            countQuery = """
+            select count(*) from progression_external_execution
+            where subject_namespace = :namespace
+              and subject_external_id = :externalId
+            """,
+            nativeQuery = true)
+    Page<ProgressionExternalExecutionEntity> findHistory(@Param("namespace") String namespace,
+                                                          @Param("externalId") String externalId,
+                                                          Pageable pageable);
 }

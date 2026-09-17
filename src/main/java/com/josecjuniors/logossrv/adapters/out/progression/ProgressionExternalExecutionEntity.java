@@ -7,6 +7,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -45,6 +46,8 @@ public class ProgressionExternalExecutionEntity {
     private UUID skillPolicyVersionId;
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+    @Column(name = "occurred_at", insertable = false, updatable = false)
+    private Instant occurredAt;
 
     protected ProgressionExternalExecutionEntity() {}
 
@@ -91,6 +94,7 @@ public class ProgressionExternalExecutionEntity {
     public Integer getRequestedRevision() { return requestedRevision; }
     public UUID getConfigurationVersionId() { return configurationVersionId; }
     public UUID getSkillPolicyVersionId() { return skillPolicyVersionId; }
+    public Instant getOccurredAt() { return occurredAt; }
     public String getResponseJson() { return responseJson; }
     public UUID getId() { return id; }
     public void setResponseJson(String responseJson) { this.responseJson = responseJson; }

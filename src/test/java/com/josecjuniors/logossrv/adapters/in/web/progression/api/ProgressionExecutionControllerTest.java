@@ -78,7 +78,8 @@ class ProgressionExecutionControllerTest {
                 .andExpect(jsonPath("$.requestFingerprint").doesNotExist())
                 .andExpect(jsonPath("$.lastError").doesNotExist())
                 .andExpect(jsonPath("$.attemptCount").doesNotExist())
-                .andExpect(jsonPath("$.createdAt").doesNotExist());
+                .andExpect(jsonPath("$.createdAt").doesNotExist())
+                .andExpect(jsonPath("$.occurredAt").doesNotExist());
 
         var identity = org.mockito.ArgumentCaptor.forClass(ProgressionExecutionIdentity.class);
         verify(query).get(identity.capture());
