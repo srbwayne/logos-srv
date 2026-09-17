@@ -12,7 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @IntegrationTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class ProgressionExecutionSecurityPostgresIT {
+class ProgressionExecutionSecurityPostgresTest {
     @Autowired MockMvc mockMvc;
 
     @Test

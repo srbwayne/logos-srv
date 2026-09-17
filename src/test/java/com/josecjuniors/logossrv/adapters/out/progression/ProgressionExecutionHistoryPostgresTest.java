@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @IntegrationTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class ProgressionExecutionHistoryPostgresIT {
+class ProgressionExecutionHistoryPostgresTest {
     @Autowired ProgressionExternalExecutionJpaRepository repository;
     @Autowired JpaProgressionExecutionHistoryReadAdapter history;
     @Autowired JdbcTemplate jdbc;
