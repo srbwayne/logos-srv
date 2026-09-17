@@ -1,6 +1,6 @@
-# Progression Execution Idempotency
+# Progression Execution HTTP V1 — Durable Progression Execution
 
-Status: IMPLEMENTED for the V3 external execution boundary.
+Status: CURRENT — first supported progression HTTP surface.
 
 ## Identity
 
@@ -15,28 +15,38 @@ identity.
 The idempotent boundary is:
 
 ```http
-POST /api/internal/v3/progression/external/{namespace}/{externalId}/evaluate
+POST /api/internal/v1/progression/executions
 ```
 
-Example request:
+The durable execution resource also exposes:
+
+```http
+GET /api/internal/v1/progression/executions
+    ?sourceSystem={sourceSystem}&idempotencyKey={idempotencyKey}
+
+GET /api/internal/v1/progression/executions/history
+    ?subjectNamespace={namespace}&subjectExternalId={externalId}
+    &page={page}&size={size}
+```
+
+The POST request carries the external subject in the body:
 
 ```json
 {
-  "execution": {
-    "source": "lifeos",
-    "idempotencyKey": "reading-session-123"
-  },
-  "configuration": {
-    "key": "reading"
-  },
-  "details": [
-    { "factorKey": "pages_read", "value": 30 }
-  ]
+  "subject": {"namespace": "lifeos", "externalId": "user-123"},
+  "execution": {"source": "lifeos", "idempotencyKey": "reading-session-123"},
+  "configuration": {"key": "reading", "revision": 3},
+  "details": [{"factorKey": "pages_read", "value": 30}]
 }
 ```
 
-The V1 and V2 contracts remain unchanged. V3 does not expose internal
-configuration, subject, or skill-policy IDs.
+This V1 execution resource is the first supported progression HTTP contract.
+The earlier progression V1/V2/V3 evaluate routes were pre-release experiments
+and are not supported compatibility surfaces.
+
+Compatible additions remain on V1. Flyway migration versions, internal task
+numbers, and persistence evolution do not increment the HTTP major version.
+A future V2 requires a breaking change to an already supported HTTP contract.
 
 ## Processing semantics
 

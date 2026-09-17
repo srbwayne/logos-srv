@@ -2,6 +2,7 @@ package com.josecjuniors.logossrv.adapters.in.web.progression.api;
 
 import com.josecjuniors.logossrv.adapters.in.web.exception.GlobalExceptionHandler;
 import com.josecjuniors.logossrv.core.progression.application.port.in.GetProgressionExecutionHistoryQuery;
+import com.josecjuniors.logossrv.core.progression.application.port.in.ExecuteIdempotentExternalSubjectProgressionUseCase;
 import com.josecjuniors.logossrv.core.progression.application.port.in.GetProgressionExecutionQuery;
 import com.josecjuniors.logossrv.core.progression.application.query.ProgressionExecutionHistoryItem;
 import com.josecjuniors.logossrv.core.progression.application.query.ProgressionExecutionHistoryPage;
@@ -36,11 +37,12 @@ import static org.hamcrest.Matchers.not;
 class ProgressionExecutionHistoryControllerTest {
     private final GetProgressionExecutionQuery exactQuery = mock(GetProgressionExecutionQuery.class);
     private final GetProgressionExecutionHistoryQuery historyQuery = mock(GetProgressionExecutionHistoryQuery.class);
+    private final ExecuteIdempotentExternalSubjectProgressionUseCase executionUseCase = mock(ExecuteIdempotentExternalSubjectProgressionUseCase.class);
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new ProgressionExecutionController(exactQuery, historyQuery))
+        mockMvc = MockMvcBuilders.standaloneSetup(new ProgressionExecutionController(exactQuery, historyQuery, executionUseCase))
                 .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(
                         new com.fasterxml.jackson.databind.ObjectMapper().registerModule(new JavaTimeModule())
                                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)))
@@ -52,7 +54,7 @@ class ProgressionExecutionHistoryControllerTest {
     void returnsHistoryItemWithNullableOccurredAtAndNoPersistenceInternals() throws Exception {
         when(historyQuery.get(any(), any())).thenReturn(page(read(ProgressionExecutionStatus.FAILED), null));
 
-        mockMvc.perform(get("/api/internal/v3/progression/executions/history")
+        mockMvc.perform(get("/api/internal/v1/progression/executions/history")
                         .queryParam("subjectNamespace", " LIFEOS ")
                         .queryParam("subjectExternalId", " user-1 ")
                         .accept(MediaType.APPLICATION_JSON))
@@ -80,7 +82,7 @@ class ProgressionExecutionHistoryControllerTest {
         when(historyQuery.get(any(), any())).thenReturn(page(read(ProgressionExecutionStatus.COMPLETED),
                 Instant.parse("2026-09-17T01:23:45Z")));
 
-        mockMvc.perform(get("/api/internal/v3/progression/executions/history")
+        mockMvc.perform(get("/api/internal/v1/progression/executions/history")
                         .queryParam("subjectNamespace", "lifeos")
                         .queryParam("subjectExternalId", "user-1"))
                 .andExpect(status().isOk())
@@ -89,13 +91,13 @@ class ProgressionExecutionHistoryControllerTest {
 
     @Test
     void rejectsInvalidPagination() throws Exception {
-        mockMvc.perform(get("/api/internal/v3/progression/executions/history")
+        mockMvc.perform(get("/api/internal/v1/progression/executions/history")
                         .queryParam("subjectNamespace", "lifeos")
                         .queryParam("subjectExternalId", "user-1")
                         .queryParam("page", "-1"))
                 .andExpect(status().isBadRequest());
 
-        mockMvc.perform(get("/api/internal/v3/progression/executions/history")
+        mockMvc.perform(get("/api/internal/v1/progression/executions/history")
                         .queryParam("subjectNamespace", "lifeos")
                         .queryParam("subjectExternalId", "user-1")
                         .queryParam("size", "101"))
@@ -107,7 +109,7 @@ class ProgressionExecutionHistoryControllerTest {
         when(historyQuery.get(any(), any())).thenThrow(new ProgressionExecutionReadCorruptedException(
                 new IllegalArgumentException("SENSITIVE_RAW_PERSISTENCE_CONTENT")));
 
-        mockMvc.perform(get("/api/internal/v3/progression/executions/history")
+        mockMvc.perform(get("/api/internal/v1/progression/executions/history")
                         .queryParam("subjectNamespace", "lifeos")
                         .queryParam("subjectExternalId", "user-1"))
                 .andExpect(status().isInternalServerError())

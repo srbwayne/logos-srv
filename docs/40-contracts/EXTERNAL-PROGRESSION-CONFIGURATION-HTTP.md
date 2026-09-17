@@ -1,4 +1,7 @@
-# External Progression Configuration HTTP Contract
+# Historical Pre-Release Contract — External Progression Configuration HTTP
+
+This document records the superseded V2 non-durable pre-release adapter. It
+is retained as history; it is not a first-supported Logos HTTP contract.
 
 The V2 progression boundary accepts a stable configuration key and an
 optional positive integer revision. The key is trimmed and normalized to
@@ -22,14 +25,18 @@ Example request:
 }
 ```
 
-The current V1 routes remain available and continue to accept their UUID
-compatibility reference. V2 callers do not send `AtividadeConfigId`, JPA
-entities, progression state, rules or skill policy references. Logos resolves
-the current global skill policy for a new execution. An explicit configuration
-revision is not replay; replay will use the references persisted with the
-historical execution.
+During this pre-release V2 experiment, the earlier V1 evaluate routes were
+still available and accepted their UUID compatibility reference. V2 callers
+did not send `AtividadeConfigId`, JPA entities, progression state, rules or
+skill policy references. Logos resolved the global skill policy for a new
+execution. An explicit configuration revision was not replay; replay used
+the references persisted with the historical execution.
 
-Invalid key/revision input returns `400`; missing configuration or subject
-mapping returns `404`. Both V1 and V2 retain the existing authentication
-protection. The response shape is the existing `result` plus `profile`; no
-internal UUID is exposed.
+At that time, invalid key/revision input returned `400`; missing
+configuration or subject mapping returned `404`. The experimental V1 and V2
+routes used the existing authentication protection. The response shape was
+the existing `result` plus `profile`; no internal UUID was exposed.
+
+The V1/V2 evaluate routes described here were superseded before the first
+supported Logos progression HTTP contract and are no longer mapped after
+TASK-041.

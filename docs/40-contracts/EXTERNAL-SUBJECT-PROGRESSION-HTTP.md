@@ -1,4 +1,7 @@
-# External Subject Progression HTTP Contract
+# Historical Pre-Release Contract — External Subject Progression HTTP
+
+This document records the superseded non-durable pre-release adapter. It is
+retained as history; it is not a first-supported Logos HTTP contract.
 
 ```http
 POST /api/internal/v1/progression/external/{namespace}/{externalId}/evaluate
@@ -17,8 +20,15 @@ The adapter constructs `ExternalSubjectReference`, resolves the explicit mapping
 
 `namespace` is trimmed and lowercased. `externalId` is trimmed, opaque, and case-sensitive; it is not parsed as UUID. Since this V1 representation uses path variables, `/` is not supported inside `externalId`.
 
-The endpoint inherits the current authentication requirement. Missing mappings and configurations return `404`; invalid namespace, external ID, or request bodies return `400`. The compatibility endpoint remains available:
+At the time this pre-release adapter was active, the endpoint inherited the
+existing authentication requirement. Missing mappings and configurations
+returned `404`; invalid namespace, external ID, or request bodies returned
+`400`. The same pre-release generation also exposed the following
+compatibility route:
 
 ```http
 POST /api/internal/v1/progression/{subjectId}/evaluate
 ```
+
+These evaluate routes were superseded before the first supported Logos
+progression HTTP contract and are no longer mapped after TASK-041.
