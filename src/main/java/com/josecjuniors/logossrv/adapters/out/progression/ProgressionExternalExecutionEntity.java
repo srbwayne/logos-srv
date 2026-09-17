@@ -7,6 +7,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -45,6 +46,8 @@ public class ProgressionExternalExecutionEntity {
     private UUID skillPolicyVersionId;
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+    @Column(name = "occurred_at", insertable = false, updatable = false)
+    private Instant occurredAt;
 
     protected ProgressionExternalExecutionEntity() {}
 
@@ -98,6 +101,7 @@ public class ProgressionExternalExecutionEntity {
     public String getProcessingStatus() { return processingStatus; }
     public Integer getAttemptCount() { return attemptCount; }
     public String getLastError() { return lastError; }
+    public Instant getOccurredAt() { return occurredAt; }
     public void markAttempt(String status, String error) {
         this.processingStatus = status;
         this.lastError = error;
