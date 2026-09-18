@@ -31,6 +31,7 @@ import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionEx
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationAuthoringConflictException;
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationActivationConflictException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectIdentityConflictException;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.exception.RegraDistribuicaoNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.exception.RegraFatorEstresseNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.exception.RegraFatorXPNaoEncontradaException;
@@ -190,6 +191,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ProgressionSubjectNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleProgressionSubjectNotFound(ProgressionSubjectNotFoundException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ProgressionSubjectIdentityConflictException.class)
+    public ResponseEntity<Map<String, String>> handleProgressionSubjectIdentityConflict(ProgressionSubjectIdentityConflictException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage(), "code", "PROGRESSION_SUBJECT_IDENTITY_CONFLICT"), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(ProgressionConfigurationNotFoundException.class)

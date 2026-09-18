@@ -94,5 +94,7 @@ external execution; it does not turn the source event into a Logos-owned fact.
 ## Remaining debts
 
 Durable LifeOS delivery/outbox, service-to-service authentication, source and
-namespace authorization, provisioning, replay, general same-subject
+namespace authorization, external identity proof, replay, general same-subject
 concurrency, and version-authoring lifecycle remain separate follow-up work.
+POC self-provisioning is documented in `PROGRESSION-SUBJECT-IDENTITY.md`; it is
+not a production service-trust or ownership solution.

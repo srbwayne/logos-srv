@@ -12,6 +12,9 @@ import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobal
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
+import com.josecjuniors.logossrv.core.progression.application.port.out.ProgressionSubjectIdentityProvisioningPort;
+import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
+import com.josecjuniors.logossrv.core.progression.domain.model.SubjectId;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,11 +26,15 @@ public class RegistrationService implements RegistrationUseCase {
     private final AppUserRepository appUserRepository;
     private final JogadorRepository jogadorRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ProgressionSubjectIdentityProvisioningPort subjectIdentityProvisioning;
 
-    public RegistrationService(AppUserRepository appUserRepository, JogadorRepository jogadorRepository, PasswordEncoder passwordEncoder) {
+    public RegistrationService(AppUserRepository appUserRepository, JogadorRepository jogadorRepository,
+                               PasswordEncoder passwordEncoder,
+                               ProgressionSubjectIdentityProvisioningPort subjectIdentityProvisioning) {
         this.appUserRepository = appUserRepository;
         this.jogadorRepository = jogadorRepository;
         this.passwordEncoder = passwordEncoder;
+        this.subjectIdentityProvisioning = subjectIdentityProvisioning;
     }
 
     @Override
@@ -59,6 +66,9 @@ public class RegistrationService implements RegistrationUseCase {
 
         // 3. Salva o Jogador (a cascata persistirá o EstresseGlobal)
         Jogador savedJogador = jogadorRepository.save(novoJogador);
+        subjectIdentityProvisioning.provision(
+                new ExternalSubjectReference("logos-native", savedUser.getId().getValue().toString()),
+                new SubjectId(savedUser.getId().getValue()));
 
         return new RegistrationResult(savedUser, savedJogador);
     }
