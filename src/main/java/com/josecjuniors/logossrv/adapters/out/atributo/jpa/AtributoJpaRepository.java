@@ -30,6 +30,15 @@ public interface AtributoJpaRepository extends AtributoRepository, JpaRepository
     boolean existsByNomeAndIdNot(String nome, AtributoId id);
 
     @Override
+    Optional<Atributo> findBySemanticKey(String semanticKey);
+
+    @Override
+    boolean existsBySemanticKey(String semanticKey);
+
+    @Override
+    boolean existsBySemanticKeyAndIdNot(String semanticKey, AtributoId id);
+
+    @Override
     void deleteById(AtributoId id);
 
     @Override

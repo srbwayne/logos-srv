@@ -83,6 +83,44 @@ class AtributoControllerTest {
                 .andExpect(status().isConflict());
     }
 
+    @Test
+    void createAtributo_withSemanticKey_shouldExposeNormalizedKey() throws Exception {
+        mockMvc.perform(post("/api/atributos")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Conhecimento\",\"descricao\":\"desc\",\"semanticKey\":\" Knowledge \"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.semanticKey").value("knowledge"));
+    }
+
+    @Test
+    void assignSemanticKey_toLegacyAttribute_shouldSucceedAndBeIdempotent() throws Exception {
+        Atributo saved = atributoRepository.save(new Atributo(new AtributoId(), "Conhecimento", null));
+        UUID id = saved.getId().getValue();
+
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", id)
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\" Knowledge \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.semanticKey").value("knowledge"));
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", id)
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\"knowledge\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void assignSemanticKey_whenChangingAssignedKey_shouldReturn409() throws Exception {
+        Atributo saved = atributoRepository.save(new Atributo(new AtributoId(), "Conhecimento", null, "knowledge"));
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", saved.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\"intelligence\"}"))
+                .andExpect(status().isConflict());
+    }
+
     // --- READ Tests ---
     @Test
     void getAtributoById_whenAtributoExists_shouldReturn200AndAtributo() throws Exception {

@@ -36,3 +36,7 @@ operational idempotency evidence are documented in
 
 This does not change the historical meaning of this document: the Logos-side
 POC itself did not involve a LifeOS runtime.
+
+The Reading display/domain attribute is `Conhecimento`; its selected semantic
+catalog identity is `knowledge`. Existing Progression HTTP V1 `key` fields
+continue to expose the Attribute UUID for compatibility.

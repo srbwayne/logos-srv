@@ -46,9 +46,10 @@ class ReadingProgressionContractPostgresTest {
         String token = login.get("token").asText();
 
         JsonNode attribute = json(authPost(token, "/api/atributos", """
-                {"nome":"Conhecimento","descricao":"Conhecimento acumulado por estudo, leitura e aprendizagem."}
+                {"nome":"Conhecimento","descricao":"Conhecimento acumulado por estudo, leitura e aprendizagem.","semanticKey":"knowledge"}
                 """).andExpect(status().isCreated())
-                .andExpect(jsonPath("$.nome").value("Conhecimento")));
+                .andExpect(jsonPath("$.nome").value("Conhecimento"))
+                .andExpect(jsonPath("$.semanticKey").value("knowledge")));
         UUID conhecimentoId = UUID.fromString(attribute.get("id").asText());
 
         JsonNode factor = json(authPost(token, "/api/fatores-calculo", """

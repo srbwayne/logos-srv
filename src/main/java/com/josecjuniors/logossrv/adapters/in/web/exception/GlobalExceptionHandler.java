@@ -12,6 +12,8 @@ import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.Ativi
 import com.josecjuniors.logossrv.core.atividadeformulario.domain.exception.AtividadeFormularioValidacaoException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoJaExisteException;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoNaoEncontradoException;
+import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoSemanticKeyJaExisteException;
+import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoSemanticKeyJaAtribuidaException;
 import com.josecjuniors.logossrv.core.debuff.domain.exception.DebuffJaExisteException;
 import com.josecjuniors.logossrv.core.debuff.domain.exception.DebuffNaoEncontradoException;
 import com.josecjuniors.logossrv.core.fatorcalculo.domain.exception.FatorCalculoJaExisteException;
@@ -176,6 +178,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AtributoNaoEncontradoException.class)
     public ResponseEntity<Map<String, String>> handleAtributoNaoEncontrado(AtributoNaoEncontradoException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler({AtributoSemanticKeyJaExisteException.class, AtributoSemanticKeyJaAtribuidaException.class})
+    public ResponseEntity<Map<String, String>> handleAtributoSemanticKeyConflict(IllegalStateException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage()), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(JogadorNaoEncontradoException.class)

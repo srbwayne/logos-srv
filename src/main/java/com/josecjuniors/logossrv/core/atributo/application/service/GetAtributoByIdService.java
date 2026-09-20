@@ -30,7 +30,8 @@ public class GetAtributoByIdService implements GetAtributoByIdUseCase {
         return new AtributoDto(
                 atributo.getId().getValue().toString(),
                 atributo.getNome(),
-                atributo.getDescricao()
+                atributo.getDescricao(),
+                atributo.getSemanticKey()
         );
     }
 }
