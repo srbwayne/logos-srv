@@ -26,3 +26,13 @@ The `lifeos` namespace may be used as simulated contract data in this Logos-side
 contract/integration simulation. No LifeOS runtime participates. Future product
 rules may distribute Reading across Conhecimento, Foco, or Disciplina when
 supported by stronger evidence.
+
+## Real cross-system validation
+
+The Logos-side simulation described above was later followed by a separate
+bounded real LifeOS → Logos Reading POC. Its cross-system execution and
+operational idempotency evidence are documented in
+[LIFEOS-LOGOS-READING-POC-EVIDENCE.md](LIFEOS-LOGOS-READING-POC-EVIDENCE.md).
+
+This does not change the historical meaning of this document: the Logos-side
+POC itself did not involve a LifeOS runtime.
