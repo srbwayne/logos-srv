@@ -15,7 +15,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Creates one disposable PostgreSQL schema for the Spring test context.
+ * Creates one disposable PostgreSQL schema per fixture mode for Spring test contexts.
  *
  * <p>This is test infrastructure only. Flyway still owns schema creation and
  * migration; this initializer only creates the isolated namespace and points
@@ -25,7 +25,7 @@ public final class PostgresTestDatabaseInitializer
         implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
     private static final Object LIFECYCLE_LOCK = new Object();
-    private static SchemaLease activeLease;
+    private static final Map<Boolean, SchemaLease> activeLeases = new java.util.HashMap<>();
 
     @Override
     public void initialize(ConfigurableApplicationContext context) {
@@ -39,7 +39,9 @@ public final class PostgresTestDatabaseInitializer
 
         validateDatabaseUrl(baseUrl);
 
-        SchemaLease lease = acquire(baseUrl, username, password);
+        boolean bootstrapRequiredFixtures = environment.getProperty(
+                "logos.test.bootstrap-required-fixtures", Boolean.class, true);
+        SchemaLease lease = acquire(baseUrl, username, password, bootstrapRequiredFixtures);
         context.getEnvironment().getPropertySources().addFirst(new MapPropertySource(
                 "isolated-postgres-test-schema",
                 Map.of(
@@ -55,7 +57,9 @@ public final class PostgresTestDatabaseInitializer
         context.addApplicationListener(event -> {
             if (event instanceof ContextRefreshedEvent refreshed
                     && refreshed.getApplicationContext() == context) {
-                lease.bootstrapRequiredFixtures();
+                if (lease.bootstrapRequiredFixtures) {
+                    lease.bootstrapRequiredFixtures();
+                }
             }
             if (event instanceof ContextClosedEvent) {
                 cleanup.destroy();
@@ -63,11 +67,13 @@ public final class PostgresTestDatabaseInitializer
         });
     }
 
-    private static SchemaLease acquire(String baseUrl, String username, String password) {
+    private static SchemaLease acquire(String baseUrl, String username, String password, boolean bootstrapRequiredFixtures) {
         synchronized (LIFECYCLE_LOCK) {
+            SchemaLease activeLease = activeLeases.get(bootstrapRequiredFixtures);
             if (activeLease == null) {
-                activeLease = new SchemaLease(baseUrl, username, password);
+                activeLease = new SchemaLease(baseUrl, username, password, bootstrapRequiredFixtures);
                 activeLease.create();
+                activeLeases.put(bootstrapRequiredFixtures, activeLease);
             }
             activeLease.references.incrementAndGet();
             return activeLease;
@@ -78,7 +84,7 @@ public final class PostgresTestDatabaseInitializer
         synchronized (LIFECYCLE_LOCK) {
             if (lease.references.decrementAndGet() == 0) {
                 lease.drop();
-                activeLease = null;
+                activeLeases.remove(lease.bootstrapRequiredFixtures);
             }
         }
     }
@@ -124,13 +130,15 @@ public final class PostgresTestDatabaseInitializer
         private final String baseUrl;
         private final String username;
         private final String password;
+        private final boolean bootstrapRequiredFixtures;
         private final String schemaName = "logos_test_" + UUID.randomUUID().toString().replace("-", "");
         private final AtomicInteger references = new AtomicInteger();
 
-        private SchemaLease(String baseUrl, String username, String password) {
+        private SchemaLease(String baseUrl, String username, String password, boolean bootstrapRequiredFixtures) {
             this.baseUrl = baseUrl;
             this.username = username;
             this.password = password;
+            this.bootstrapRequiredFixtures = bootstrapRequiredFixtures;
         }
 
         private void create() {
