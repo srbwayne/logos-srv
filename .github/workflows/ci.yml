@@ -41,6 +41,9 @@ jobs:
           java-version: '21'
           cache: maven
 
+      - name: Validate Maven resource processing
+        run: bash ./mvnw -DskipTests process-test-resources
+
       - name: Run PostgreSQL test suite
         run: >-
           bash ./mvnw -Dmaven.resources.skip=true
