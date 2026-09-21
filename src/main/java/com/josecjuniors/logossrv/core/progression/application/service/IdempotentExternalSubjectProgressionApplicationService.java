@@ -37,10 +37,12 @@ public class IdempotentExternalSubjectProgressionApplicationService implements E
         try {
             return transaction.process(identity, fingerprint, subject, configuration, fact);
         } catch (DataIntegrityViolationException duplicate) {
-            return executions.find(identity)
-                    .filter(value -> value.fingerprint().equals(fingerprint))
-                    .map(ProgressionExternalExecutionStore.StoredExecution::outcome)
-                    .orElseThrow(() -> duplicate);
+            var existingAfterDuplicate = executions.find(identity);
+            if (existingAfterDuplicate.isEmpty()) throw duplicate;
+            if (existingAfterDuplicate.get().fingerprint().equals(fingerprint)) {
+                return existingAfterDuplicate.get().outcome();
+            }
+            throw new ProgressionExecutionConflictException();
         }
     }
 

@@ -45,6 +45,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -67,6 +69,8 @@ class ProgressionExecutionPostgresTest {
 
     private UUID subjectId;
     private UUID jogadorId;
+    private UUID secondSubjectId;
+    private UUID secondJogadorId;
     private String token;
     private String configurationKey;
 
@@ -172,6 +176,49 @@ class ProgressionExecutionPostgresTest {
             pool.shutdownNow();
         }
         assertThat(executionCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId))
+                .isEqualTo(30L);
+        assertThat(attributeXp()).isEqualTo(30L);
+    }
+
+    @Test
+    void concurrentConflictingFingerprintHasOneWinnerAndStableConflict() throws Exception {
+        for (int iteration = 0; iteration < 5; iteration++) {
+            int run = iteration;
+            var start = new CountDownLatch(1);
+            var pool = Executors.newFixedThreadPool(2);
+            try {
+                var futures = List.of(
+                        pool.submit(() -> concurrentAttempt("conflicting-session-" + run, 30, start)),
+                        pool.submit(() -> concurrentAttempt("conflicting-session-" + run, 50, start)));
+                start.countDown();
+                var attempts = futures.stream().map(future -> get(future, 10)).toList();
+                assertThat(attempts).filteredOn(ConcurrentAttempt::success).hasSize(1);
+                assertThat(attempts).filteredOn(attempt -> !attempt.success())
+                        .singleElement().extracting(ConcurrentAttempt::failure)
+                        .isInstanceOf(com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionConflictException.class);
+
+                long winningXp = jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId);
+                assertThat(winningXp).isIn(30L, 50L);
+                assertThat(attributeXp()).isEqualTo(winningXp);
+                assertThat(executionCount()).isEqualTo(1);
+
+                int winningPages = (int) winningXp;
+                int losingPages = winningPages == 30 ? 50 : 30;
+                assertThatCode(() -> directConcurrent("conflicting-session-" + run, winningPages, null))
+                        .doesNotThrowAnyException();
+                assertThatThrownBy(() -> directConcurrent("conflicting-session-" + run, losingPages, null))
+                        .hasRootCauseInstanceOf(com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionConflictException.class);
+                assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId))
+                        .isEqualTo(winningXp);
+                assertThat(executionCount()).isEqualTo(1);
+            } finally {
+                pool.shutdownNow();
+                executions.deleteAll();
+                jdbc.update("UPDATE jogador SET xp_total = 0, nivel_atual = 1 WHERE id = ?", jogadorId);
+                jdbc.update("DELETE FROM atributo_jogador WHERE jogador_id = ?", jogadorId);
+            }
+        }
     }
 
     @Test
@@ -192,6 +239,26 @@ class ProgressionExecutionPostgresTest {
         assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId))
                 .isEqualTo(50L);
         assertThat(attributeXp()).isEqualTo(50L);
+        assertThat(executionCount()).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentExecutionsForDifferentSubjectsUseIndependentPlayerRows() throws Exception {
+        createSecondSubject();
+        var start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var futures = List.of(
+                    pool.submit(() -> directSubjectConcurrent(subjectId, "subject-a", 30, start)),
+                    pool.submit(() -> directSubjectConcurrent(secondSubjectId, "subject-b", 20, start)));
+            start.countDown();
+            for (var future : futures) assertThat(future.get(10, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId)).isEqualTo(30L);
+        assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, secondJogadorId)).isEqualTo(20L);
+        assertThat(executionCount()).isEqualTo(2);
     }
 
     @Test
@@ -245,6 +312,56 @@ class ProgressionExecutionPostgresTest {
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }
+    }
+
+    private ConcurrentAttempt concurrentAttempt(String key, double pages, CountDownLatch start) {
+        try {
+            start.await(10, TimeUnit.SECONDS);
+            directConcurrent(key, pages, null);
+            return new ConcurrentAttempt(true, null);
+        } catch (Throwable exception) {
+            return new ConcurrentAttempt(false, rootCause(exception));
+        }
+    }
+
+    private boolean directSubjectConcurrent(UUID subject, String key, double pages, CountDownLatch start) {
+        try {
+            start.await(10, TimeUnit.SECONDS);
+            idempotentUseCase.execute(
+                    new ProgressionExecutionIdentity("lifeos", key),
+                    new ExternalSubjectReference("lifeos", subject.equals(subjectId) ? "user-1" : "user-2"),
+                    new ExternalProgressionConfigurationReference(configurationKey, null),
+                    new ProgressionFact(List.of(new ProgressionFact.Detail("pages_read", pages))));
+            return true;
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+    }
+
+    private ConcurrentAttempt get(java.util.concurrent.Future<ConcurrentAttempt> future, int timeoutSeconds) {
+        try {
+            return future.get(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+    }
+
+    private Throwable rootCause(Throwable exception) {
+        Throwable current = exception;
+        while (current.getCause() != null) current = current.getCause();
+        return current;
+    }
+
+    private record ConcurrentAttempt(boolean success, Throwable failure) {}
+
+    private void createSecondSubject() {
+        var user = users.saveAndFlush(new AppUser(new AppUserId(), "idempotency-second@example.test", encoder.encode("password")));
+        secondSubjectId = user.getId().getValue();
+        var player = new Jogador(JogadorId.generate(), user, "idempotent-second-player");
+        player.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), player));
+        jogadores.saveAndFlush(player);
+        secondJogadorId = player.getId().getValue();
+        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "user-2", player));
     }
 
     private int directFactValueConcurrent(String key, double pages, CountDownLatch start) {
