@@ -48,13 +48,12 @@ public class ProcessarRegistroVicioService {
     private void processarEvento(RegistroVicioCriadoEvent event) {
         logger.info("Processando registro de vício ID: {}", event.registroVicioId().getValue());
 
+        var jogador = jogadorRepository.findByIdForUpdate(event.jogadorId())
+                .orElseThrow(JogadorNaoEncontradoException::new);
         var registroVicio = registroVicioRepository.findById(event.registroVicioId())
                 .orElseThrow(RegistroVicioNaoEncontradoException::new);
 
         VicioJogador vicioJogador = registroVicio.getVicioJogador();
-        var jogadorId = vicioJogador.getJogador().getId();
-        var jogador = jogadorRepository.findByIdForUpdate(jogadorId)
-                .orElseThrow(JogadorNaoEncontradoException::new);
         RegraVicio regraVicio = vicioJogador.getVicio().getRegras().stream().findFirst().orElse(null);
 
         // 1. Reseta a "corrente" de dias sem o vício

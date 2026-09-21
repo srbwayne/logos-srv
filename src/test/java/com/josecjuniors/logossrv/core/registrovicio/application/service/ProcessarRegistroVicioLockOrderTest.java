@@ -33,7 +33,7 @@ class ProcessarRegistroVicioLockOrderTest {
         var lockedJogador = mock(Jogador.class);
         var jogadorId = JogadorId.generate();
         var registroId = RegistroVicioId.generate();
-        var event = new RegistroVicioCriadoEvent(registroId);
+        var event = new RegistroVicioCriadoEvent(registroId, jogadorId);
 
         when(registros.findById(registroId)).thenReturn(Optional.of(registro));
         when(registro.getVicioJogador()).thenReturn(vicioJogador);

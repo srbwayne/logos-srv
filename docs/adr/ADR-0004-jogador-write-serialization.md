@@ -15,8 +15,11 @@ aggregate state. Profile and nickname updates, RegistroVicio creation, and
 RegistroVicio processing therefore participate in the protocol. Read-only
 queries remain unlocked.
 
-Child state mutated by these workflows (stress, VicioJogador, debuffs,
-attributes, and skills) relies on serialization through the parent row.
+Child state mutated by these workflows participates in serialization through
+the parent row. This slice proves the stress path and the VicioJogador load
+ordering. `DebuffJogador` has no `(jogador_id, debuff_id)` uniqueness
+constraint, so duplicate-child defense remains follow-up work; attributes and
+skills retain their existing constraints and progression-owned write paths.
 
 No `@Version` or `@DynamicUpdate` is introduced in this slice; the protocol is
 pessimistic and consistent with progression.
@@ -27,4 +30,3 @@ The lock prevents stale aggregate writes among participating supported writers.
 Direct repository writes and unsupported writers are not magically protected.
 Database constraints may still be desirable as defense in depth for child
 uniqueness. Lock timeouts and deadlock retries remain unconfigured.
-

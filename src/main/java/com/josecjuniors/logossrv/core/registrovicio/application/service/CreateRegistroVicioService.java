@@ -63,7 +63,7 @@ public class CreateRegistroVicioService implements CreateRegistroVicioUseCase {
 
         var registroSalvo = registroVicioRepository.save(novoRegistro);
 
-        eventPublisher.publishEvent(new RegistroVicioCriadoEvent(registroSalvo.getId()));
+        eventPublisher.publishEvent(new RegistroVicioCriadoEvent(registroSalvo.getId(), jogador.getId()));
 
         return RegistroVicioDto.fromDomain(registroSalvo);
     }
