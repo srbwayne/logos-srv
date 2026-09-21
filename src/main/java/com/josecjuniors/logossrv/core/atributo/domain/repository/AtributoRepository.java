@@ -14,6 +14,9 @@ public interface AtributoRepository {
     Page<Atributo> findByNomeContainingIgnoreCase(String nome, Pageable pageable);
     boolean existsByNome(String nome);
     boolean existsByNomeAndIdNot(String nome, AtributoId id);
+    Optional<Atributo> findBySemanticKey(String semanticKey);
+    boolean existsBySemanticKey(String semanticKey);
+    boolean existsBySemanticKeyAndIdNot(String semanticKey, AtributoId id);
     void deleteById(AtributoId id);
     void deleteAll();
     List<Atributo> findAll();

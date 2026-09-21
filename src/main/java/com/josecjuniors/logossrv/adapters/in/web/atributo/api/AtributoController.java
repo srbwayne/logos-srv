@@ -1,6 +1,7 @@
 package com.josecjuniors.logossrv.adapters.in.web.atributo.api;
 
 import com.josecjuniors.logossrv.adapters.in.web.atributo.dto.request.CreateAtributoRequest;
+import com.josecjuniors.logossrv.adapters.in.web.atributo.dto.request.AssignAtributoSemanticKeyRequest;
 import com.josecjuniors.logossrv.adapters.in.web.atributo.dto.request.UpdateAtributoRequest;
 import com.josecjuniors.logossrv.adapters.in.web.atributo.dto.response.AtributoResponse;
 import com.josecjuniors.logossrv.core.atributo.application.dto.AtributoDto;
@@ -24,12 +25,14 @@ public class AtributoController {
     private final GetAtributoByIdUseCase getAtributoByIdUseCase;
     private final UpdateAtributoUseCase updateAtributoUseCase;
     private final GetAllAtributosUseCase getAllAtributosUseCase;
+    private final AssignAtributoSemanticKeyUseCase assignSemanticKeyUseCase;
 
-    public AtributoController(CreateAtributoUseCase createAtributoUseCase, GetAtributoByIdUseCase getAtributoByIdUseCase, UpdateAtributoUseCase updateAtributoUseCase, GetAllAtributosUseCase getAllAtributosUseCase) {
+    public AtributoController(CreateAtributoUseCase createAtributoUseCase, GetAtributoByIdUseCase getAtributoByIdUseCase, UpdateAtributoUseCase updateAtributoUseCase, GetAllAtributosUseCase getAllAtributosUseCase, AssignAtributoSemanticKeyUseCase assignSemanticKeyUseCase) {
         this.createAtributoUseCase = createAtributoUseCase;
         this.getAtributoByIdUseCase = getAtributoByIdUseCase;
         this.updateAtributoUseCase = updateAtributoUseCase;
         this.getAllAtributosUseCase = getAllAtributosUseCase;
+        this.assignSemanticKeyUseCase = assignSemanticKeyUseCase;
     }
 
     @GetMapping
@@ -43,7 +46,7 @@ public class AtributoController {
 
     @PostMapping
     public ResponseEntity<AtributoResponse> createAtributo(@RequestBody CreateAtributoRequest request) {
-        CreateAtributoCommand command = new CreateAtributoCommand(request.nome(), request.descricao());
+        CreateAtributoCommand command = new CreateAtributoCommand(request.nome(), request.descricao(), request.semanticKey());
         AtributoDto atributoDto = createAtributoUseCase.createAtributo(command);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(atributoDto.id()).toUri();
         return ResponseEntity.created(location).body(toResponse(atributoDto));
@@ -65,7 +68,14 @@ public class AtributoController {
         return ResponseEntity.ok(toResponse(atributoDto));
     }
 
+    @PutMapping("/{id}/semantic-key")
+    public ResponseEntity<AtributoResponse> assignSemanticKey(@PathVariable UUID id,
+                                                               @RequestBody AssignAtributoSemanticKeyRequest request) {
+        AtributoDto dto = assignSemanticKeyUseCase.assign(new AtributoId(id), request.semanticKey());
+        return ResponseEntity.ok(toResponse(dto));
+    }
+
     private AtributoResponse toResponse(AtributoDto dto) {
-        return new AtributoResponse(dto.id(), dto.nome(), dto.descricao());
+        return new AtributoResponse(dto.id(), dto.nome(), dto.descricao(), dto.semanticKey());
     }
 }

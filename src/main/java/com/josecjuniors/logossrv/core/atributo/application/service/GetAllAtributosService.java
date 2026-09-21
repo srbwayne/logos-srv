@@ -29,7 +29,8 @@ public class GetAllAtributosService implements GetAllAtributosUseCase {
         return new AtributoDto(
                 atributo.getId().getValue().toString(),
                 atributo.getNome(),
-                atributo.getDescricao()
+                atributo.getDescricao(),
+                atributo.getSemanticKey()
         );
     }
 }

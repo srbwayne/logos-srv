@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -81,6 +82,107 @@ class AtributoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void createAtributo_withSemanticKey_shouldExposeNormalizedKey() throws Exception {
+        mockMvc.perform(post("/api/atributos")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Conhecimento\",\"descricao\":\"desc\",\"semanticKey\":\" Knowledge \"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.semanticKey").value("knowledge"));
+    }
+
+    @Test
+    void createAtributo_whenSemanticKeyAlreadyExists_shouldReturn409Conflict() throws Exception {
+        atributoRepository.save(new Atributo(new AtributoId(), "Conhecimento", null, "knowledge"));
+        mockMvc.perform(post("/api/atributos")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Conhecimento Técnico\",\"semanticKey\":\"knowledge\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void assignSemanticKey_toLegacyAttribute_shouldSucceedAndBeIdempotent() throws Exception {
+        Atributo saved = atributoRepository.save(new Atributo(new AtributoId(), "Conhecimento", null));
+        UUID id = saved.getId().getValue();
+
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", id)
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\" Knowledge \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.semanticKey").value("knowledge"));
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", id)
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\"knowledge\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void assignSemanticKey_whenChangingAssignedKey_shouldReturn409() throws Exception {
+        Atributo saved = atributoRepository.save(new Atributo(new AtributoId(), "Conhecimento", null, "knowledge"));
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", saved.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\"intelligence\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void assignSemanticKey_whenAnotherAttributeOwnsKey_shouldReturn409() throws Exception {
+        Atributo first = atributoRepository.save(new Atributo(new AtributoId(), "Conhecimento", null, "knowledge"));
+        Atributo second = atributoRepository.save(new Atributo(new AtributoId(), "Foco", null));
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", second.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\"knowledge\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void assignSemanticKey_whenInvalidOrNullOrMissing_shouldReturn400() throws Exception {
+        Atributo saved = atributoRepository.save(new Atributo(new AtributoId(), "Conhecimento", null));
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", saved.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\"Knowledge Space\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", saved.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":null}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", saved.getId().getValue())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void assignSemanticKey_whenAttributeDoesNotExist_shouldReturn404() throws Exception {
+        mockMvc.perform(put("/api/atributos/{id}/semantic-key", UUID.randomUUID())
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semanticKey\":\"knowledge\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void genericUpdatePreservesSemanticKey() throws Exception {
+        Atributo saved = atributoRepository.save(new Atributo(new AtributoId(), "Conhecimento", null, "knowledge"));
+        UUID id = saved.getId().getValue();
+        mockMvc.perform(put("/api/atributos/{id}", id)
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Conhecimento Atualizado\",\"descricao\":\"nova descricao\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.semanticKey").value("knowledge"));
+        assertThat(atributoRepository.findById(new AtributoId(id)).orElseThrow().getSemanticKey()).isEqualTo("knowledge");
     }
 
     // --- READ Tests ---

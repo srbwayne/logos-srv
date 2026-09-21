@@ -4,6 +4,8 @@ import com.josecjuniors.logossrv.core.atributo.application.dto.AtributoDto;
 import com.josecjuniors.logossrv.core.atributo.application.port.in.CreateAtributoCommand;
 import com.josecjuniors.logossrv.core.atributo.application.port.in.CreateAtributoUseCase;
 import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoJaExisteException;
+import com.josecjuniors.logossrv.core.atributo.domain.exception.AtributoSemanticKeyJaExisteException;
+import com.josecjuniors.logossrv.core.atributo.domain.model.AtributoSemanticKey;
 import com.josecjuniors.logossrv.core.atributo.domain.model.Atributo;
 import com.josecjuniors.logossrv.core.atributo.domain.model.AtributoId;
 import com.josecjuniors.logossrv.core.atributo.domain.repository.AtributoRepository;
@@ -25,8 +27,12 @@ public class CreateAtributoService implements CreateAtributoUseCase {
         if (atributoRepository.existsByNome(command.nome())) {
             throw new AtributoJaExisteException(command.nome());
         }
+        String normalizedKey = command.semanticKey() == null ? null : AtributoSemanticKey.of(command.semanticKey()).value();
+        if (normalizedKey != null && atributoRepository.existsBySemanticKey(normalizedKey)) {
+            throw new AtributoSemanticKeyJaExisteException(normalizedKey);
+        }
 
-        Atributo novoAtributo = new Atributo(new AtributoId(), command.nome(), command.descricao());
+        Atributo novoAtributo = new Atributo(new AtributoId(), command.nome(), command.descricao(), normalizedKey);
         Atributo atributoSalvo = atributoRepository.save(novoAtributo);
 
         return toDto(atributoSalvo);
@@ -36,7 +42,8 @@ public class CreateAtributoService implements CreateAtributoUseCase {
         return new AtributoDto(
                 atributo.getId().getValue().toString(),
                 atributo.getNome(),
-                atributo.getDescricao()
+                atributo.getDescricao(),
+                atributo.getSemanticKey()
         );
     }
 }
