@@ -46,7 +46,7 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
                 .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
                 .andExpect(status().isOk())).get("token").asText();
 
-        JsonNode attribute = json(authPost(token, "/api/atributos", "{\"nome\":\"Conhecimento %s\",\"descricao\":\"snapshot\"}".formatted(suffix))
+        JsonNode attribute = json(authPost(token, "/api/atributos", "{\"nome\":\"Conhecimento\",\"descricao\":\"snapshot\"}")
                 .andExpect(status().isCreated()));
         UUID attributeId = UUID.fromString(attribute.get("id").asText());
         json(authPost(token, "/api/fatores-calculo", """
