@@ -25,7 +25,7 @@ public final class PostgresTestDatabaseInitializer
         implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
     private static final Object LIFECYCLE_LOCK = new Object();
-    private static final Map<Boolean, SchemaLease> activeLeases = new java.util.HashMap<>();
+    private static final Map<String, SchemaLease> activeLeases = new java.util.HashMap<>();
 
     @Override
     public void initialize(ConfigurableApplicationContext context) {
@@ -41,7 +41,8 @@ public final class PostgresTestDatabaseInitializer
 
         boolean bootstrapRequiredFixtures = environment.getProperty(
                 "logos.test.bootstrap-required-fixtures", Boolean.class, true);
-        SchemaLease lease = acquire(baseUrl, username, password, bootstrapRequiredFixtures);
+        String schemaKey = environment.getProperty("logos.test.schema-key", "default") + ":" + bootstrapRequiredFixtures;
+        SchemaLease lease = acquire(baseUrl, username, password, bootstrapRequiredFixtures, schemaKey);
         context.getEnvironment().getPropertySources().addFirst(new MapPropertySource(
                 "isolated-postgres-test-schema",
                 Map.of(
@@ -67,13 +68,13 @@ public final class PostgresTestDatabaseInitializer
         });
     }
 
-    private static SchemaLease acquire(String baseUrl, String username, String password, boolean bootstrapRequiredFixtures) {
+    private static SchemaLease acquire(String baseUrl, String username, String password, boolean bootstrapRequiredFixtures, String schemaKey) {
         synchronized (LIFECYCLE_LOCK) {
-            SchemaLease activeLease = activeLeases.get(bootstrapRequiredFixtures);
+            SchemaLease activeLease = activeLeases.get(schemaKey);
             if (activeLease == null) {
                 activeLease = new SchemaLease(baseUrl, username, password, bootstrapRequiredFixtures);
                 activeLease.create();
-                activeLeases.put(bootstrapRequiredFixtures, activeLease);
+                activeLeases.put(schemaKey, activeLease);
             }
             activeLease.references.incrementAndGet();
             return activeLease;
@@ -84,7 +85,7 @@ public final class PostgresTestDatabaseInitializer
         synchronized (LIFECYCLE_LOCK) {
             if (lease.references.decrementAndGet() == 0) {
                 lease.drop();
-                activeLeases.remove(lease.bootstrapRequiredFixtures);
+                activeLeases.values().remove(lease);
             }
         }
     }
