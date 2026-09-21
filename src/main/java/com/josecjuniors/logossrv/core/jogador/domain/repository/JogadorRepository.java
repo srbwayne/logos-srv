@@ -13,6 +13,7 @@ public interface JogadorRepository {
     Optional<Jogador> findByAppUserId(AppUserId appUserId);
     Optional<Jogador> findByAppUserIdForUpdate(AppUserId appUserId);
     Optional<Jogador> findByUserEmail(String email);
+    Optional<Jogador> findByUserEmailForUpdate(String email);
     boolean existsByApelidoAndIdNot(String apelido, JogadorId id);
     void deleteAll();
 }

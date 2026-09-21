@@ -83,9 +83,16 @@ PostgreSQL characterization tests cover the supported durable progression path:
   `Jogador` row lock and preserve both deltas;
 * different subjects progress independently through separate row locks.
 
-These guarantees apply to the durable progression boundary only. Other Logos
-writers, including `ProcessarRegistroVicioService`, are not implicitly covered
-by this lock protocol.
+These guarantees apply to the durable progression boundary. Shared-state
+writer participation is defined separately by the Jogador write-serialization
+ADR below.
+
+Mutable writers that participate in the `Jogador` aggregate now use the same
+row-level `PESSIMISTIC_WRITE` protocol. Profile and nickname updates, Registro
+Vicio creation, and Registro Vicio processing acquire the player lock before
+reading or mutating shared state. Read-only player queries remain unlocked.
+The complete writer decision and its limitations are recorded in
+`docs/adr/ADR-0004-jogador-write-serialization.md`.
 
 ## Persistence
 

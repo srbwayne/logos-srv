@@ -3,6 +3,8 @@ package com.josecjuniors.logossrv.core.registrovicio.application.service;
 import com.josecjuniors.logossrv.core.jogador.domain.model.DebuffJogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.DebuffJogadorId;
 import com.josecjuniors.logossrv.core.jogador.domain.repository.DebuffJogadorRepository;
+import com.josecjuniors.logossrv.core.jogador.domain.repository.JogadorRepository;
+import com.josecjuniors.logossrv.core.jogador.domain.exception.JogadorNaoEncontradoException;
 import com.josecjuniors.logossrv.core.jogador.domain.model.VicioJogador;
 import com.josecjuniors.logossrv.core.registrovicio.domain.events.RegistroVicioCriadoEvent;
 import com.josecjuniors.logossrv.core.registrovicio.domain.exception.RegistroVicioNaoEncontradoException;
@@ -27,11 +29,13 @@ public class ProcessarRegistroVicioService {
     private final RegistroVicioRepository registroVicioRepository;
     private final DebuffJogadorRepository debuffJogadorRepository;
     private final NivelVicioService nivelVicioService;
+    private final JogadorRepository jogadorRepository;
 
-    public ProcessarRegistroVicioService(RegistroVicioRepository registroVicioRepository, DebuffJogadorRepository debuffJogadorRepository, NivelVicioService nivelVicioService) {
+    public ProcessarRegistroVicioService(RegistroVicioRepository registroVicioRepository, DebuffJogadorRepository debuffJogadorRepository, NivelVicioService nivelVicioService, JogadorRepository jogadorRepository) {
         this.registroVicioRepository = registroVicioRepository;
         this.debuffJogadorRepository = debuffJogadorRepository;
         this.nivelVicioService = nivelVicioService;
+        this.jogadorRepository = jogadorRepository;
     }
 
     @Async
@@ -48,6 +52,9 @@ public class ProcessarRegistroVicioService {
                 .orElseThrow(RegistroVicioNaoEncontradoException::new);
 
         VicioJogador vicioJogador = registroVicio.getVicioJogador();
+        var jogadorId = vicioJogador.getJogador().getId();
+        var jogador = jogadorRepository.findByIdForUpdate(jogadorId)
+                .orElseThrow(JogadorNaoEncontradoException::new);
         RegraVicio regraVicio = vicioJogador.getVicio().getRegras().stream().findFirst().orElse(null);
 
         // 1. Reseta a "corrente" de dias sem o vício
@@ -61,21 +68,20 @@ public class ProcessarRegistroVicioService {
 
             // 3. Aplica estresse imediato
             if (regraVicio.getImpactoEstresse() != null) {
-                vicioJogador.getJogador().aplicarEstresse(regraVicio.getImpactoEstresse());
+                jogador.aplicarEstresse(regraVicio.getImpactoEstresse());
             }
 
             // 4. Aplica o Debuff
             if (regraVicio.getDebuff() != null && regraVicio.getDuracaoHoras() != null) {
-                aplicarDebuff(vicioJogador, regraVicio);
+                aplicarDebuff(jogador, regraVicio);
             }
         }
 
         logger.info("Registro de vício ID: {} processado com sucesso.", event.registroVicioId().getValue());
     }
 
-    private void aplicarDebuff(VicioJogador vicioJogador, RegraVicio regraVicio) {
+    private void aplicarDebuff(com.josecjuniors.logossrv.core.jogador.domain.model.Jogador jogador, RegraVicio regraVicio) {
         var debuff = regraVicio.getDebuff();
-        var jogador = vicioJogador.getJogador();
         int potencia = regraVicio.getPenalidadePontos() != null ? regraVicio.getPenalidadePontos() : 0;
         LocalDateTime novaDataExpiracao = LocalDateTime.now().plusHours(regraVicio.getDuracaoHoras());
 

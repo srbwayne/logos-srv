@@ -21,7 +21,7 @@ public class UpdatePerfilJogadorService implements UpdatePerfilJogadorUseCase {
 
     @Override
     public JogadorDto updatePerfil(UpdatePerfilJogadorCommand command) {
-        Jogador jogador = jogadorRepository.findByUserEmail(command.jogadorEmail())
+        Jogador jogador = jogadorRepository.findByUserEmailForUpdate(command.jogadorEmail())
                 .orElseThrow(JogadorNaoEncontradoException::new);
 
         jogador.atualizarPerfil(command);

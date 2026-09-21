@@ -22,7 +22,7 @@ public class UpdateApelidoService implements UpdateApelidoUseCase {
 
     @Override
     public JogadorDto updateApelido(UpdateApelidoCommand command) {
-        Jogador jogador = jogadorRepository.findByUserEmail(command.jogadorEmail())
+        Jogador jogador = jogadorRepository.findByUserEmailForUpdate(command.jogadorEmail())
                 .orElseThrow(JogadorNaoEncontradoException::new);
 
         if (jogadorRepository.existsByApelidoAndIdNot(command.novoApelido(), jogador.getId())) {

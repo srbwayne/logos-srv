@@ -41,7 +41,7 @@ public class CreateRegistroVicioService implements CreateRegistroVicioUseCase {
     @Override
     public RegistroVicioDto create(CreateRegistroVicioCommand command) {
 
-        Jogador jogador = jogadorRepository.findByUserEmail(command.userEmail())
+        Jogador jogador = jogadorRepository.findByUserEmailForUpdate(command.userEmail())
                 .orElseThrow(JogadorNaoEncontradoException::new);
 
         Vicio vicio = vicioRepository.findById(command.vicioId())
