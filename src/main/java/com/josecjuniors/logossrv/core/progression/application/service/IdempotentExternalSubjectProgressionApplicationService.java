@@ -52,15 +52,18 @@ public class IdempotentExternalSubjectProgressionApplicationService implements E
         private final ConfiguredStatefulProgressionApplicationService configuredService;
         private final ProgressionExternalExecutionStore executions;
         private final com.josecjuniors.logossrv.core.progression.application.port.out.ExternalSubjectResolver subjectResolver;
+        private final ProgressionOutcomeAttributeSemanticSnapshotter semanticSnapshotter;
 
         IdempotentExternalSubjectProgressionTransaction(ExternalProgressionConfigurationResolver configurationResolver,
                                                         ConfiguredStatefulProgressionApplicationService configuredService,
                                                         ProgressionExternalExecutionStore executions,
-                                                        com.josecjuniors.logossrv.core.progression.application.port.out.ExternalSubjectResolver subjectResolver) {
+                                                        com.josecjuniors.logossrv.core.progression.application.port.out.ExternalSubjectResolver subjectResolver,
+                                                        ProgressionOutcomeAttributeSemanticSnapshotter semanticSnapshotter) {
             this.configurationResolver = configurationResolver;
             this.configuredService = configuredService;
             this.executions = executions;
             this.subjectResolver = subjectResolver;
+            this.semanticSnapshotter = semanticSnapshotter;
         }
 
         @org.springframework.transaction.annotation.Transactional
@@ -73,8 +76,9 @@ public class IdempotentExternalSubjectProgressionApplicationService implements E
             executions.reserve(identity, fingerprint, subject.namespace(), subject.externalId(), configuration.key(),
                     configuration.revision(), resolved.configurationVersionId(), resolved.skillPolicyVersionId());
             var outcome = configuredService.executeResolved(subjectId, resolved, fact);
-            executions.complete(identity, outcome);
-            return outcome;
+            var durableOutcome = semanticSnapshotter.snapshot(outcome);
+            executions.complete(identity, durableOutcome);
+            return durableOutcome;
         }
     }
 }

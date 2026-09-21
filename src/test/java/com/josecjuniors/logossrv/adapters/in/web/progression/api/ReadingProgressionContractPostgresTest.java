@@ -101,8 +101,11 @@ class ReadingProgressionContractPostgresTest {
                 .andExpect(jsonPath("$.result.globalXpDelta").value(30))
                 .andExpect(jsonPath("$.result.stressTotal").value(0.0))
                 .andExpect(jsonPath("$.result.attributeProgressions[0].key").value(conhecimentoId.toString()))
+                .andExpect(jsonPath("$.result.attributeProgressions[0].semanticKey").value("knowledge"))
                 .andExpect(jsonPath("$.result.attributeProgressions[0].xp").value(30))
                 .andExpect(jsonPath("$.profile.globalXp").value(30))
+                .andExpect(jsonPath("$.profile.attributes[0].key").value(conhecimentoId.toString()))
+                .andExpect(jsonPath("$.profile.attributes[0].semanticKey").value("knowledge"))
                 .andExpect(jsonPath("$.profile.stress").value(0))
                 .andReturn().getResponse().getContentAsString();
 
@@ -133,7 +136,9 @@ class ReadingProgressionContractPostgresTest {
                 .andExpect(jsonPath("$.subject.namespace").value("lifeos"))
                 .andExpect(jsonPath("$.subject.externalId").value(EXTERNAL_ID))
                 .andExpect(jsonPath("$.configurationKey").value("reading"))
-                .andExpect(jsonPath("$.requestedRevision").value(revision));
+                .andExpect(jsonPath("$.requestedRevision").value(revision))
+                .andExpect(jsonPath("$.outcome.result.attributeProgressions[0].semanticKey").value("knowledge"))
+                .andExpect(jsonPath("$.outcome.profile.attributes[0].semanticKey").value("knowledge"));
 
         mockMvc.perform(get("/api/internal/v1/progression/executions/history")
                         .header("Authorization", "Bearer " + token)
@@ -144,7 +149,9 @@ class ReadingProgressionContractPostgresTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.items[0].identity.idempotencyKey").value(IDEMPOTENCY_KEY))
-                .andExpect(jsonPath("$.items[0].requestedRevision").value(revision));
+                .andExpect(jsonPath("$.items[0].requestedRevision").value(revision))
+                .andExpect(jsonPath("$.items[0].outcome.result.attributeProgressions[0].semanticKey").value("knowledge"))
+                .andExpect(jsonPath("$.items[0].outcome.profile.attributes[0].semanticKey").value("knowledge"));
     }
 
     private org.springframework.test.web.servlet.ResultActions postJson(String path, String body) throws Exception {

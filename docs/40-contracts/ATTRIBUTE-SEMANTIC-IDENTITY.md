@@ -13,3 +13,9 @@ the explicit `/api/atributos/{id}/semantic-key` operation.
 Existing Progression HTTP V1 `key` fields remain Attribute UUIDs. This slice
 adds catalog identity without changing published progression snapshots, skill
 policy snapshots, engine/profile identity, or durable execution serialization.
+
+For durable progression executions, `semanticKey` is additive response metadata
+captured at execution time. New POST results, idempotent replay, exact reads,
+and history reads use the persisted snapshot rather than resolving the current
+Attribute catalog. Legacy executions without a snapshot expose `semanticKey`
+as `null`.

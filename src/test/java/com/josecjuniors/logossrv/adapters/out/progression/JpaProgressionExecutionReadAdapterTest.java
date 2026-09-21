@@ -69,6 +69,17 @@ class JpaProgressionExecutionReadAdapterTest {
         verifyNoMoreInteractions(repository);
     }
 
+    @Test
+    void readsLegacyOutcomeWithoutSemanticSnapshotAsEmptyMap() throws Exception {
+        var entity = entity("lifeos", "legacy", "COMPLETED", outcomeJson());
+        when(repository.findBySourceSystemAndIdempotencyKey("lifeos", "legacy"))
+                .thenReturn(java.util.Optional.of(entity));
+
+        var read = adapter.find(new ProgressionExecutionIdentity("lifeos", "legacy")).orElseThrow();
+
+        assertThat(read.outcome().attributeSemanticKeys()).isEmpty();
+    }
+
     private ProgressionExternalExecutionEntity entity(String source, String key, String status, String response) {
         var entity = mock(ProgressionExternalExecutionEntity.class);
         when(entity.getSourceSystem()).thenReturn(source);

@@ -98,3 +98,9 @@ namespace authorization, external identity proof, replay, general same-subject
 concurrency, and version-authoring lifecycle remain separate follow-up work.
 POC self-provisioning is documented in `PROGRESSION-SUBJECT-IDENTITY.md`; it is
 not a production service-trust or ownership solution.
+
+The serialized outcome may also contain additive Attribute semantic identity
+metadata captured when the execution completes. Replays, exact reads, and
+history return that original snapshot; they do not resolve semantic keys from
+the live Attribute catalog. Older outcomes without this metadata remain
+readable and expose a nullable semantic key.

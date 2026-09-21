@@ -13,9 +13,9 @@ public record ProgressionEvaluationResponse(ResultResponse result, ProfileRespon
         ProgressionProfile profile = outcome.updatedProfile();
         return new ProgressionEvaluationResponse(
                 new ResultResponse(result.xpGlobal(), result.stressTotal(), result.attributeProgressions().stream()
-                        .map(value -> new AttributeProgressionResponse(value.attributeKey(), value.xp())).toList()),
+                        .map(value -> new AttributeProgressionResponse(value.attributeKey(), outcome.attributeSemanticKeys().get(value.attributeKey()), value.xp())).toList()),
                 new ProfileResponse(profile.globalXp(), profile.globalLevel(), profile.stress(), profile.skillPoints(),
-                        profile.attributes().stream().map(value -> new AttributeStateResponse(value.key(), value.xp(), value.level())).toList(),
+                        profile.attributes().stream().map(value -> new AttributeStateResponse(value.key(), outcome.attributeSemanticKeys().get(value.key()), value.xp(), value.level())).toList(),
                         profile.skills().stream().map(value -> new SkillResponse(value.key(), value.level())).toList()));
     }
 
@@ -27,10 +27,10 @@ public record ProgressionEvaluationResponse(ResultResponse result, ProfileRespon
                                   List<AttributeStateResponse> attributes, List<SkillResponse> skills) {
     }
 
-    public record AttributeProgressionResponse(String key, long xp) {
+    public record AttributeProgressionResponse(String key, String semanticKey, long xp) {
     }
 
-    public record AttributeStateResponse(String key, long xp, int level) {
+    public record AttributeStateResponse(String key, String semanticKey, long xp, int level) {
     }
 
     public record SkillResponse(String key, int level) {
