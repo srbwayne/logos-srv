@@ -75,8 +75,8 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
                 .andExpect(jsonPath("$.result.attributeProgressions[0].semanticKey").value((Object) null))
                 .andExpect(jsonPath("$.profile.attributes[0].semanticKey").value((Object) null));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_external_execution", Integer.class)).isEqualTo(1);
-        exact(token, beforeKey, null);
-        history(token, externalId, beforeKey, null);
+        exact(token, beforeKey, attributeId, null);
+        history(token, externalId, beforeKey, attributeId, null);
 
         authPut(token, "/api/atributos/%s/semantic-key".formatted(attributeId), "{\"semanticKey\":\"knowledge\"}")
                 .andExpect(status().isOk()).andExpect(jsonPath("$.semanticKey").value("knowledge"));
@@ -85,17 +85,17 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.attributeProgressions[0].semanticKey").value((Object) null))
                 .andExpect(jsonPath("$.profile.attributes[0].semanticKey").value((Object) null));
-        exact(token, beforeKey, null);
-        history(token, externalId, beforeKey, null);
+        exact(token, beforeKey, attributeId, null);
+        history(token, externalId, beforeKey, attributeId, null);
 
         String afterRequest = execution(externalId, afterKey, logicalKey, revision, 3);
         authPost(token, "/api/internal/v1/progression/executions", afterRequest)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.attributeProgressions[0].semanticKey").value("knowledge"))
                 .andExpect(jsonPath("$.profile.attributes[0].semanticKey").value("knowledge"));
-        exact(token, afterKey, "knowledge");
-        history(token, externalId, beforeKey, null);
-        history(token, externalId, afterKey, "knowledge");
+        exact(token, afterKey, attributeId, "knowledge");
+        history(token, externalId, beforeKey, attributeId, null);
+        history(token, externalId, afterKey, attributeId, "knowledge");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM progression_external_execution", Integer.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id = ?", Long.class, jogadorId)).isEqualTo(6L);
     }
@@ -115,14 +115,16 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
         return "{\"subject\":{\"namespace\":\"lifeos\",\"externalId\":\"%s\"},\"execution\":{\"source\":\"lifeos\",\"idempotencyKey\":\"%s\"},\"configuration\":{\"key\":\"%s\",\"revision\":%d},\"details\":[{\"factorKey\":\"pages_read\",\"value\":%d}]}"
                 .formatted(subject, idempotency, key, revision, pages);
     }
-    private void exact(String token, String idempotency, String expected) throws Exception {
+    private void exact(String token, String idempotency, UUID attributeId, String expected) throws Exception {
         var result = mockMvc.perform(get("/api/internal/v1/progression/executions").header("Authorization", "Bearer " + token)
                         .param("sourceSystem", "lifeos").param("idempotencyKey", idempotency))
                 .andExpect(status().isOk());
-        if (expected == null) result.andExpect(jsonPath("$.outcome.result.attributeProgressions[0].semanticKey").value((Object) null));
-        else result.andExpect(jsonPath("$.outcome.result.attributeProgressions[0].semanticKey").value(expected));
+        result.andExpect(jsonPath("$.outcome.result.attributeProgressions[0].key").value(attributeId.toString()))
+                .andExpect(jsonPath("$.outcome.profile.attributes[0].key").value(attributeId.toString()));
+        assertSemantic(result, "$.outcome.result.attributeProgressions[0].semanticKey", expected);
+        assertSemantic(result, "$.outcome.profile.attributes[0].semanticKey", expected);
     }
-    private void history(String token, String subject, String idempotency, String expected) throws Exception {
+    private void history(String token, String subject, String idempotency, UUID attributeId, String expected) throws Exception {
         JsonNode body = objectMapper.readTree(mockMvc.perform(get("/api/internal/v1/progression/executions/history")
                         .header("Authorization", "Bearer " + token).param("subjectNamespace", "lifeos")
                         .param("subjectExternalId", subject).param("page", "0").param("size", "20"))
@@ -130,7 +132,20 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
         JsonNode item = null;
         for (JsonNode candidate : body.get("items")) if (idempotency.equals(candidate.get("identity").get("idempotencyKey").asText())) item = candidate;
         assertThat(item).isNotNull();
+        assertThat(item.at("/outcome/result/attributeProgressions/0/key").asText()).isEqualTo(attributeId.toString());
+        assertThat(item.at("/outcome/profile/attributes/0/key").asText()).isEqualTo(attributeId.toString());
         JsonNode semantic = item.at("/outcome/result/attributeProgressions/0/semanticKey");
-        if (expected == null) assertThat(semantic.isNull()).isTrue(); else assertThat(semantic.asText()).isEqualTo(expected);
+        JsonNode profileSemantic = item.at("/outcome/profile/attributes/0/semanticKey");
+        if (expected == null) {
+            assertThat(semantic.isNull()).isTrue();
+            assertThat(profileSemantic.isNull()).isTrue();
+        } else {
+            assertThat(semantic.asText()).isEqualTo(expected);
+            assertThat(profileSemantic.asText()).isEqualTo(expected);
+        }
+    }
+    private org.springframework.test.web.servlet.ResultActions assertSemantic(
+            org.springframework.test.web.servlet.ResultActions result, String path, String expected) throws Exception {
+        return expected == null ? result.andExpect(jsonPath(path).value((Object) null)) : result.andExpect(jsonPath(path).value(expected));
     }
 }
