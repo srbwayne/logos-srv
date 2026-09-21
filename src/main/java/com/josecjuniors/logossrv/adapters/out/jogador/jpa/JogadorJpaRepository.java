@@ -45,6 +45,11 @@ public interface JogadorJpaRepository extends JogadorRepository, JpaRepository<J
     Optional<Jogador> findByUserEmail(String email);
 
     @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select j from Jogador j where j.user.email = :email")
+    Optional<Jogador> findByUserEmailForUpdate(@Param("email") String email);
+
+    @Override
     boolean existsByApelidoAndIdNot(String apelido, JogadorId id);
 
     @Override
