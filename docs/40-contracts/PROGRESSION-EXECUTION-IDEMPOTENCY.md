@@ -71,6 +71,22 @@ can execute normally. If the response is lost after commit, the retry reads
 the stored outcome and the original configuration and skill-policy version
 references remain attached to that execution.
 
+## Characterized concurrency
+
+PostgreSQL characterization tests cover the supported durable progression path:
+
+* the same identity and fingerprint produce one mutation; concurrent callers
+  receive the original outcome or its replay;
+* the same identity with a different fingerprint has one winner and the other
+  caller receives HTTP 409 without a second mutation;
+* different identities for one subject serialize through that subject's
+  `Jogador` row lock and preserve both deltas;
+* different subjects progress independently through separate row locks.
+
+These guarantees apply to the durable progression boundary only. Other Logos
+writers, including `ProcessarRegistroVicioService`, are not implicitly covered
+by this lock protocol.
+
 ## Persistence
 
 V34 creates `progression_external_execution` with a unique
