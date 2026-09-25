@@ -16,10 +16,22 @@ RegistroVicio processing therefore participate in the protocol. Read-only
 queries remain unlocked.
 
 Child state mutated by these workflows participates in serialization through
-the parent row. This slice proves the stress path and the VicioJogador load
-ordering. `DebuffJogador` has no `(jogador_id, debuff_id)` uniqueness
-constraint, so duplicate-child defense remains follow-up work; attributes and
-skills retain their existing constraints and progression-owned write paths.
+the parent row. PostgreSQL characterization covers the real supported
+production paths:
+
+* Two concurrent `CreateRegistroVicioService` calls for the same Jogador and
+  Vicio preserved one logical `VicioJogador` and created two `RegistroVicio`
+  rows, without a duplicate child, deadlock, or timeout.
+* Two concurrent `ProcessarRegistroVicioService` calls for the same Jogador
+  and Debuff preserved one logical `DebuffJogador`; the configured penalty of
+  7 accumulated serially to the expected final potency of 14, without lost
+  accumulation, a duplicate child, deadlock, or timeout.
+
+The parent lock is therefore sufficient for the currently supported production
+paths. `VicioJogador` has no database `UNIQUE (jogador_id, vicio_id)` and
+`DebuffJogador` has no database `UNIQUE (jogador_id, debuff_id)`. Adding those
+constraints remains a defense-in-depth opportunity, not a confirmed production
+defect or a correction required by the characterized supported paths.
 
 No `@Version` or `@DynamicUpdate` is introduced in this slice; the protocol is
 pessimistic and consistent with progression.
@@ -27,6 +39,8 @@ pessimistic and consistent with progression.
 ## Consequences and limits
 
 The lock prevents stale aggregate writes among participating supported writers.
-Direct repository writes and unsupported writers are not magically protected.
-Database constraints may still be desirable as defense in depth for child
-uniqueness. Lock timeouts and deadlock retries remain unconfigured.
+It does not establish that all possible writers are safe: direct repository
+writes and unsupported writers are outside this guarantee unless they first
+join the same protocol. Database constraints may still be desirable as defense
+in depth for child uniqueness. Lock timeouts and deadlock retries remain
+unconfigured.

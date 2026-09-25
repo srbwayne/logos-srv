@@ -83,16 +83,26 @@ PostgreSQL characterization tests cover the supported durable progression path:
   `Jogador` row lock and preserve both deltas;
 * different subjects progress independently through separate row locks.
 
-These guarantees apply to the durable progression boundary. Shared-state
-writer participation is defined separately by the Jogador write-serialization
-ADR below.
+These guarantees apply to the durable progression boundary. The supported
+shared-state writers also have a separate, characterized consistency boundary:
+they acquire the same row-level `PESSIMISTIC_WRITE` lock on `Jogador` before
+reading or mutating shared state. Profile and nickname updates, Registro Vicio
+creation, and Registro Vicio processing participate; read-only player queries
+remain unlocked.
 
-Mutable writers that participate in the `Jogador` aggregate now use the same
-row-level `PESSIMISTIC_WRITE` protocol. Profile and nickname updates, Registro
-Vicio creation, and Registro Vicio processing acquire the player lock before
-reading or mutating shared state. Read-only player queries remain unlocked.
-The complete writer decision and its limitations are recorded in
-`docs/adr/ADR-0004-jogador-write-serialization.md`.
+PostgreSQL characterization of the real Registro Vicio services additionally
+proves that two concurrent supported creates for one Jogador/Vicio preserve
+one logical `VicioJogador` while creating two `RegistroVicio` rows. It also
+proves that two concurrent supported processings for one Jogador/Debuff
+preserve one logical `DebuffJogador` and serially accumulate potency from the
+configured penalty of 7 to 14. Neither scenario produced a duplicate child,
+lost accumulation, deadlock, or timeout.
+
+This is a guarantee for supported shared-state writers, not a universal claim
+about every possible writer. Unsupported or direct repository writes are
+outside the `Jogador` lock guarantee unless they explicitly participate in the
+same protocol. The complete writer decision and its limitations are recorded
+in `docs/adr/ADR-0004-jogador-write-serialization.md`.
 
 ## Persistence
 
@@ -117,8 +127,9 @@ external execution; it does not turn the source event into a Logos-owned fact.
 ## Remaining debts
 
 Durable LifeOS delivery/outbox, service-to-service authentication, source and
-namespace authorization, external identity proof, replay, general same-subject
-concurrency, and version-authoring lifecycle remain separate follow-up work.
+namespace authorization, external identity proof, operational/historical
+replay policy beyond idempotent retrieval of a stored execution outcome, and
+version-authoring lifecycle remain separate follow-up work.
 POC self-provisioning is documented in `PROGRESSION-SUBJECT-IDENTITY.md`; it is
 not a production service-trust or ownership solution.
 
