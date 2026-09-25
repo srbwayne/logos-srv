@@ -2,6 +2,7 @@ package com.josecjuniors.logossrv.core.jogador.application.service;
 
 import com.josecjuniors.logossrv.adapters.out.appuser.jpa.AppUserJpaRepository;
 import com.josecjuniors.logossrv.adapters.out.jogador.jpa.JogadorJpaRepository;
+import com.josecjuniors.logossrv.adapters.out.progression.identity.jpa.ProgressionSubjectIdentityJpaRepository;
 import com.josecjuniors.logossrv.config.jwt.JwtService;
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUser;
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class JogadorWriteLockProtocolPostgresTest {
     @Autowired AppUserJpaRepository users;
     @Autowired JogadorJpaRepository jogadores;
+    @Autowired ProgressionSubjectIdentityJpaRepository identities;
     @Autowired PasswordEncoder encoder;
     @Autowired PlatformTransactionManager transactionManager;
     @Autowired UpdateApelidoService updateApelido;
@@ -36,6 +38,7 @@ class JogadorWriteLockProtocolPostgresTest {
 
     @BeforeEach
     void clean() {
+        identities.deleteAll();
         jogadores.deleteAll();
         users.deleteAll();
     }

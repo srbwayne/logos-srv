@@ -8,6 +8,7 @@ import com.josecjuniors.logossrv.adapters.out.jogador.jpa.VicioJogadorJpaReposit
 import com.josecjuniors.logossrv.adapters.out.registrovicio.jpa.RegistroVicioJpaRepository;
 import com.josecjuniors.logossrv.adapters.out.vicio.jpa.RegraVicioJpaRepository;
 import com.josecjuniors.logossrv.adapters.out.vicio.jpa.VicioJpaRepository;
+import com.josecjuniors.logossrv.adapters.out.progression.identity.jpa.ProgressionSubjectIdentityJpaRepository;
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUser;
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
 import com.josecjuniors.logossrv.core.debuff.domain.model.Debuff;
@@ -61,6 +62,7 @@ class ChildStateConcurrencyCharacterizationPostgresTest {
     @Autowired VicioJogadorJpaRepository viciosJogador;
     @Autowired DebuffJogadorJpaRepository debuffsJogador;
     @Autowired RegistroVicioJpaRepository registros;
+    @Autowired ProgressionSubjectIdentityJpaRepository identities;
     @Autowired PasswordEncoder encoder;
     @Autowired JdbcTemplate jdbc;
 
@@ -72,6 +74,7 @@ class ChildStateConcurrencyCharacterizationPostgresTest {
         regras.deleteAll();
         debuffs.deleteAll();
         vicios.deleteAll();
+        identities.deleteAll();
         jogadores.deleteAll();
         users.deleteAll();
     }
