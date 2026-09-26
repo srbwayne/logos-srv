@@ -115,10 +115,17 @@ do not receive invented source or idempotency identities.
 
 ## Security and ownership
 
-The existing authentication configuration is unchanged. Source authorization
-is intentionally not implemented: an authenticated caller can currently state
-a source value, so service-to-service authentication and source/namespace
-authorization remain prerequisites for production LifeOS rollout.
+The current runtime remains authenticated-only. It does not yet implement
+HARD-001 workload authentication, HARD-002 source/namespace/operation
+authorization, or HARD-003 external subject ownership lifecycle. An authenticated
+caller can currently state request source and subject values; do not interpret
+the current runtime as enforcing the canonical target trust boundary.
+
+The frozen target architecture is documented in `docs/adr/ADR-0005-workload-trust-contract.md`,
+`docs/adr/ADR-0006-source-namespace-operation-authorization.md`,
+`docs/adr/ADR-0007-external-subject-ownership-lifecycle.md`, and
+`docs/adr/ADR-0008-cross-system-hardening-sequence.md`. These decisions are
+architectural direction, not implemented runtime behavior.
 
 LifeOS remains the canonical owner of the source fact. Logos remains the
 canonical owner of progression state. Idempotency protects delivery of the
@@ -126,12 +133,16 @@ external execution; it does not turn the source event into a Logos-owned fact.
 
 ## Remaining debts
 
-Durable LifeOS delivery/outbox, service-to-service authentication, source and
-namespace authorization, external identity proof, operational/historical
-replay policy beyond idempotent retrieval of a stored execution outcome, and
-version-authoring lifecycle remain separate follow-up work.
-POC self-provisioning is documented in `PROGRESSION-SUBJECT-IDENTITY.md`; it is
-not a production service-trust or ownership solution.
+HARD-001 workload authentication, HARD-002 relational authorization, and
+HARD-003 ownership lifecycle are approved/frozen but not implemented. HARD-004
+bounded delivery recovery, HARD-005 minimum cross-system correlation, and
+HARD-006 secret/configuration lifecycle are frozen foundations whose
+implementation is not authorized. HARD-007 deployment boundary is deferred.
+Durable LifeOS delivery/outbox and version-authoring lifecycle remain separate
+follow-up work. Operational/historical replay beyond idempotent retrieval of a
+stored execution outcome is not authorized by this contract or architecture
+freeze. See ADR-0008 for the required dependency order; this update does not
+change the idempotency, concurrency, or snapshot-durability guarantees above.
 
 The serialized outcome may also contain additive Attribute semantic identity
 metadata captured when the execution completes. Replays, exact reads, and
