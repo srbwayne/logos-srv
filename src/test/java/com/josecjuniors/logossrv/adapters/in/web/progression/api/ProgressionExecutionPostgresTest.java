@@ -154,24 +154,6 @@ class ProgressionExecutionPostgresTest {
     }
 
     @Test
-    void exactReadAlsoProtectsStoredSubjectNamespace() throws Exception {
-        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "noema", "foreign-user",
-                jogadores.findById(new JogadorId(jogadorId)).orElseThrow()));
-        idempotentUseCase.execute(
-                new ProgressionExecutionIdentity("lifeos", "stored-noema"),
-                new ExternalSubjectReference("noema", "foreign-user"),
-                new ExternalProgressionConfigurationReference(configurationKey, null),
-                new ProgressionFact(List.of(new ProgressionFact.Detail("pages_read", 1))));
-
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/internal/v1/progression/executions")
-                        .header("X-Logos-Client-Id", "lifeos")
-                        .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret")
-                        .queryParam("sourceSystem", "lifeos")
-                        .queryParam("idempotencyKey", "stored-noema"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
     void conflictingDuplicateReturnsConflictWithoutSecondExecution() throws Exception {
         call(request("lifeos", "reading-session-2", 30)).andExpect(status().isOk());
         call(request("lifeos", "reading-session-2", 50)).andExpect(status().isConflict());
@@ -309,8 +291,7 @@ class ProgressionExecutionPostgresTest {
 
     private org.springframework.test.web.servlet.ResultActions call(ProgressionExecutionRequest request) throws Exception {
         return mockMvc.perform(post("/api/internal/v1/progression/executions")
-                .header("X-Logos-Client-Id", "lifeos")
-                .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret")
+                .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)));
     }

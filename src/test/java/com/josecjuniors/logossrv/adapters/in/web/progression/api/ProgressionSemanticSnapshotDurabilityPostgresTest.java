@@ -69,7 +69,7 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
                 .andExpect(status().isOk()));
 
         String beforeRequest = execution(externalId, beforeKey, logicalKey, revision, 3);
-        integrationPost("/api/internal/v1/progression/executions", beforeRequest)
+        authPost(token, "/api/internal/v1/progression/executions", beforeRequest)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.attributeProgressions[0].key").value(attributeId.toString()))
                 .andExpect(jsonPath("$.result.attributeProgressions[0].semanticKey").value((Object) null))
@@ -81,7 +81,7 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
         authPut(token, "/api/atributos/%s/semantic-key".formatted(attributeId), "{\"semanticKey\":\"knowledge\"}")
                 .andExpect(status().isOk()).andExpect(jsonPath("$.semanticKey").value("knowledge"));
 
-        integrationPost("/api/internal/v1/progression/executions", beforeRequest)
+        authPost(token, "/api/internal/v1/progression/executions", beforeRequest)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.attributeProgressions[0].semanticKey").value((Object) null))
                 .andExpect(jsonPath("$.profile.attributes[0].semanticKey").value((Object) null));
@@ -89,7 +89,7 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
         history(token, externalId, beforeKey, attributeId, null);
 
         String afterRequest = execution(externalId, afterKey, logicalKey, revision, 3);
-        integrationPost("/api/internal/v1/progression/executions", afterRequest)
+        authPost(token, "/api/internal/v1/progression/executions", afterRequest)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.attributeProgressions[0].semanticKey").value("knowledge"))
                 .andExpect(jsonPath("$.profile.attributes[0].semanticKey").value("knowledge"));
@@ -108,12 +108,6 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
         return mockMvc.perform(put(path).header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content(body));
     }
-    private org.springframework.test.web.servlet.ResultActions integrationPost(String path, String body) throws Exception {
-        return mockMvc.perform(post(path)
-                .header("X-Logos-Client-Id", "lifeos")
-                .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret")
-                .contentType(MediaType.APPLICATION_JSON).content(body));
-    }
     private JsonNode json(org.springframework.test.web.servlet.ResultActions action) throws Exception {
         return objectMapper.readTree(action.andReturn().getResponse().getContentAsString());
     }
@@ -122,9 +116,7 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
                 .formatted(subject, idempotency, key, revision, pages);
     }
     private void exact(String token, String idempotency, UUID attributeId, String expected) throws Exception {
-        var result = mockMvc.perform(get("/api/internal/v1/progression/executions")
-                        .header("X-Logos-Client-Id", "lifeos")
-                        .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret")
+        var result = mockMvc.perform(get("/api/internal/v1/progression/executions").header("Authorization", "Bearer " + token)
                         .param("sourceSystem", "lifeos").param("idempotencyKey", idempotency))
                 .andExpect(status().isOk());
         result.andExpect(jsonPath("$.outcome.result.attributeProgressions[0].key").value(attributeId.toString()))
@@ -134,8 +126,7 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
     }
     private void history(String token, String subject, String idempotency, UUID attributeId, String expected) throws Exception {
         JsonNode body = objectMapper.readTree(mockMvc.perform(get("/api/internal/v1/progression/executions/history")
-                        .header("X-Logos-Client-Id", "lifeos")
-                        .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret").param("subjectNamespace", "lifeos")
+                        .header("Authorization", "Bearer " + token).param("subjectNamespace", "lifeos")
                         .param("subjectExternalId", subject).param("page", "0").param("size", "20"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         JsonNode item = null;
