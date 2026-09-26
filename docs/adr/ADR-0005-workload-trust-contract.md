@@ -54,13 +54,19 @@ account/password; symmetric service JWT; OAuth authorization server now; OIDC
 provider now; or an mTLS requirement now. OAuth/OIDC and mTLS may be considered
 as future evolutions, but they are not the frozen HARD-001 choice.
 
-## Open technical-plan decisions
+## Canonical technical profile
 
-This ADR does not choose the signing algorithm, exact JWT claim names, key
-encoding, assertion lifetime, clock-skew allowance, replay-store
-implementation, trust-registry persistence schema, admin API/CLI, or Spring
-filter/provider implementation. Those details belong to a later technical
-plan.
+The HARD-001 architecture is frozen here. Its canonical workload assertion
+technical profile is frozen in
+[ADR-0009 — Workload Assertion Technical Profile](ADR-0009-workload-assertion-technical-profile.md).
+ADR-0009 specifies the algorithm, JOSE headers and claims, issuer and
+audience, lifetime and clock skew, key lookup and formats, replay semantics,
+trust-registry direction, rotation/revocation behavior, transport, and
+authentication failure contract.
+
+That profile does **not** authorize implementation. Production authentication,
+migrations, runtime changes, deployment, or changes to LifeOS remain outside
+the authorization granted by these ADRs and require their own approval.
 
 ## Separation from authorization
 
