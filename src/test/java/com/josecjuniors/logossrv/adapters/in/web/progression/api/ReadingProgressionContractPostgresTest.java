@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @FreshPostgresIntegrationTest
+@TestPropertySource(properties = "logos.test.schema-key=reading-progression-contract")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ReadingProgressionContractPostgresTest {
 
@@ -89,9 +91,11 @@ class ReadingProgressionContractPostgresTest {
                 """.formatted(activationVersion)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentRevision").value(revision)));
 
-        json(authPost(token, "/api/internal/v1/progression/subject-identities", """
-                {"namespace":"lifeos","externalId":"%s"}
-                """.formatted(EXTERNAL_ID)).andExpect(status().isOk())
+        JsonNode challenge = json(authPost(token, "/api/internal/v1/progression/subject-link-challenges",
+                "{\"namespace\":\"lifeos\"}").andExpect(status().isCreated()));
+        json(integrationPost("/api/internal/v1/progression/subject-identities", """
+                {"namespace":"lifeos","externalId":"%s","challengeToken":"%s"}
+                """.formatted(EXTERNAL_ID, challenge.get("challengeToken").asText())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.namespace").value("lifeos"))
                 .andExpect(jsonPath("$.externalId").value(EXTERNAL_ID)));
 

@@ -34,6 +34,7 @@ import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationActivationConflictException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectIdentityConflictException;
+import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectLinkChallengeInvalidException;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.exception.RegraDistribuicaoNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.exception.RegraFatorEstresseNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.exception.RegraFatorXPNaoEncontradaException;
@@ -204,6 +205,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ProgressionSubjectIdentityConflictException.class)
     public ResponseEntity<Map<String, String>> handleProgressionSubjectIdentityConflict(ProgressionSubjectIdentityConflictException ex) {
         return new ResponseEntity<>(Map.of("error", ex.getMessage(), "code", "PROGRESSION_SUBJECT_IDENTITY_CONFLICT"), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(ProgressionSubjectLinkChallengeInvalidException.class)
+    public ResponseEntity<Map<String, String>> handleProgressionSubjectLinkChallengeInvalid(ProgressionSubjectLinkChallengeInvalidException ex) {
+        return new ResponseEntity<>(Map.of("error", ex.getMessage(),
+                "code", "PROGRESSION_SUBJECT_LINK_CHALLENGE_INVALID"), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(ProgressionConfigurationNotFoundException.class)

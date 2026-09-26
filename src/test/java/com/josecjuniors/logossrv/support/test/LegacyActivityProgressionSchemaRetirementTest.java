@@ -56,7 +56,7 @@ class LegacyActivityProgressionSchemaRetirementTest {
         assertThat(jdbc.queryForObject(
                 "SELECT version FROM flyway_schema_history "
                         + "WHERE success = true ORDER BY installed_rank DESC LIMIT 1",
-                String.class)).isEqualTo("44");
+                String.class)).isEqualTo("45");
 
         for (String table : RETIRED_TABLES) {
             assertThat(tableExists(table)).as("retired table %s", table).isFalse();
@@ -76,6 +76,8 @@ class LegacyActivityProgressionSchemaRetirementTest {
                 "progression_configuration_definition", "legacy_atividade_config_id"))
                 .isTrue();
         assertThat(columnExists("atributo", "semantic_key")).isTrue();
+        assertThat(tableExists("progression_subject_link_challenge")).isTrue();
+        assertThat(columnExists("progression_subject_identity", "verification_status")).isTrue();
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.table_constraints "
                         + "WHERE constraint_schema = current_schema() "

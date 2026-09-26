@@ -29,9 +29,14 @@ External consumers identify a subject with `namespace + externalId`. Logos store
 
 ## Consequences
 
-Positive: consumers are decoupled from internal IDs, multiple origins can point to one player, and authentication remains a separate concern.
+Positive: consumers are decoupled from internal IDs, multiple origins can point
+to one player, and authentication remains a separate concern. The mapping
+model was later hardened by ADR-0005: external mappings must be
+integration-verified before progression resolution.
 
-Negative: an additional table and mapping lifecycle are required; onboarding, namespace authorization, and service-to-service authentication remain future work.
+Negative: an additional table and mapping lifecycle are required. External
+mapping creation requires the verified linking flow; namespace authorization
+and service-to-service credential evolution remain separate concerns.
 
 ## Migration/compatibility impact
 

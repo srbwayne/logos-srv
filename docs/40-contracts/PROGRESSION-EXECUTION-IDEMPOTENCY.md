@@ -129,9 +129,14 @@ trusted assertions.
 
 This config-driven static credential is a POC trust boundary, not a final
 OIDC, service-JWT, or mTLS design. Namespace authorization permits a client to
-operate a namespace; it does not prove ownership of an external ID. The subject
-identity endpoint remains AppUser-authenticated POC self-provisioning, and
-external identity proof remains a separate debt.
+operate a namespace; it does not prove ownership of an external ID. Subject
+linking requires AppUser-side intent through a player-bound challenge and
+confirmation by an integration principal authorized for the namespace. The
+integration supplies the external ID rather than accepting an AppUser
+self-claim. Progression resolves only `LOGOS_NATIVE` and
+`INTEGRATION_VERIFIED` identities; legacy `UNVERIFIED` external mappings are
+not resolvable. This POC is not final OAuth/OIDC or provider-issued proof: the
+integration remains trusted to assert the external ID for its external user.
 
 LifeOS remains the canonical owner of the source fact. Logos remains the
 canonical owner of progression state. Idempotency protects delivery of the
@@ -140,11 +145,11 @@ external execution; it does not turn the source event into a Logos-owned fact.
 ## Remaining debts
 
 Durable LifeOS delivery/outbox, service-credential evolution to OIDC/service
-JWT/mTLS, external identity proof, operational/historical replay policy beyond
-idempotent retrieval of a stored execution outcome, and version-authoring
-lifecycle remain separate follow-up work.
-POC self-provisioning is documented in `PROGRESSION-SUBJECT-IDENTITY.md`; it is
-not a production service-trust or ownership solution.
+JWT/mTLS, provider-issued external identity proof, administrative recovery for
+already verified links, operational/historical replay policy beyond idempotent
+retrieval of a stored execution outcome, and version-authoring lifecycle remain
+separate follow-up work. The two-party POC linking protocol is documented in
+`PROGRESSION-SUBJECT-IDENTITY.md`; it is not final provider ownership proof.
 
 The serialized outcome may also contain additive Attribute semantic identity
 metadata captured when the execution completes. Replays, exact reads, and

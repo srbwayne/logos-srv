@@ -31,7 +31,7 @@ public class ProgressionIntegrationAuthenticationFilter extends OncePerRequestFi
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/internal/v1/progression/executions");
+        return !ProgressionIntegrationRequestMatchers.isProtected(request);
     }
 
     @Override

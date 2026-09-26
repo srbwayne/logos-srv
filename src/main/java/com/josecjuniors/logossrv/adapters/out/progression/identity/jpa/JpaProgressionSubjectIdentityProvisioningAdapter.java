@@ -29,6 +29,9 @@ public class JpaProgressionSubjectIdentityProvisioningAdapter
     @Override
     @Transactional
     public void provision(ExternalSubjectReference reference, SubjectId target) {
+        if (!"logos-native".equals(reference.namespace())) {
+            throw new IllegalArgumentException("Only Logos native identities may be provisioned during registration");
+        }
         var jogador = jogadorRepository.findByAppUserId(new AppUserId(target.value()))
                 .orElseThrow(JogadorNaoEncontradoException::new);
         repository.insertIfAbsent(UUID.randomUUID(), reference.namespace(), reference.externalId(),

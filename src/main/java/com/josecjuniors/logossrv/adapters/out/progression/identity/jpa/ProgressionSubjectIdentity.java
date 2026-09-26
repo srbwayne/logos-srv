@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -27,6 +28,15 @@ public class ProgressionSubjectIdentity {
     @JoinColumn(name = "jogador_id", nullable = false)
     private Jogador jogador;
 
+    @Column(name = "verification_status", nullable = false, length = 32)
+    private String verificationStatus;
+
+    @Column(name = "verified_at")
+    private Instant verifiedAt;
+
+    @Column(name = "verified_by_client_id", length = 64)
+    private String verifiedByClientId;
+
     protected ProgressionSubjectIdentity() {
     }
 
@@ -35,7 +45,24 @@ public class ProgressionSubjectIdentity {
         this.namespace = namespace;
         this.externalId = externalId;
         this.jogador = jogador;
+        this.verificationStatus = "logos-native".equals(namespace) ? "LOGOS_NATIVE" : "UNVERIFIED";
     }
+
+    public static ProgressionSubjectIdentity integrationVerified(UUID id, String namespace, String externalId,
+                                                                  Jogador jogador, Instant verifiedAt, String clientId) {
+        var identity = new ProgressionSubjectIdentity(id, namespace, externalId, jogador);
+        identity.verificationStatus = "INTEGRATION_VERIFIED";
+        identity.verifiedAt = verifiedAt;
+        identity.verifiedByClientId = clientId;
+        return identity;
+    }
+
+    public String getVerificationStatus() { return verificationStatus; }
+    public Instant getVerifiedAt() { return verifiedAt; }
+    public String getVerifiedByClientId() { return verifiedByClientId; }
+    public UUID getId() { return id; }
+    public String getNamespace() { return namespace; }
+    public String getExternalId() { return externalId; }
 
     public Jogador getJogador() {
         return jogador;

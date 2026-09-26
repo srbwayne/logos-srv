@@ -95,7 +95,8 @@ class ProgressionExecutionPostgresTest {
                 INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual)
                 VALUES (?, ?, ?, 0, 1)
                 """, UUID.randomUUID(), jogadorId, learningId);
-        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "user-1", player));
+        identities.saveAndFlush(ProgressionSubjectIdentity.integrationVerified(UUID.randomUUID(), "lifeos", "user-1",
+                player, java.time.Instant.now(), "lifeos"));
         var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Reading", "fixture"));
         configurationKey = "task041-execution-" + UUID.randomUUID();
         var definitionId = UUID.randomUUID();
@@ -155,8 +156,8 @@ class ProgressionExecutionPostgresTest {
 
     @Test
     void exactReadAlsoProtectsStoredSubjectNamespace() throws Exception {
-        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "noema", "foreign-user",
-                jogadores.findById(new JogadorId(jogadorId)).orElseThrow()));
+        identities.saveAndFlush(ProgressionSubjectIdentity.integrationVerified(UUID.randomUUID(), "noema", "foreign-user",
+                jogadores.findById(new JogadorId(jogadorId)).orElseThrow(), java.time.Instant.now(), "noema"));
         idempotentUseCase.execute(
                 new ProgressionExecutionIdentity("lifeos", "stored-noema"),
                 new ExternalSubjectReference("noema", "foreign-user"),
@@ -169,6 +170,52 @@ class ProgressionExecutionPostgresTest {
                         .queryParam("sourceSystem", "lifeos")
                         .queryParam("idempotencyKey", "stored-noema"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void verifiedChallengeRecoversLegacySquattedMappingBeforeIntegrationProgression() throws Exception {
+        var playerA = jogadores.findById(new JogadorId(jogadorId)).orElseThrow();
+        var playerBUser = users.saveAndFlush(new AppUser(new AppUserId(), "rightful-owner@example.test", encoder.encode("password")));
+        var playerB = new Jogador(JogadorId.generate(), playerBUser, "rightful-owner-player");
+        playerB.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), playerB));
+        jogadores.saveAndFlush(playerB);
+        var playerBToken = jwt.generateToken(playerBUser);
+        var legacyId = "legacy-victim-" + UUID.randomUUID();
+        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", legacyId, playerA));
+
+        var challengeResponse = mockMvc.perform(post("/api/internal/v1/progression/subject-link-challenges")
+                        .header("Authorization", "Bearer " + playerBToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"namespace\":\"lifeos\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String challenge = objectMapper.readTree(challengeResponse).get("challengeToken").asText();
+
+        mockMvc.perform(post("/api/internal/v1/progression/subject-identities")
+                        .header("X-Logos-Client-Id", "lifeos")
+                        .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"namespace\":\"lifeos\",\"externalId\":\"" + legacyId
+                                + "\",\"challengeToken\":\"" + challenge + "\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject("SELECT jogador_id FROM progression_subject_identity WHERE namespace='lifeos' AND external_id=?", UUID.class, legacyId))
+                .isEqualTo(playerB.getId().getValue());
+        assertThat(jdbc.queryForObject("SELECT verification_status FROM progression_subject_identity WHERE namespace='lifeos' AND external_id=?", String.class, legacyId))
+                .isEqualTo("INTEGRATION_VERIFIED");
+
+        var executionBody = """
+                {"subject":{"namespace":"lifeos","externalId":"%s"},
+                "execution":{"source":"lifeos","idempotencyKey":"recovered-%s"},
+                "configuration":{"key":"%s","revision":1},
+                "details":[{"factorKey":"pages_read","value":13}]}
+                """.formatted(legacyId, UUID.randomUUID(), configurationKey);
+        mockMvc.perform(post("/api/internal/v1/progression/executions")
+                        .header("X-Logos-Client-Id", "lifeos")
+                        .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret")
+                        .contentType(MediaType.APPLICATION_JSON).content(executionBody))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id=?", Long.class, jogadorId)).isEqualTo(0L);
+        assertThat(jdbc.queryForObject("SELECT xp_total FROM jogador WHERE id=?", Long.class, playerB.getId().getValue())).isEqualTo(13L);
     }
 
     @Test
@@ -380,7 +427,8 @@ class ProgressionExecutionPostgresTest {
         player.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), player));
         jogadores.saveAndFlush(player);
         secondJogadorId = player.getId().getValue();
-        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "user-2", player));
+        identities.saveAndFlush(ProgressionSubjectIdentity.integrationVerified(UUID.randomUUID(), "lifeos", "user-2",
+                player, java.time.Instant.now(), "lifeos"));
     }
 
     private int directFactValueConcurrent(String key, double pages, CountDownLatch start) {

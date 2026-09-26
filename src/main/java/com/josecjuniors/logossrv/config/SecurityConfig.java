@@ -2,8 +2,10 @@ package com.josecjuniors.logossrv.config;
 
 import com.josecjuniors.logossrv.config.jwt.JwtAuthenticationFilter;
 import com.josecjuniors.logossrv.config.progression.ProgressionIntegrationClientProperties;
+import com.josecjuniors.logossrv.config.progression.ProgressionSubjectLinkProperties;
 import com.josecjuniors.logossrv.adapters.in.web.progression.security.ProgressionIntegrationAuthenticationFilter;
 import com.josecjuniors.logossrv.adapters.in.web.progression.security.ProgressionIntegrationPrincipal;
+import com.josecjuniors.logossrv.adapters.in.web.progression.security.ProgressionIntegrationRequestMatchers;
 import com.josecjuniors.logossrv.core.appuser.application.service.UserDetailsServiceImpl;
 import com.josecjuniors.logossrv.core.appuser.domain.repository.AppUserRepository;
 import org.springframework.context.annotation.Bean;
@@ -24,7 +26,7 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(ProgressionIntegrationClientProperties.class)
+@EnableConfigurationProperties({ProgressionIntegrationClientProperties.class, ProgressionSubjectLinkProperties.class})
 public class SecurityConfig {
 
     private static final String[] PUBLIC_URLS = {
@@ -61,13 +63,13 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_URLS).permitAll()
-                        .requestMatchers("/api/internal/v1/progression/executions/**")
+                        .requestMatchers(ProgressionIntegrationRequestMatchers.protectedEndpoints())
                         .hasAuthority(ProgressionIntegrationPrincipal.AUTHORITY)
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint((request, response, ignored) -> {
-                    if (new AntPathRequestMatcher("/api/internal/v1/progression/executions/**").matches(request)) {
+                    if (ProgressionIntegrationRequestMatchers.isProtected(request)) {
                         response.sendError(401);
                     } else {
                         response.sendError(403);

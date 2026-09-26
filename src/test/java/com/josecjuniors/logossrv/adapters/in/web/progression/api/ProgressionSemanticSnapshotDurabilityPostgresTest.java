@@ -65,7 +65,10 @@ class ProgressionSemanticSnapshotDurabilityPostgresTest {
                 .andExpect(status().isOk())).get("revision").asInt();
         json(authPost(token, "/api/progression/configurations/%s/versions/%d/activate".formatted(logicalKey, revision),
                 "{\"expectedActivationVersion\":%d}".formatted(activationVersion)).andExpect(status().isOk()));
-        json(authPost(token, "/api/internal/v1/progression/subject-identities", "{\"namespace\":\"lifeos\",\"externalId\":\"%s\"}".formatted(externalId))
+        JsonNode challenge = json(authPost(token, "/api/internal/v1/progression/subject-link-challenges", "{\"namespace\":\"lifeos\"}")
+                .andExpect(status().isCreated()));
+        json(integrationPost("/api/internal/v1/progression/subject-identities", "{\"namespace\":\"lifeos\",\"externalId\":\"%s\",\"challengeToken\":\"%s\"}"
+                        .formatted(externalId, challenge.get("challengeToken").asText()))
                 .andExpect(status().isOk()));
 
         String beforeRequest = execution(externalId, beforeKey, logicalKey, revision, 3);
