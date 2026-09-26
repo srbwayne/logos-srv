@@ -1,10 +1,14 @@
 package com.josecjuniors.logossrv.config;
 
 import com.josecjuniors.logossrv.config.jwt.JwtAuthenticationFilter;
+import com.josecjuniors.logossrv.config.progression.ProgressionIntegrationClientProperties;
+import com.josecjuniors.logossrv.adapters.in.web.progression.security.ProgressionIntegrationAuthenticationFilter;
+import com.josecjuniors.logossrv.adapters.in.web.progression.security.ProgressionIntegrationPrincipal;
 import com.josecjuniors.logossrv.core.appuser.application.service.UserDetailsServiceImpl;
 import com.josecjuniors.logossrv.core.appuser.domain.repository.AppUserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,9 +20,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(ProgressionIntegrationClientProperties.class)
 public class SecurityConfig {
 
     private static final String[] PUBLIC_URLS = {
@@ -49,16 +55,27 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthFilter,
+                                                   ProgressionIntegrationAuthenticationFilter integrationAuthFilter) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_URLS).permitAll()
+                        .requestMatchers("/api/internal/v1/progression/executions/**")
+                        .hasAuthority(ProgressionIntegrationPrincipal.AUTHORITY)
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint((request, response, ignored) -> {
+                    if (new AntPathRequestMatcher("/api/internal/v1/progression/executions/**").matches(request)) {
+                        response.sendError(401);
+                    } else {
+                        response.sendError(403);
+                    }
+                }))
                 // A chamada .authenticationProvider() foi removida, pois o Spring gerencia isso.
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(integrationAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(jwtAuthFilter, ProgressionIntegrationAuthenticationFilter.class);
 
         return http.build();
     }

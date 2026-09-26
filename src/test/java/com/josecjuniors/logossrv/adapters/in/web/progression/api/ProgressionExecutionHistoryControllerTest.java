@@ -1,6 +1,7 @@
 package com.josecjuniors.logossrv.adapters.in.web.progression.api;
 
 import com.josecjuniors.logossrv.adapters.in.web.exception.GlobalExceptionHandler;
+import com.josecjuniors.logossrv.adapters.in.web.progression.security.ProgressionIntegrationAccessPolicy;
 import com.josecjuniors.logossrv.core.progression.application.port.in.GetProgressionExecutionHistoryQuery;
 import com.josecjuniors.logossrv.core.progression.application.port.in.ExecuteIdempotentExternalSubjectProgressionUseCase;
 import com.josecjuniors.logossrv.core.progression.application.port.in.GetProgressionExecutionQuery;
@@ -38,11 +39,12 @@ class ProgressionExecutionHistoryControllerTest {
     private final GetProgressionExecutionQuery exactQuery = mock(GetProgressionExecutionQuery.class);
     private final GetProgressionExecutionHistoryQuery historyQuery = mock(GetProgressionExecutionHistoryQuery.class);
     private final ExecuteIdempotentExternalSubjectProgressionUseCase executionUseCase = mock(ExecuteIdempotentExternalSubjectProgressionUseCase.class);
+    private final ProgressionIntegrationAccessPolicy accessPolicy = mock(ProgressionIntegrationAccessPolicy.class);
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new ProgressionExecutionController(exactQuery, historyQuery, executionUseCase))
+        mockMvc = MockMvcBuilders.standaloneSetup(new ProgressionExecutionController(exactQuery, historyQuery, executionUseCase, accessPolicy))
                 .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(
                         new com.fasterxml.jackson.databind.ObjectMapper().registerModule(new JavaTimeModule())
                                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)))

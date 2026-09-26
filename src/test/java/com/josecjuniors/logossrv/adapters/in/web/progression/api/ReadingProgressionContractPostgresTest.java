@@ -96,7 +96,7 @@ class ReadingProgressionContractPostgresTest {
                 .andExpect(jsonPath("$.externalId").value(EXTERNAL_ID)));
 
         String executionRequest = executionRequest(revision, 30);
-        String first = authPost(token, "/api/internal/v1/progression/executions", executionRequest)
+        String first = integrationPost("/api/internal/v1/progression/executions", executionRequest)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.globalXpDelta").value(30))
                 .andExpect(jsonPath("$.result.stressTotal").value(0.0))
@@ -113,21 +113,22 @@ class ReadingProgressionContractPostgresTest {
         assertThat(conhecimentoXp(jogadorId, conhecimentoId)).isEqualTo(30L);
         assertThat(executionCount()).isEqualTo(1);
 
-        String replay = authPost(token, "/api/internal/v1/progression/executions", executionRequest)
+        String replay = integrationPost("/api/internal/v1/progression/executions", executionRequest)
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(replay).isEqualTo(first);
         assertThat(globalXp(jogadorId)).isEqualTo(30L);
         assertThat(conhecimentoXp(jogadorId, conhecimentoId)).isEqualTo(30L);
         assertThat(executionCount()).isEqualTo(1);
 
-        authPost(token, "/api/internal/v1/progression/executions", executionRequest(revision, 31))
+        integrationPost("/api/internal/v1/progression/executions", executionRequest(revision, 31))
                 .andExpect(status().isConflict());
         assertThat(globalXp(jogadorId)).isEqualTo(30L);
         assertThat(conhecimentoXp(jogadorId, conhecimentoId)).isEqualTo(30L);
         assertThat(executionCount()).isEqualTo(1);
 
         mockMvc.perform(get("/api/internal/v1/progression/executions")
-                        .header("Authorization", "Bearer " + token)
+                        .header("X-Logos-Client-Id", "lifeos")
+                        .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret")
                         .param("sourceSystem", "lifeos")
                         .param("idempotencyKey", IDEMPOTENCY_KEY))
                 .andExpect(status().isOk())
@@ -141,7 +142,8 @@ class ReadingProgressionContractPostgresTest {
                 .andExpect(jsonPath("$.outcome.profile.attributes[0].semanticKey").value("knowledge"));
 
         mockMvc.perform(get("/api/internal/v1/progression/executions/history")
-                        .header("Authorization", "Bearer " + token)
+                        .header("X-Logos-Client-Id", "lifeos")
+                        .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret")
                         .param("subjectNamespace", "lifeos")
                         .param("subjectExternalId", EXTERNAL_ID)
                         .param("page", "0")
@@ -160,6 +162,13 @@ class ReadingProgressionContractPostgresTest {
 
     private org.springframework.test.web.servlet.ResultActions authPost(String token, String path, String body) throws Exception {
         return mockMvc.perform(post(path).header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions integrationPost(String path, String body) throws Exception {
+        return mockMvc.perform(post(path)
+                .header("X-Logos-Client-Id", "lifeos")
+                .header("X-Logos-Client-Secret", "synthetic-lifeos-integration-secret")
                 .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 

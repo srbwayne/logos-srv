@@ -2,6 +2,7 @@ package com.josecjuniors.logossrv.adapters.in.web.progression.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.josecjuniors.logossrv.adapters.in.web.exception.GlobalExceptionHandler;
+import com.josecjuniors.logossrv.adapters.in.web.progression.security.ProgressionIntegrationAccessPolicy;
 import com.josecjuniors.logossrv.adapters.in.web.progression.dto.request.ProgressionExecutionRequest;
 import com.josecjuniors.logossrv.adapters.in.web.progression.dto.response.ProgressionExecutionReadResponse;
 import com.josecjuniors.logossrv.core.progression.application.port.in.GetProgressionExecutionQuery;
@@ -40,6 +41,7 @@ import static org.hamcrest.Matchers.not;
 class ProgressionExecutionControllerTest {
     private final GetProgressionExecutionQuery query = mock(GetProgressionExecutionQuery.class);
     private final ExecuteIdempotentExternalSubjectProgressionUseCase executionUseCase = mock(ExecuteIdempotentExternalSubjectProgressionUseCase.class);
+    private final ProgressionIntegrationAccessPolicy accessPolicy = mock(ProgressionIntegrationAccessPolicy.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private MockMvc mockMvc;
 
@@ -47,7 +49,7 @@ class ProgressionExecutionControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(new ProgressionExecutionController(query,
                         (subject, request) -> { throw new UnsupportedOperationException("history query not configured"); },
-                        executionUseCase))
+                        executionUseCase, accessPolicy))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
