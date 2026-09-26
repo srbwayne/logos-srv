@@ -60,6 +60,8 @@ CREATE TABLE workload_signing_key (
         FOREIGN KEY (workload_principal_id)
         REFERENCES workload_principal (id)
         ON DELETE RESTRICT,
+    CONSTRAINT uq_workload_signing_key_id_principal
+        UNIQUE (id, workload_principal_id),
     CONSTRAINT ck_workload_signing_key_kid_format
         CHECK (kid ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'),
     CONSTRAINT uq_workload_signing_key_principal_kid
@@ -111,8 +113,8 @@ CREATE TABLE workload_trust_audit_event (
         REFERENCES workload_principal (id)
         ON DELETE RESTRICT,
     CONSTRAINT fk_workload_trust_audit_credential
-        FOREIGN KEY (credential_id)
-        REFERENCES workload_signing_key (id)
+        FOREIGN KEY (credential_id, workload_principal_id)
+        REFERENCES workload_signing_key (id, workload_principal_id)
         ON DELETE RESTRICT,
     CONSTRAINT ck_workload_trust_audit_actor_type
         CHECK (actor_type IN ('OPERATOR', 'SYSTEM')),

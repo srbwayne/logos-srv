@@ -207,6 +207,27 @@ class WorkloadTrustRegistryMigrationPostgresTest {
     }
 
     @Test
+    void credentialAuditMustReferenceAKeyOwnedByTheSamePrincipal() {
+        UUID principalA = insertPrincipal("audit-integrity-a", "issuer-audit-integrity-a");
+        UUID principalB = insertPrincipal("audit-integrity-b", "issuer-audit-integrity-b");
+        UUID keyA = insertKey(principalA, "kid-audit-integrity-a", "ES256", filled(31), "ACTIVE",
+                timestamp(), null, null, null);
+        UUID keyB = insertKey(principalB, "kid-audit-integrity-b", "ES256", filled(32), "ACTIVE",
+                timestamp(), null, null, null);
+
+        insertAudit(principalA, keyA, "SYSTEM", "integrity-test", "KEY_USED", "same principal", "{}");
+        insertAudit(principalB, keyB, "SYSTEM", "integrity-test", "KEY_USED", "same principal", "{}");
+        insertAudit(principalA, null, "SYSTEM", "integrity-test", "PRINCIPAL_UPDATED", "principal only", "{}");
+
+        assertThatThrownBy(() -> insertAudit(principalA, keyB, "SYSTEM", "integrity-test",
+                "KEY_USED", "cross-principal key", "{}"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertAudit(principalB, keyA, "SYSTEM", "integrity-test",
+                "KEY_USED", "cross-principal key", "{}"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
     void replayPrimaryKeyIsIssuerAndUuidJtiAndHasNoProgressionForeignKeys() {
         UUID principal = insertPrincipal("replay-owner", "issuer-replay");
         UUID jti = UUID.randomUUID();
