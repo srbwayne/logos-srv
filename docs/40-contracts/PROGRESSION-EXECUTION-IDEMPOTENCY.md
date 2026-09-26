@@ -115,10 +115,23 @@ do not receive invented source or idempotency identities.
 
 ## Security and ownership
 
-The existing authentication configuration is unchanged. Source authorization
-is intentionally not implemented: an authenticated caller can currently state
-a source value, so service-to-service authentication and source/namespace
-authorization remain prerequisites for production LifeOS rollout.
+The execution API is an integration boundary. It requires an explicit
+`PROGRESSION_INTEGRATION` principal authenticated by the configured
+`X-Logos-Client-Id` and `X-Logos-Client-Secret` credential pair; an ordinary
+AppUser JWT is insufficient for create, exact-read, and history-read.
+
+Each configured client is scoped to allowed sources and subject namespaces.
+Create authorizes the declared source and namespace, history authorizes the
+requested namespace, and exact-read authorizes both the requested source and
+the stored subject namespace before returning an execution. Source and
+namespace values supplied by a request are therefore authorization inputs, not
+trusted assertions.
+
+This config-driven static credential is a POC trust boundary, not a final
+OIDC, service-JWT, or mTLS design. Namespace authorization permits a client to
+operate a namespace; it does not prove ownership of an external ID. The subject
+identity endpoint remains AppUser-authenticated POC self-provisioning, and
+external identity proof remains a separate debt.
 
 LifeOS remains the canonical owner of the source fact. Logos remains the
 canonical owner of progression state. Idempotency protects delivery of the
@@ -126,10 +139,10 @@ external execution; it does not turn the source event into a Logos-owned fact.
 
 ## Remaining debts
 
-Durable LifeOS delivery/outbox, service-to-service authentication, source and
-namespace authorization, external identity proof, operational/historical
-replay policy beyond idempotent retrieval of a stored execution outcome, and
-version-authoring lifecycle remain separate follow-up work.
+Durable LifeOS delivery/outbox, service-credential evolution to OIDC/service
+JWT/mTLS, external identity proof, operational/historical replay policy beyond
+idempotent retrieval of a stored execution outcome, and version-authoring
+lifecycle remain separate follow-up work.
 POC self-provisioning is documented in `PROGRESSION-SUBJECT-IDENTITY.md`; it is
 not a production service-trust or ownership solution.
 
