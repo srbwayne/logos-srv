@@ -1,0 +1,22 @@
+package com.josecjuniors.logossrv.core.security.workload.application;
+
+public enum WorkloadAssertionFailureReason {
+    MALFORMED_ASSERTION,
+    WRONG_TYPE,
+    WRONG_ALGORITHM,
+    INVALID_KID,
+    UNKNOWN_CREDENTIAL,
+    SIGNATURE_INVALID,
+    ISSUER_INVALID,
+    SUBJECT_INVALID,
+    AUDIENCE_INVALID,
+    IAT_INVALID,
+    EXP_INVALID,
+    JTI_INVALID,
+    DISABLED_WORKLOAD,
+    REVOKED_WORKLOAD,
+    INACTIVE_CREDENTIAL,
+    REVOKED_CREDENTIAL,
+    CREDENTIAL_NOT_YET_VALID,
+    CREDENTIAL_EXPIRED
+}
