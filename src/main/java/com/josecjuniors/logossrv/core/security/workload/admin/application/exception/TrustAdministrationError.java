@@ -1,0 +1,17 @@
+package com.josecjuniors.logossrv.core.security.workload.admin.application.exception;
+
+public enum TrustAdministrationError {
+    INVALID_INPUT,
+    INVALID_PUBLIC_KEY,
+    INVALID_VALIDITY_WINDOW,
+    PRINCIPAL_NOT_FOUND,
+    CREDENTIAL_NOT_FOUND,
+    PRINCIPAL_IDENTITY_CONFLICT,
+    ISSUER_CONFLICT,
+    KID_CONFLICT,
+    FINGERPRINT_CONFLICT,
+    INVALID_LIFECYCLE_TRANSITION,
+    PRINCIPAL_REVOKED,
+    PERSISTENCE_FAILURE,
+    INTEGRITY_FAILURE
+}
