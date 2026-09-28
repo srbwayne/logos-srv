@@ -213,12 +213,21 @@ class JdbcWorkloadTrustAdministrationPostgresTest {
         assertThat(administration.registerCredential(keyCommand(disabled, "pending-disabled",
                 WorkloadTestKeys.publicPem(WorkloadTestKeys.ec("secp256r1")), clock.instant(), null)))
                 .isEqualTo(RegistrationResult.CREATED);
+        administration.changeCredentialLifecycle(credentialCommand(disabled, "pending-disabled",
+                WorkloadCredentialLifecycle.ACTIVE));
+        assertThat(keyStatus(disabled.value(), "pending-disabled")).isEqualTo("ACTIVE");
+
         WorkloadPrincipalId revoked = createPrincipal("revoked-registration", "urn:akume:test:f1f-revoked");
+        registerKey(revoked, "pending-before-revocation", WorkloadTestKeys.ec("secp256r1"));
         administration.changePrincipalLifecycle(principalCommand(revoked, WorkloadPrincipalLifecycle.REVOKED));
         String deniedKey = WorkloadTestKeys.publicPem(WorkloadTestKeys.ec("secp256r1"));
         assertError(TrustAdministrationError.PRINCIPAL_REVOKED,
                 () -> administration.registerCredential(keyCommand(revoked, "denied",
                         deniedKey, clock.instant(), null)));
+        assertError(TrustAdministrationError.PRINCIPAL_REVOKED,
+                () -> administration.changeCredentialLifecycle(credentialCommand(revoked,
+                        "pending-before-revocation", WorkloadCredentialLifecycle.ACTIVE)));
+        assertThat(keyStatus(revoked.value(), "pending-before-revocation")).isEqualTo("PENDING");
     }
 
     @Test
