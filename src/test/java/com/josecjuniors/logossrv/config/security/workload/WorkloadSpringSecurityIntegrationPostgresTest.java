@@ -4,6 +4,14 @@ import com.josecjuniors.logossrv.adapters.in.web.progression.api.ProgressionExec
 import com.josecjuniors.logossrv.config.jwt.JwtAuthenticationFilter;
 import com.josecjuniors.logossrv.config.jwt.JwtService;
 import com.josecjuniors.logossrv.core.security.workload.admin.application.WorkloadTrustAdministrationService;
+import com.josecjuniors.logossrv.core.security.authentication.domain.PrincipalType;
+import com.josecjuniors.logossrv.core.security.authorization.application.port.out.AuthorizationGrantStore;
+import com.josecjuniors.logossrv.core.security.authorization.application.port.out.AuthorizationGrantStore.InsertResult;
+import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationGrant;
+import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationNamespace;
+import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationOperation;
+import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationPrincipal;
+import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationSource;
 import com.josecjuniors.logossrv.core.security.workload.admin.domain.TrustAdministrationActor;
 import com.josecjuniors.logossrv.core.security.workload.admin.domain.TrustAdministrationActorType;
 import com.josecjuniors.logossrv.core.security.workload.admin.domain.TrustAdministrationReason;
@@ -43,6 +51,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.josecjuniors.logossrv.core.security.workload.application.WorkloadAssertionProfile.AUDIENCE;
@@ -75,6 +84,7 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
     @Autowired Clock clock;
     @Autowired JwtService humanJwtService;
     @Autowired WorkloadTrustAdministrationService trustAdministration;
+    @Autowired AuthorizationGrantStore authorizationGrantStore;
     @Autowired FilterChainProxy filterChainProxy;
     @Autowired JwtAuthenticationFilter humanJwtFilter;
     @Autowired List<SecurityFilterChain> securityFilterChains;
@@ -116,6 +126,7 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
 
     @AfterEach
     void cleanTrustAndThreadLocalState() {
+        jdbc.update("DELETE FROM authorization_grant WHERE principal_type='WORKLOAD' AND principal_id='lifeos'");
         for (UUID jti : replayIds) {
             jdbc.update("DELETE FROM workload_assertion_replay WHERE issuer = ? AND jti = ?", ISSUER, jti);
         }
@@ -158,6 +169,14 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
 
     @Test
     void validAssertionIsConsumedBeforeDenyAllAndReplayIsUnauthorized() throws Exception {
+        AuthorizationGrant grant = new AuthorizationGrant(
+                new AuthorizationPrincipal(PrincipalType.WORKLOAD, "lifeos"),
+                AuthorizationOperation.PROGRESSION_EXECUTE,
+                Optional.of(new AuthorizationSource("lifeos")),
+                Optional.of(new AuthorizationNamespace("lifeos")));
+        assertThat(authorizationGrantStore.insertIfAbsent(grant)).isEqualTo(InsertResult.CREATED);
+        assertThat(authorizationGrantStore.findExact(grant)).contains(grant);
+
         UUID jti = UUID.randomUUID();
         replayIds.add(jti);
         String assertion = workloadAssertion(keyPair, kid, jti);
@@ -167,12 +186,14 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
                 .andExpect(status().isForbidden());
         assertReplayCount(jti, 1);
         verify(progressionController, never()).create(any());
+        assertThat(authorizationGrantStore.findExact(grant)).contains(grant);
 
         mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + assertion)
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
         assertReplayCount(jti, 1);
         verify(progressionController, never()).create(any());
+        assertThat(authorizationGrantStore.findExact(grant)).contains(grant);
     }
 
     @Test

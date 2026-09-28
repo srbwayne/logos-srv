@@ -45,10 +45,10 @@ class WorkloadTrustRegistryMigrationPostgresTest {
     }
 
     @Test
-    void v1ToV45CreatesAllTrustTablesWithoutSeedingTrust() {
+    void currentSchemaKeepsAllWorkloadTrustTablesWithoutSeedingTrust() {
         assertThat(jdbc.queryForObject(
                 "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank DESC LIMIT 1",
-                String.class)).isEqualTo("45");
+                String.class)).isEqualTo("46");
 
         for (String table : new String[]{"workload_principal", "workload_signing_key",
                 "workload_trust_audit_event", "workload_assertion_replay"}) {
@@ -345,7 +345,7 @@ class WorkloadTrustRegistryMigrationPostgresTest {
 
             Flyway.configure().dataSource(baseUrl, username, password)
                     .locations("classpath:db/migration").schemas(schema).defaultSchema(schema)
-                    .createSchemas(false).load().migrate();
+                    .createSchemas(false).target(MigrationVersion.fromVersion("45")).load().migrate();
 
             assertThat(rowJson(isolatedUrl, username, password, "app_user", userId)).isEqualTo(beforeUser);
             assertThat(rowJson(isolatedUrl, username, password, "jogador", jogadorId)).isEqualTo(beforePlayer);
