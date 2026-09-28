@@ -3,10 +3,13 @@ package com.josecjuniors.logossrv.adapters.in.web.progression.api;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ProgressionExecutionSecurityPostgresTest {
     @Autowired MockMvc mockMvc;
+    @Autowired ApplicationContext applicationContext;
 
     @Test
     void exactReadRequiresAuthentication() throws Exception {
@@ -28,6 +32,29 @@ class ProgressionExecutionSecurityPostgresTest {
         mockMvc.perform(get("/api/internal/v1/progression/executions/history")
                         .queryParam("subjectNamespace", "lifeos")
                         .queryParam("subjectExternalId", "missing"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void workloadChainIsAbsentByDefault() {
+        assertThat(applicationContext.getBeansOfType(SecurityFilterChain.class)).hasSize(1);
+    }
+
+    @Test
+    void malformedHumanBearerRemainsUnauthenticated() throws Exception {
+        mockMvc.perform(get("/api/internal/v1/progression/executions")
+                        .queryParam("sourceSystem", "lifeos")
+                        .queryParam("idempotencyKey", "missing")
+                        .header("Authorization", "Bearer not-a-jwt"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void emptyHumanBearerRemainsUnauthenticated() throws Exception {
+        mockMvc.perform(get("/api/internal/v1/progression/executions")
+                        .queryParam("sourceSystem", "lifeos")
+                        .queryParam("idempotencyKey", "missing")
+                        .header("Authorization", "Bearer "))
                 .andExpect(status().isForbidden());
     }
 }
