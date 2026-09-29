@@ -34,6 +34,8 @@ import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.
 import com.josecjuniors.logossrv.core.progressionconfiguration.domain.exception.ProgressionConfigurationActivationConflictException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectIdentityConflictException;
+import com.josecjuniors.logossrv.core.security.authorization.application.AuthorizationRegistryCorruptedException;
+import com.josecjuniors.logossrv.core.security.authorization.application.AuthorizationRegistryUnavailableException;
 import com.josecjuniors.logossrv.core.regradistribuicaoatividade.domain.exception.RegraDistribuicaoNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorestresse.domain.exception.RegraFatorEstresseNaoEncontradaException;
 import com.josecjuniors.logossrv.core.regrafatorxp.domain.exception.RegraFatorXPNaoEncontradaException;
@@ -49,6 +51,16 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AuthorizationRegistryUnavailableException.class)
+    public ResponseEntity<Map<String, String>> handleAuthorizationRegistryUnavailable(AuthorizationRegistryUnavailableException ex) {
+        return new ResponseEntity<>(Map.of("error", "Authorization service is unavailable."), HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    @ExceptionHandler(AuthorizationRegistryCorruptedException.class)
+    public ResponseEntity<Map<String, String>> handleAuthorizationRegistryCorrupted(AuthorizationRegistryCorruptedException ex) {
+        return new ResponseEntity<>(Map.of("error", "Authorization data is unavailable."), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 
     @ExceptionHandler(VicioJaExisteException.class)
     public ResponseEntity<Map<String, String>> handleVicioJaExiste(VicioJaExisteException ex) {

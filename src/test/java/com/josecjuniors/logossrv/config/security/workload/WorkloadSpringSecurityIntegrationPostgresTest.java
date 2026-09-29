@@ -1,6 +1,10 @@
 package com.josecjuniors.logossrv.config.security.workload;
 
 import com.josecjuniors.logossrv.adapters.in.web.progression.api.ProgressionExecutionController;
+import com.josecjuniors.logossrv.core.progression.application.port.in.ExecuteIdempotentExternalSubjectProgressionUseCase;
+import com.josecjuniors.logossrv.core.progression.application.service.ProgressionOutcome;
+import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionProfile;
+import com.josecjuniors.logossrv.core.registroatividade.application.service.ProgressionResult;
 import com.josecjuniors.logossrv.config.jwt.JwtAuthenticationFilter;
 import com.josecjuniors.logossrv.config.jwt.JwtService;
 import com.josecjuniors.logossrv.core.security.workload.admin.application.WorkloadTrustAdministrationService;
@@ -61,6 +65,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -91,6 +96,7 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
     @Autowired List<FilterRegistrationBean<?>> filterRegistrations;
     @SpyBean WorkloadAuthenticationService workloadAuthenticationService;
     @SpyBean ProgressionExecutionController progressionController;
+    @SpyBean ExecuteIdempotentExternalSubjectProgressionUseCase executionUseCase;
 
     private final List<UUID> replayIds = new ArrayList<>();
     private UUID credentialId;
@@ -101,7 +107,7 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
 
     @BeforeEach
     void setUpTrust() throws Exception {
-        reset(workloadAuthenticationService, progressionController);
+        reset(workloadAuthenticationService, progressionController, executionUseCase);
         principalCreated = jdbc.queryForObject(
                 "SELECT count(*) FROM workload_principal WHERE issuer = ?", Integer.class, ISSUER) == 0;
         var actor = new TrustAdministrationActor(TrustAdministrationActorType.SYSTEM, "f1e-r2-test");
@@ -138,7 +144,7 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
             jdbc.update("DELETE FROM workload_trust_audit_event WHERE workload_principal_id = ?", principalDatabaseId);
             jdbc.update("DELETE FROM workload_principal WHERE id = ?", principalDatabaseId);
         }
-        reset(workloadAuthenticationService, progressionController);
+        reset(workloadAuthenticationService, progressionController, executionUseCase);
     }
 
     @Test
@@ -168,32 +174,50 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
     }
 
     @Test
-    void validAssertionIsConsumedBeforeDenyAllAndReplayIsUnauthorized() throws Exception {
-        AuthorizationGrant grant = new AuthorizationGrant(
-                new AuthorizationPrincipal(PrincipalType.WORKLOAD, "lifeos"),
-                AuthorizationOperation.PROGRESSION_EXECUTE,
-                Optional.of(new AuthorizationSource("lifeos")),
-                Optional.of(new AuthorizationNamespace("lifeos")));
-        assertThat(authorizationGrantStore.insertIfAbsent(grant)).isEqualTo(InsertResult.CREATED);
-        assertThat(authorizationGrantStore.findExact(grant)).contains(grant);
-
+    void validAssertionIsConsumedBeforeAuthorizationDenyAndReplayIsUnauthorized() throws Exception {
         UUID jti = UUID.randomUUID();
         replayIds.add(jti);
         String assertion = workloadAssertion(keyPair, kid, jti);
 
         mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + assertion)
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isForbidden());
+                        .contentType(MediaType.APPLICATION_JSON).content(executionRequest("lifeos", "lifeos", "denied-" + jti)))
+                .andExpect(status().isForbidden()).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error").value("Forbidden"));
         assertReplayCount(jti, 1);
-        verify(progressionController, never()).create(any());
-        assertThat(authorizationGrantStore.findExact(grant)).contains(grant);
+        verify(executionUseCase, never()).execute(any(), any(), any(), any());
 
         mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + assertion)
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                        .contentType(MediaType.APPLICATION_JSON).content(executionRequest("lifeos", "lifeos", "denied-" + jti)))
                 .andExpect(status().isUnauthorized());
         assertReplayCount(jti, 1);
-        verify(progressionController, never()).create(any());
-        assertThat(authorizationGrantStore.findExact(grant)).contains(grant);
+        verify(executionUseCase, never()).execute(any(), any(), any(), any());
+    }
+
+    @Test
+    void exactAuthorizationDimensionsAreRequiredAndExactGrantExecutes() throws Exception {
+        UUID deniedSourceJti = UUID.randomUUID(); replayIds.add(deniedSourceJti);
+        insertGrant("lifeos", "other-source", "lifeos");
+        mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + workloadAssertion(keyPair, kid, deniedSourceJti))
+                        .contentType(MediaType.APPLICATION_JSON).content(executionRequest("lifeos", "lifeos", "source-denied-" + deniedSourceJti)))
+                .andExpect(status().isForbidden());
+
+        jdbc.update("DELETE FROM authorization_grant WHERE principal_type='WORKLOAD' AND principal_id='lifeos'");
+        UUID deniedNamespaceJti = UUID.randomUUID(); replayIds.add(deniedNamespaceJti);
+        insertGrant("lifeos", "lifeos", "other-namespace");
+        mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + workloadAssertion(keyPair, kid, deniedNamespaceJti))
+                        .contentType(MediaType.APPLICATION_JSON).content(executionRequest("lifeos", "lifeos", "namespace-denied-" + deniedNamespaceJti)))
+                .andExpect(status().isForbidden());
+        verify(executionUseCase, never()).execute(any(), any(), any(), any());
+
+        jdbc.update("DELETE FROM authorization_grant WHERE principal_type='WORKLOAD' AND principal_id='lifeos'");
+        insertGrant("lifeos", "lifeos", "lifeos");
+        doReturn(new ProgressionOutcome(new ProgressionResult(7, 0, List.of()),
+                new ProgressionProfile(7, 1, 0, 0, List.of(), List.of())))
+                .when(executionUseCase).execute(any(), any(), any(), any());
+        UUID allowJti = UUID.randomUUID(); replayIds.add(allowJti);
+        mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + workloadAssertion(keyPair, kid, allowJti))
+                        .contentType(MediaType.APPLICATION_JSON).content(executionRequest("lifeos", "lifeos", "allowed-" + allowJti)))
+                .andExpect(status().isOk());
+        verify(executionUseCase).execute(any(), any(), any(), any());
     }
 
     @Test
@@ -211,7 +235,7 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
         mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer "
                         + workloadAssertion(wrongKey, kid, UUID.randomUUID())))
                 .andExpect(status().isUnauthorized());
-        verify(progressionController, never()).create(any());
+        verify(executionUseCase, never()).execute(any(), any(), any(), any());
     }
 
     @Test
@@ -226,7 +250,7 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
                 .when(workloadAuthenticationService).authenticate(anyString());
         mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer integrity-test"))
                 .andExpect(status().isServiceUnavailable());
-        verify(progressionController, never()).create(any());
+        verify(executionUseCase, never()).execute(any(), any(), any(), any());
     }
 
     @Test
@@ -245,6 +269,19 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
     private void assertReplayCount(UUID jti, long expected) {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM workload_assertion_replay WHERE issuer = ? AND jti = ?",
                 Long.class, ISSUER, jti)).isEqualTo(expected);
+    }
+
+    private void insertGrant(String principalId, String source, String namespace) {
+        AuthorizationGrant grant = new AuthorizationGrant(new AuthorizationPrincipal(PrincipalType.WORKLOAD, principalId),
+                AuthorizationOperation.PROGRESSION_EXECUTE, Optional.of(new AuthorizationSource(source)),
+                Optional.of(new AuthorizationNamespace(namespace)));
+        assertThat(authorizationGrantStore.insertIfAbsent(grant)).isEqualTo(InsertResult.CREATED);
+    }
+
+    private String executionRequest(String source, String namespace, String key) {
+        return "{\"subject\":{\"namespace\":\"" + namespace + "\",\"externalId\":\"test-subject\"},"
+                + "\"execution\":{\"source\":\"" + source + "\",\"idempotencyKey\":\"" + key + "\"},"
+                + "\"configuration\":{\"key\":\"reading\",\"revision\":1},\"details\":[]}";
     }
 
     private List<jakarta.servlet.Filter> filtersFor(MockHttpServletRequest request) {

@@ -10,6 +10,17 @@ import com.josecjuniors.logossrv.core.progression.application.query.ProgressionE
 import com.josecjuniors.logossrv.core.progression.application.service.ProgressionOutcome;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionNotFoundException;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionExecutionReadCorruptedException;
+import com.josecjuniors.logossrv.core.security.authentication.domain.AuthenticatedPrincipal;
+import com.josecjuniors.logossrv.core.security.authentication.domain.AuthenticationMethod;
+import com.josecjuniors.logossrv.core.security.authentication.domain.AuthenticationStatus;
+import com.josecjuniors.logossrv.core.security.authentication.domain.PrincipalType;
+import com.josecjuniors.logossrv.core.security.authorization.application.AuthorizationEvaluator;
+import com.josecjuniors.logossrv.core.security.authorization.application.AuthorizationEvaluator.AuthorizationDecision;
+import com.josecjuniors.logossrv.core.security.authorization.application.AuthorizationRegistryUnavailableException;
+import com.josecjuniors.logossrv.core.security.authorization.application.AuthorizationRegistryCorruptedException;
+import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationOperation;
+import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationSource;
+import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationNamespace;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionExecutionIdentity;
 import com.josecjuniors.logossrv.core.progression.domain.model.ProgressionExecutionStatus;
@@ -18,6 +29,8 @@ import com.josecjuniors.logossrv.core.registroatividade.application.service.Prog
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -26,7 +39,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -40,6 +55,7 @@ import static org.hamcrest.Matchers.not;
 class ProgressionExecutionControllerTest {
     private final GetProgressionExecutionQuery query = mock(GetProgressionExecutionQuery.class);
     private final ExecuteIdempotentExternalSubjectProgressionUseCase executionUseCase = mock(ExecuteIdempotentExternalSubjectProgressionUseCase.class);
+    private final AuthorizationEvaluator evaluator = mock(AuthorizationEvaluator.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private MockMvc mockMvc;
 
@@ -47,7 +63,7 @@ class ProgressionExecutionControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(new ProgressionExecutionController(query,
                         (subject, request) -> { throw new UnsupportedOperationException("history query not configured"); },
-                        executionUseCase))
+                        executionUseCase, evaluator))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -64,10 +80,12 @@ class ProgressionExecutionControllerTest {
                 new ProgressionExecutionRequest.ExecutionIdentity(" LifeOS ", " session-1 "),
                 new ProgressionExecutionRequest.ConfigurationReference(" Reading ", 3),
                 List.of(new ProgressionExecutionRequest.DetailRequest("pages_read", 30)));
+        var workload = workloadPrincipal();
+        when(evaluator.evaluate(any(), any(), any(), any())).thenReturn(AuthorizationDecision.ALLOW);
 
         mockMvc.perform(post("/api/internal/v1/progression/executions")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(request)).principal(auth(workload)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.globalXpDelta").value(30))
                 .andExpect(jsonPath("$.profile.globalXp").value(30));
@@ -83,6 +101,84 @@ class ProgressionExecutionControllerTest {
         assertThat(subject.getValue().externalId()).isEqualTo("user-1");
         assertThat(configuration.getValue().key()).isEqualTo("reading");
         assertThat(configuration.getValue().revision()).isEqualTo(3);
+    }
+
+    @Test
+    void authenticatedHumanPrincipalKeepsExistingFlowWithoutEvaluator() throws Exception {
+        when(executionUseCase.execute(any(), any(), any(), any())).thenReturn(outcome());
+        mockMvc.perform(post("/api/internal/v1/progression/executions").contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest()).principal(auth(User.withUsername("human").password("x").authorities(List.of()).build())))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verifyNoInteractions(evaluator);
+        verify(executionUseCase).execute(any(), any(), any(), any());
+    }
+
+    @Test
+    void deniedOrUnexpectedPrincipalNeverInvokesProgressionUseCase() throws Exception {
+        when(evaluator.evaluate(any(), any(), any(), any())).thenReturn(AuthorizationDecision.DENY);
+        mockMvc.perform(post("/api/internal/v1/progression/executions").contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest()).principal(auth(workloadPrincipal())))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Forbidden"));
+        mockMvc.perform(post("/api/internal/v1/progression/executions").contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest()).principal(auth(new Object())))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(executionUseCase);
+    }
+
+    @Test
+    void workloadAuthorizationUsesNormalizedDimensionsAndMasksRegistryErrors() throws Exception {
+        when(evaluator.evaluate(any(), any(), any(), any())).thenReturn(AuthorizationDecision.ALLOW);
+        when(executionUseCase.execute(any(), any(), any(), any())).thenReturn(outcome());
+        mockMvc.perform(post("/api/internal/v1/progression/executions").contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest(" LIFEOS ", " LIFEOS ")).principal(auth(workloadPrincipal())))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verify(evaluator).evaluate(eq(workloadPrincipal()), eq(AuthorizationOperation.PROGRESSION_EXECUTE),
+                eq(java.util.Optional.of(new AuthorizationSource("lifeos"))), eq(java.util.Optional.of(new AuthorizationNamespace("lifeos"))));
+        doThrow(new AuthorizationRegistryUnavailableException(new IllegalStateException("sensitive persistence")))
+                .when(evaluator).evaluate(any(), any(), any(), any());
+        mockMvc.perform(post("/api/internal/v1/progression/executions").contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest()).principal(auth(workloadPrincipal())))
+                .andExpect(status().isServiceUnavailable()).andExpect(content().string(not(containsString("sensitive persistence"))));
+        doThrow(new AuthorizationRegistryCorruptedException(new IllegalStateException("sensitive row")))
+                .when(evaluator).evaluate(any(), any(), any(), any());
+        mockMvc.perform(post("/api/internal/v1/progression/executions").contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest()).principal(auth(workloadPrincipal())))
+                .andExpect(status().isInternalServerError()).andExpect(content().string(not(containsString("sensitive row"))));
+    }
+
+    @Test
+    void invalidRequiredDimensionReturnsBadRequestWithoutEvaluation() throws Exception {
+        for (String invalid : List.of(validRequest("", "lifeos"), validRequest("lifeos", ""),
+                "{\"subject\":{\"namespace\":null,\"externalId\":\"user\"},"
+                        + "\"execution\":{\"source\":\"lifeos\",\"idempotencyKey\":\"key\"},"
+                        + "\"configuration\":{\"key\":\"reading\",\"revision\":1},\"details\":[]}",
+                "{\"subject\":{\"namespace\":\"lifeos\",\"externalId\":\"user\"},"
+                        + "\"execution\":{\"source\":null,\"idempotencyKey\":\"key\"},"
+                        + "\"configuration\":{\"key\":\"reading\",\"revision\":1},\"details\":[]}")) {
+            mockMvc.perform(post("/api/internal/v1/progression/executions").contentType(MediaType.APPLICATION_JSON)
+                            .content(invalid).principal(auth(workloadPrincipal())))
+                    .andExpect(status().isBadRequest());
+        }
+        org.mockito.Mockito.verifyNoInteractions(evaluator);
+        org.mockito.Mockito.verifyNoInteractions(executionUseCase);
+    }
+
+    private static UsernamePasswordAuthenticationToken auth(Object principal) {
+        return new UsernamePasswordAuthenticationToken(principal, "n/a", List.of());
+    }
+    private static AuthenticatedPrincipal workloadPrincipal() {
+        return new AuthenticatedPrincipal(PrincipalType.WORKLOAD, "lifeos", AuthenticationMethod.ASYMMETRIC_SIGNED_ASSERTION,
+                "credential", AuthenticationStatus.VERIFIED);
+    }
+    private ProgressionOutcome outcome() {
+        return new ProgressionOutcome(new ProgressionResult(1, 0, List.of()),
+                new ProgressionProfile(1, 1, 0, 0, List.of(), List.of()));
+    }
+    private String validRequest() { return validRequest("lifeos", "lifeos"); }
+    private String validRequest(String source, String namespace) {
+        return "{\"subject\":{\"namespace\":\"" + namespace + "\",\"externalId\":\"user\"},"
+                + "\"execution\":{\"source\":\"" + source + "\",\"idempotencyKey\":\"key\"},"
+                + "\"configuration\":{\"key\":\"reading\",\"revision\":1},\"details\":[]}";
     }
 
     @Test
