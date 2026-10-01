@@ -2,8 +2,6 @@ package com.josecjuniors.logossrv.adapters.out.security.authorization;
 
 import com.josecjuniors.logossrv.core.security.authentication.domain.PrincipalType;
 import com.josecjuniors.logossrv.core.security.authorization.application.port.out.AuthorizationGrantStore.InsertResult;
-import com.josecjuniors.logossrv.core.security.authorization.application.AuthorizationRegistryCorruptedException;
-import com.josecjuniors.logossrv.core.security.authorization.application.AuthorizationRegistryUnavailableException;
 import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationGrant;
 import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationNamespace;
 import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationOperation;
@@ -16,8 +14,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.security.MessageDigest;
 import java.sql.Timestamp;
@@ -32,11 +28,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 
 @FreshPostgresIntegrationTest
 class JdbcAuthorizationGrantStorePostgresTest {
@@ -157,27 +148,6 @@ class JdbcAuthorizationGrantStorePostgresTest {
         jdbc.update("UPDATE workload_principal SET lifecycle_status='REVOKED', revoked_at=? WHERE id=?",
                 Timestamp.from(Instant.now()), principalDbId);
         assertGrantUnchanged(grant, createdAt);
-    }
-
-    @Test
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    void findExactTranslatesResourceAvailabilityFailure() {
-        JdbcTemplate unavailableJdbc = mock(JdbcTemplate.class);
-        doThrow(new DataAccessResourceFailureException("private database detail"))
-                .when(unavailableJdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
-        var unavailableStore = new JdbcAuthorizationGrantStore(unavailableJdbc);
-        assertThatThrownBy(() -> unavailableStore.findExact(execute(principalId, "lifeos", "lifeos")))
-                .isInstanceOf(AuthorizationRegistryUnavailableException.class)
-                .hasMessage("Authorization registry is unavailable.");
-    }
-
-    @Test
-    void invalidPersistedGrantRowIsTypedAsCorruption() {
-        assertThatThrownBy(() -> store.mapGrantRow("INVALID", principalId, "PROGRESSION_EXECUTE", "lifeos", "lifeos"))
-                .isInstanceOf(AuthorizationRegistryCorruptedException.class)
-                .hasMessage("Authorization registry data is corrupted.");
-        assertThatThrownBy(() -> store.mapGrantRow("WORKLOAD", principalId, "PROGRESSION_EXECUTE", "lifeos", null))
-                .isInstanceOf(AuthorizationRegistryCorruptedException.class);
     }
 
     private void assertGrantUnchanged(AuthorizationGrant grant, Timestamp createdAt) {

@@ -46,6 +46,7 @@ class ProgressionExecutionSecurityPostgresTest {
     @Test
     void workloadChainIsAbsentByDefault() {
         assertThat(applicationContext.getBeansOfType(SecurityFilterChain.class)).hasSize(1);
+        assertThat(applicationContext.containsBean("progressionExecuteAuthorizationAdvisor")).isFalse();
     }
 
     @Test

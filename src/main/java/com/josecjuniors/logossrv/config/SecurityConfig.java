@@ -7,8 +7,6 @@ import com.josecjuniors.logossrv.config.security.workload.WorkloadBearerAuthenti
 import com.josecjuniors.logossrv.core.security.workload.application.WorkloadAuthenticationService;
 import com.josecjuniors.logossrv.core.appuser.application.service.UserDetailsServiceImpl;
 import com.josecjuniors.logossrv.core.appuser.domain.repository.AppUserRepository;
-import com.josecjuniors.logossrv.core.security.authorization.application.AuthorizationEvaluator;
-import com.josecjuniors.logossrv.core.security.authorization.application.port.out.AuthorizationGrantStore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -44,11 +42,6 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public AuthorizationEvaluator authorizationEvaluator(AuthorizationGrantStore grantStore) {
-        return new AuthorizationEvaluator(grantStore);
     }
 
     @Bean
