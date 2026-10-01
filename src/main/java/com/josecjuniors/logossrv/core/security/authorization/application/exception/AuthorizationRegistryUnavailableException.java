@@ -1,4 +1,4 @@
-package com.josecjuniors.logossrv.core.security.authorization.application;
+package com.josecjuniors.logossrv.core.security.authorization.application.exception;
 
 public final class AuthorizationRegistryUnavailableException extends RuntimeException {
     public AuthorizationRegistryUnavailableException(Throwable cause) {

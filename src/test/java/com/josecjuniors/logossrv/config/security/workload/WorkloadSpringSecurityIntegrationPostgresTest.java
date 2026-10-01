@@ -11,6 +11,7 @@ import com.josecjuniors.logossrv.core.security.workload.admin.application.Worklo
 import com.josecjuniors.logossrv.core.security.authentication.domain.PrincipalType;
 import com.josecjuniors.logossrv.core.security.authorization.application.port.out.AuthorizationGrantStore;
 import com.josecjuniors.logossrv.core.security.authorization.application.port.out.AuthorizationGrantStore.InsertResult;
+import com.josecjuniors.logossrv.core.security.authorization.application.exception.AuthorizationRegistryUnavailableException;
 import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationGrant;
 import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationNamespace;
 import com.josecjuniors.logossrv.core.security.authorization.domain.AuthorizationOperation;
@@ -35,7 +36,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.aop.Advisor;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.web.DefaultSecurityFilterChain;
@@ -85,11 +90,12 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
     }
 
     @Autowired MockMvc mockMvc;
+    @Autowired ApplicationContext applicationContext;
     @Autowired JdbcTemplate jdbc;
     @Autowired Clock clock;
     @Autowired JwtService humanJwtService;
     @Autowired WorkloadTrustAdministrationService trustAdministration;
-    @Autowired AuthorizationGrantStore authorizationGrantStore;
+    @SpyBean AuthorizationGrantStore authorizationGrantStore;
     @Autowired FilterChainProxy filterChainProxy;
     @Autowired JwtAuthenticationFilter humanJwtFilter;
     @Autowired List<SecurityFilterChain> securityFilterChains;
@@ -107,7 +113,7 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
 
     @BeforeEach
     void setUpTrust() throws Exception {
-        reset(workloadAuthenticationService, progressionController, executionUseCase);
+        reset(workloadAuthenticationService, progressionController, executionUseCase, authorizationGrantStore);
         principalCreated = jdbc.queryForObject(
                 "SELECT count(*) FROM workload_principal WHERE issuer = ?", Integer.class, ISSUER) == 0;
         var actor = new TrustAdministrationActor(TrustAdministrationActorType.SYSTEM, "f1e-r2-test");
@@ -144,7 +150,7 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
             jdbc.update("DELETE FROM workload_trust_audit_event WHERE workload_principal_id = ?", principalDatabaseId);
             jdbc.update("DELETE FROM workload_principal WHERE id = ?", principalDatabaseId);
         }
-        reset(workloadAuthenticationService, progressionController, executionUseCase);
+        reset(workloadAuthenticationService, progressionController, executionUseCase, authorizationGrantStore);
     }
 
     @Test
@@ -171,6 +177,11 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
         FilterRegistrationBean<?> registration = filterRegistrations.stream()
                 .filter(bean -> bean.getFilter() == humanJwtFilter).findFirst().orElseThrow();
         assertThat(registration.isEnabled()).isFalse();
+        assertThat(applicationContext.containsBean("progressionExecuteAuthorizationAdvisor")).isTrue();
+        assertThat(applicationContext.getBean("progressionExecuteAuthorizationAdvisor", Advisor.class)).isNotNull();
+        var beanFactory = ((ConfigurableApplicationContext) applicationContext).getBeanFactory();
+        assertThat(beanFactory.getBeanDefinition("progressionExecuteAuthorizationAdvisor").getRole())
+                .isEqualTo(BeanDefinition.ROLE_INFRASTRUCTURE);
     }
 
     @Test
@@ -181,13 +192,92 @@ class WorkloadSpringSecurityIntegrationPostgresTest {
 
         mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + assertion)
                         .contentType(MediaType.APPLICATION_JSON).content(executionRequest("lifeos", "lifeos", "denied-" + jti)))
-                .andExpect(status().isForbidden()).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error").value("Forbidden"));
+                .andExpect(status().isForbidden());
         assertReplayCount(jti, 1);
+        verify(progressionController, never()).create(any());
         verify(executionUseCase, never()).execute(any(), any(), any(), any());
 
         mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + assertion)
                         .contentType(MediaType.APPLICATION_JSON).content(executionRequest("lifeos", "lifeos", "denied-" + jti)))
                 .andExpect(status().isUnauthorized());
+        assertReplayCount(jti, 1);
+        verify(progressionController, never()).create(any());
+        verify(executionUseCase, never()).execute(any(), any(), any(), any());
+    }
+
+    @Test
+    void invalidAuthorizationDimensionsAreDeniedBeforeControllerTarget() throws Exception {
+        List<String> invalidRequests = List.of(
+                "{\"subject\":null,\"execution\":{\"source\":\"lifeos\",\"idempotencyKey\":\"k\"},\"configuration\":{},\"details\":[]}",
+                "{\"subject\":{\"namespace\":null,\"externalId\":\"x\"},\"execution\":{\"source\":\"lifeos\",\"idempotencyKey\":\"k\"},\"configuration\":{},\"details\":[]}",
+                "{\"subject\":{\"namespace\":\"lifeos\",\"externalId\":\"x\"},\"execution\":null,\"configuration\":{},\"details\":[]}",
+                "{\"subject\":{\"namespace\":\"lifeos\",\"externalId\":\"x\"},\"execution\":{\"source\":null,\"idempotencyKey\":\"k\"},\"configuration\":{},\"details\":[]}",
+                executionRequest("invalid source", "lifeos", "bad-source"),
+                executionRequest("lifeos", "bad namespace", "bad-namespace"));
+        for (String request : invalidRequests) {
+            UUID jti = UUID.randomUUID();
+            replayIds.add(jti);
+            mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + workloadAssertion(keyPair, kid, jti))
+                            .contentType(MediaType.APPLICATION_JSON).content(request))
+                    .andExpect(status().isForbidden());
+            assertReplayCount(jti, 1);
+        }
+        verify(progressionController, never()).create(any());
+        verify(executionUseCase, never()).execute(any(), any(), any(), any());
+    }
+
+    @Test
+    void malformedJsonFailsDuringBindingBeforeMethodAuthorization() throws Exception {
+        UUID jti = UUID.randomUUID();
+        replayIds.add(jti);
+
+        mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + workloadAssertion(keyPair, kid, jti))
+                        .contentType(MediaType.APPLICATION_JSON).content("{"))
+                .andExpect(status().isBadRequest());
+
+        assertReplayCount(jti, 1);
+        verify(authorizationGrantStore, never()).findExact(any());
+        verify(progressionController, never()).create(any());
+        verify(executionUseCase, never()).execute(any(), any(), any(), any());
+    }
+
+    @Test
+    void authorizationRegistryOutageIs503AfterReplayConsumptionAndRetryIs401() throws Exception {
+        UUID jti = UUID.randomUUID();
+        replayIds.add(jti);
+        String assertion = workloadAssertion(keyPair, kid, jti);
+        doThrow(new AuthorizationRegistryUnavailableException(
+                new org.springframework.dao.DataAccessResourceFailureException("private database detail")))
+                .when(authorizationGrantStore).findExact(any());
+
+        mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + assertion)
+                        .contentType(MediaType.APPLICATION_JSON).content(executionRequest("lifeos", "lifeos", "outage")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error")
+                        .value("Authorization service temporarily unavailable"));
+        assertReplayCount(jti, 1);
+        verify(progressionController, never()).create(any());
+        verify(executionUseCase, never()).execute(any(), any(), any(), any());
+
+        reset(authorizationGrantStore);
+        mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + assertion)
+                        .contentType(MediaType.APPLICATION_JSON).content(executionRequest("lifeos", "lifeos", "outage")))
+                .andExpect(status().isUnauthorized());
+        assertReplayCount(jti, 1);
+    }
+
+    @Test
+    void exactGrantMayReachNormalBusinessValidationAfterAuthorization() throws Exception {
+        insertGrant("lifeos", "lifeos", "lifeos");
+        UUID jti = UUID.randomUUID();
+        replayIds.add(jti);
+        String request = "{\"subject\":{\"namespace\":\"lifeos\",\"externalId\":\"x\"},"
+                + "\"execution\":{\"source\":\"lifeos\",\"idempotencyKey\":\"k\"},"
+                + "\"configuration\":null,\"details\":[]}";
+
+        mockMvc.perform(post(EXECUTIONS).header("Authorization", "Bearer " + workloadAssertion(keyPair, kid, jti))
+                        .contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isBadRequest());
         assertReplayCount(jti, 1);
         verify(executionUseCase, never()).execute(any(), any(), any(), any());
     }
