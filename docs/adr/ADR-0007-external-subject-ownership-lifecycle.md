@@ -55,3 +55,29 @@ A future implementation must establish atomic semantics for: same reference
 and same target; same reference and different target; claim versus disable;
 claim versus transfer; and transfer versus execution. This documentation
 freeze does not implement those semantics.
+
+## C1A approved physical foundation
+
+The approved C1A foundation adds current classification metadata to the
+existing `progression_subject_identity` row, which remains the single current
+locator/target/state row. It records identity class, ownership status,
+verification status, and ownership version. Initial ownership history is
+stored separately and append-only; provenance, actor, evidence, reason, and
+historical times are not duplicated on the current row.
+
+The initial state vocabulary is `ACTIVE` / `DISABLED` / `REVOKED` for
+ownership and `NOT_REQUIRED` / `UNVERIFIED` / `VERIFIED` / `INVALIDATED` for
+verification. C1A only establishes initial classifications and creation
+history; it adds no lifecycle commands and does not enforce ownership during
+progression execution. Resolver behavior remains unchanged until a separately
+authorized C2 slice.
+
+Legacy native mappings are classified `LOGOS_NATIVE / ACTIVE / NOT_REQUIRED`
+with `LEGACY_LOGOS_NATIVE_UNKNOWN`; legacy external mappings are
+`EXTERNAL / ACTIVE / UNVERIFIED` with `LEGACY_EXTERNAL_UNKNOWN`. Existing
+actor, evidence, and effective time remain unknown. New native registration
+uses `LOGOS_NATIVE_REGISTRATION`; the new external POC self-link uses
+`POC_SELF_LINK`, with the authenticated AppUser recorded only as an action
+actor and never as ownership proof. The `logos-native` namespace remains
+Logos-controlled. These physical C1A decisions do not authorize C1B, C2, or
+operational activation.

@@ -66,6 +66,7 @@ public class RegistrationService implements RegistrationUseCase {
 
         // 3. Salva o Jogador (a cascata persistirá o EstresseGlobal)
         Jogador savedJogador = jogadorRepository.save(novoJogador);
+        // The adapter records native registration provenance; the unauthenticated registration has no actor.
         subjectIdentityProvisioning.provision(
                 new ExternalSubjectReference("logos-native", savedUser.getId().getValue().toString()),
                 new SubjectId(savedUser.getId().getValue()));

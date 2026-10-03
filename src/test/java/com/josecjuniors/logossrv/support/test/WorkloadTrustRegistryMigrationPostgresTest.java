@@ -48,7 +48,7 @@ class WorkloadTrustRegistryMigrationPostgresTest {
     void currentSchemaKeepsAllWorkloadTrustTablesWithoutSeedingTrust() {
         assertThat(jdbc.queryForObject(
                 "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank DESC LIMIT 1",
-                String.class)).isEqualTo("46");
+                String.class)).isEqualTo("47");
 
         for (String table : new String[]{"workload_principal", "workload_signing_key",
                 "workload_trust_audit_event", "workload_assertion_replay"}) {

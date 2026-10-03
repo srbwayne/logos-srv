@@ -19,6 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -27,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @FreshPostgresIntegrationTest
+@TestPropertySource(properties = "logos.test.schema-key=jogador-write-lock-c1a")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class JogadorWriteLockProtocolPostgresTest {
     @Autowired AppUserJpaRepository users;
     @Autowired JogadorJpaRepository jogadores;

@@ -52,3 +52,15 @@ accepted as the trust mechanism and the caller's possession of an external ID
 is not proof of external ownership. Service principals, OIDC, source and
 namespace authorization, cross-service read authorization, and external
 identity proof remain required before production exposure.
+
+## C1A ownership classification
+
+The endpoint remains a bounded, pre-production POC. A successful new
+self-link is classified `EXTERNAL / ACTIVE / UNVERIFIED` with provenance
+`POC_SELF_LINK`. The authenticated AppUser is recorded only as the action
+actor. Authentication and possession of the submitted locator are not
+ownership proof and do not produce `VERIFIED` status.
+
+C1A stores this initial classification and append-only creation history. It
+does not add lifecycle administration or enforce ownership state during
+progression execution; existing subject resolution behavior is preserved.
