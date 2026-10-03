@@ -36,3 +36,24 @@ AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
 scheduled-job, or CLI ingress exists. Ownership lifecycle mutations, C2
 execution enforcement, and transfer remain outside this foundation.
+
+## VERIFY slice
+
+The initial lifecycle capability accepts only an existing external identity in
+`ACTIVE / UNVERIFIED` state. It changes verification to `VERIFIED` and advances
+`ownership_version` by one while preserving the locator, target, identity
+class, and ownership status. `ACTIVE / VERIFIED` is an idempotent no-op with
+no new event or version change. Disabled, revoked, invalidated, native, and
+otherwise unsupported identities are rejected.
+
+The command requires an expected ownership version, evidence type (trimmed,
+nonblank, at most 64 characters), opaque evidence reference (trimmed,
+nonblank, at most 255 characters), and reason (trimmed, nonblank, at most 512
+characters). Evidence reference records operator evidence; it does not assert
+cryptographic or third-party verification. Effective time is server-derived,
+and recorded time is database-derived. The operation authorizes the exact
+namespace before disclosing lookup results, locks the current identity row,
+and atomically persists the state/version change with one immutable
+`OWNERSHIP_VERIFIED` event using `LOGOS_OPERATOR_ACTION` provenance. This
+slice adds no HTTP, message, scheduler, or CLI ingress and does not change
+resolver or progression execution behavior.

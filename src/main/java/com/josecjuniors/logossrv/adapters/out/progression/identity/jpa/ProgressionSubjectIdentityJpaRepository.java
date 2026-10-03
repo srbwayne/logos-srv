@@ -8,12 +8,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface ProgressionSubjectIdentityJpaRepository
         extends JpaRepository<ProgressionSubjectIdentity, UUID> {
 
     Optional<ProgressionSubjectIdentity> findByNamespaceAndExternalId(String namespace, String externalId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select identity from ProgressionSubjectIdentity identity where identity.namespace = :namespace and identity.externalId = :externalId")
+    Optional<ProgressionSubjectIdentity> findByNamespaceAndExternalIdForUpdate(
+            @Param("namespace") String namespace, @Param("externalId") String externalId);
 
     @Query("select identity.jogador.user.id from ProgressionSubjectIdentity identity "
             + "where identity.namespace = :namespace and identity.externalId = :externalId")
