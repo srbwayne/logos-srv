@@ -1,6 +1,7 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: C1B authority foundation; lifecycle mutations are not implemented.
+Status: C1B authority foundation; VERIFY is canonical. This candidate adds
+INVALIDATE; other lifecycle mutations remain unimplemented.
 
 ## Authority boundary
 
@@ -34,8 +35,9 @@ this authority.
 
 AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
-scheduled-job, or CLI ingress exists. Ownership lifecycle mutations, C2
-execution enforcement, and transfer remain outside this foundation.
+scheduled-job, or CLI ingress exists. Lifecycle mutations are limited to the
+canonical VERIFY capability and the INVALIDATE capability in this candidate.
+C2 execution enforcement and transfer remain outside this foundation.
 
 ## VERIFY slice
 
@@ -57,3 +59,27 @@ and atomically persists the state/version change with one immutable
 `OWNERSHIP_VERIFIED` event using `LOGOS_OPERATOR_ACTION` provenance. This
 slice adds no HTTP, message, scheduler, or CLI ingress and does not change
 resolver or progression execution behavior.
+
+## INVALIDATE slice
+
+This candidate adds only `EXTERNAL / ACTIVE / VERIFIED` to
+`EXTERNAL / ACTIVE / INVALIDATED`. It preserves the identity, namespace,
+external ID, target, identity class, and ACTIVE ownership status, and advances
+`ownership_version` once. Other states, including native identities, are
+rejected. An already active invalidated identity is an idempotent no-op,
+including when the supplied expected version is stale; evidence inputs are
+still validated before the no-op succeeds.
+
+The command requires an expected ownership version and mandatory evidence
+type, opaque evidence reference, and reason. They are trimmed, nonblank, and
+limited to 64, 255, and 512 characters respectively. The operation uses the
+namespace-scoped `SUBJECT_OWNERSHIP_MANAGE` authority and records the trusted
+`WORKLOAD_OPERATOR` actor. It writes one immutable
+`OWNERSHIP_VERIFICATION_INVALIDATED` event with `LOGOS_OPERATOR_ACTION`
+provenance. Effective time is server-derived; recorded time is database-
+derived. The current-state change and history event are atomic and use the
+existing identity-row `PESSIMISTIC_WRITE` lock.
+
+Re-verification, disable, reactivate, revoke, transfer, target correction, and
+C2 enforcement remain unimplemented. No ingress or resolver/execution behavior
+is added by this slice.

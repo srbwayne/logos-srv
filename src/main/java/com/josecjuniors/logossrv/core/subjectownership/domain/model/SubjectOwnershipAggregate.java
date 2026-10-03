@@ -22,6 +22,12 @@ public record SubjectOwnershipAggregate(UUID id, ExternalSubjectReference refere
                 && !reference.namespace().equals("logos-native");
     }
 
+    public boolean isActiveInvalidated() {
+        return identityClass == IdentityClass.EXTERNAL && ownershipStatus == OwnershipStatus.ACTIVE
+                && verificationStatus == VerificationStatus.INVALIDATED
+                && !reference.namespace().equals("logos-native");
+    }
+
     public SubjectOwnershipAggregate verify(long expectedVersion) {
         if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
             throw new InvalidSubjectOwnershipTransitionException("Only external identities may be verified");
@@ -33,5 +39,18 @@ public record SubjectOwnershipAggregate(UUID id, ExternalSubjectReference refere
             throw new SubjectOwnershipVersionConflictException(expectedVersion, ownershipVersion);
         return new SubjectOwnershipAggregate(id, reference, targetJogadorId, identityClass, ownershipStatus,
                 VerificationStatus.VERIFIED, ownershipVersion + 1);
+    }
+
+    public SubjectOwnershipAggregate invalidate(long expectedVersion) {
+        if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
+            throw new InvalidSubjectOwnershipTransitionException("Only external identities may be invalidated");
+        if (ownershipStatus != OwnershipStatus.ACTIVE)
+            throw new InvalidSubjectOwnershipTransitionException("Only active ownership may be invalidated");
+        if (verificationStatus != VerificationStatus.VERIFIED)
+            throw new InvalidSubjectOwnershipTransitionException("Only verified ownership may be invalidated");
+        if (ownershipVersion != expectedVersion)
+            throw new SubjectOwnershipVersionConflictException(expectedVersion, ownershipVersion);
+        return new SubjectOwnershipAggregate(id, reference, targetJogadorId, identityClass, ownershipStatus,
+                VerificationStatus.INVALIDATED, ownershipVersion + 1);
     }
 }

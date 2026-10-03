@@ -10,4 +10,6 @@ public interface SubjectOwnershipLifecycleStore {
     Optional<SubjectOwnershipAggregate> findForUpdate(ExternalSubjectReference reference);
     void saveVerification(SubjectOwnershipAggregate before, SubjectOwnershipAggregate after,
             AuthorizedSubjectOwnershipOperator operator, OwnershipVerificationEvidence evidence, Instant effectiveAt);
+    void saveInvalidation(SubjectOwnershipAggregate before, SubjectOwnershipAggregate after,
+            AuthorizedSubjectOwnershipOperator operator, OwnershipVerificationEvidence evidence, Instant effectiveAt);
 }
