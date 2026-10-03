@@ -1,5 +1,13 @@
 # Migration Log
 
+### 2026-10-03 — HARD-003 C1B Ownership-Management Authorization Foundation
+
+- Baseline: `2e4aedc7b60d4872ea6328b369fe88f32d23c66d` (V47).
+- Migration: V48 adds `SUBJECT_OWNERSHIP_MANAGE` to the authorization-grant operation and applicability constraints. It requires `source IS NULL` and a non-null namespace.
+- Existing operations and applicability rules remain unchanged. The migration inserts no grants, workload principals, trust records, or ownership data.
+- Authority: only a verified `WORKLOAD` principal with an exact namespace grant is supported. This capability is administrative authority, not ownership proof or progression execution authority.
+- Scope: authority context only. No lifecycle commands, ownership state/history writes, HTTP ingress, workload activation, or operational database migration are included.
+
 ### 2026-10-02 — HARD-003 C1A External Subject Ownership Foundation
 
 - Baseline commit: `8851871f394de4a9bf121e2be87665c766747157` (V46).

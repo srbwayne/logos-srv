@@ -11,7 +11,8 @@ class AuthorizationOperationTest {
                 AuthorizationOperation.PROGRESSION_EXECUTE,
                 AuthorizationOperation.PROGRESSION_EXECUTION_READ,
                 AuthorizationOperation.PROGRESSION_HISTORY_READ,
-                AuthorizationOperation.SUBJECT_PROVISION);
+                AuthorizationOperation.SUBJECT_PROVISION,
+                AuthorizationOperation.SUBJECT_OWNERSHIP_MANAGE);
         assertThat(AuthorizationOperation.PROGRESSION_EXECUTE.requiresSource()).isTrue();
         assertThat(AuthorizationOperation.PROGRESSION_EXECUTE.requiresNamespace()).isTrue();
         assertThat(AuthorizationOperation.PROGRESSION_EXECUTION_READ.requiresSource()).isTrue();
@@ -20,5 +21,7 @@ class AuthorizationOperationTest {
         assertThat(AuthorizationOperation.PROGRESSION_HISTORY_READ.requiresNamespace()).isTrue();
         assertThat(AuthorizationOperation.SUBJECT_PROVISION.requiresSource()).isFalse();
         assertThat(AuthorizationOperation.SUBJECT_PROVISION.requiresNamespace()).isTrue();
+        assertThat(AuthorizationOperation.SUBJECT_OWNERSHIP_MANAGE.requiresSource()).isFalse();
+        assertThat(AuthorizationOperation.SUBJECT_OWNERSHIP_MANAGE.requiresNamespace()).isTrue();
     }
 }
