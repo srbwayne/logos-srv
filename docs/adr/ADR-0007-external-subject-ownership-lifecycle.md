@@ -58,15 +58,17 @@ whose exact namespace grant is evaluated by HARD-002. Immutable lifecycle
 history will use actor type `WORKLOAD_OPERATOR` and that principal ID; actor
 fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
-grants, principals, trust records, lifecycle commands, or ingress. C1B
-lifecycle mutations remain unimplemented.
+grants, principals, or trust records. It introduced no ingress. The canonical
+VERIFY capability and the INVALIDATE capability in this candidate are the
+only implemented C1B lifecycle mutations; other lifecycle mutations remain
+unimplemented.
 
 ## Audit, lifecycle, and concurrency requirements
 
 The architecture must preserve enough information for ownership history,
 actor principal, effective timestamps, transfer/correction history,
 disable/revoke history, and a proof/evidence reference where applicable. The
-persistence schema is undecided.
+initial persistence schema is defined by the canonical C1A migration.
 
 A future implementation must establish atomic semantics for: same reference
 and same target; same reference and different target; claim versus disable;
@@ -111,3 +113,26 @@ one append-only `OWNERSHIP_VERIFIED` history event commit atomically at the
 incremented ownership version. An already active verified identity is an
 idempotent no-op. No other lifecycle transition, ingress, or execution
 enforcement is included.
+
+## C1B INVALIDATE implementation slice
+
+The INVALIDATE mutation is limited to `EXTERNAL / ACTIVE / VERIFIED` to
+`EXTERNAL / ACTIVE / INVALIDATED`. It preserves identity, locator, target,
+identity class, and ACTIVE ownership status, and advances `ownership_version`
+once. Native identities and unsupported states are rejected. An already
+active invalidated identity is an idempotent no-op, including for a stale
+expected version, after mandatory evidence syntax is validated.
+
+The command requires an expected version, trimmed nonblank evidence type
+(maximum 64 characters), opaque evidence reference (maximum 255 characters),
+and reason (maximum 512 characters). It authorizes the exact namespace using
+`SUBJECT_OWNERSHIP_MANAGE`; the audit actor is derived from the trusted
+`WORKLOAD_OPERATOR` context. The immutable
+`OWNERSHIP_VERIFICATION_INVALIDATED` event uses `LOGOS_OPERATOR_ACTION`
+provenance. Effective time is server-derived and recorded time is
+database-derived. Current state/version and the history entry are committed
+atomically under the existing identity-row `PESSIMISTIC_WRITE` lock.
+
+INVALIDATE adds no migration or ingress and does not change resolver or
+progression execution behavior. Re-verification, disable, reactivate, revoke,
+transfer, target correction, and C2 enforcement remain unimplemented.
