@@ -6,7 +6,6 @@ import com.josecjuniors.logossrv.adapters.out.appuser.jpa.AppUserJpaRepository;
 import com.josecjuniors.logossrv.adapters.out.estresseglobal.jpa.EstresseGlobalJpaRepository;
 import com.josecjuniors.logossrv.adapters.out.jogador.jpa.JogadorJpaRepository;
 import com.josecjuniors.logossrv.adapters.out.progression.identity.jpa.JpaExternalSubjectResolver;
-import com.josecjuniors.logossrv.adapters.out.progression.identity.jpa.ProgressionSubjectIdentityJpaRepository;
 import com.josecjuniors.logossrv.config.jwt.JwtService;
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUser;
 import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
@@ -16,14 +15,13 @@ import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @IntegrationTest
+@TestPropertySource(properties = "logos.test.schema-key=subject-identity-provisioning-c1a")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ProgressionSubjectIdentityProvisioningPostgresTest {
 
@@ -43,27 +42,10 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
     @Autowired AppUserJpaRepository users;
     @Autowired JogadorJpaRepository jogadores;
     @Autowired EstresseGlobalJpaRepository estresses;
-    @Autowired ProgressionSubjectIdentityJpaRepository identities;
     @Autowired JpaExternalSubjectResolver resolver;
     @Autowired PasswordEncoder encoder;
     @Autowired JwtService jwt;
     @Autowired JdbcTemplate jdbc;
-
-    @BeforeEach
-    void setUp() {
-        identities.deleteAll();
-        estresses.deleteAll();
-        jogadores.deleteAll();
-        users.deleteAll();
-    }
-
-    @AfterEach
-    void tearDown() {
-        identities.deleteAll();
-        estresses.deleteAll();
-        jogadores.deleteAll();
-        users.deleteAll();
-    }
 
     @Test
     void registrationCreatesAndResolverReadsLogosNativeMapping() throws Exception {
@@ -77,6 +59,27 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_identity WHERE namespace = 'logos-native' AND external_id = ?", Integer.class, userId.toString()))
                 .isEqualTo(1);
+        assertThat(jdbc.queryForMap("""
+                SELECT identity.identity_class, identity.ownership_status, identity.verification_status,
+                       identity.ownership_version, history.provenance, history.actor_type,
+                       history.actor_id, history.evidence_reference
+                FROM progression_subject_identity identity
+                JOIN progression_subject_ownership_history history ON history.identity_id = identity.id
+                WHERE identity.namespace = 'logos-native' AND identity.external_id = ?
+                """, userId.toString()))
+                .containsEntry("identity_class", "LOGOS_NATIVE")
+                .containsEntry("ownership_status", "ACTIVE")
+                .containsEntry("verification_status", "NOT_REQUIRED")
+                .containsEntry("ownership_version", 0L)
+                .containsEntry("provenance", "LOGOS_NATIVE_REGISTRATION")
+                .containsEntry("actor_type", null)
+                .containsEntry("actor_id", null)
+                .containsEntry("evidence_reference", null);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM progression_subject_ownership_history history
+                JOIN progression_subject_identity identity ON identity.id = history.identity_id
+                WHERE identity.namespace = 'logos-native' AND identity.external_id = ?
+                """, Integer.class, userId.toString())).isEqualTo(1);
         assertThat(resolver.resolve(new ExternalSubjectReference(" LOGOS-NATIVE ", userId.toString())).value())
                 .isEqualTo(userId);
     }
@@ -96,6 +99,7 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
 
         assertThat(resolver.resolve(new ExternalSubjectReference("lifeos", "user-123")).value())
                 .isEqualTo(fixture.userId);
+        assertPocClassification(fixture.userId, "lifeos", "user-123");
     }
 
     @Test
@@ -112,6 +116,11 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_identity WHERE namespace = 'lifeos' AND external_id = 'repeat'", Integer.class))
                 .isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM progression_subject_ownership_history history
+                JOIN progression_subject_identity identity ON identity.id = history.identity_id
+                WHERE identity.namespace = 'lifeos' AND identity.external_id = 'repeat'
+                """, Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -126,6 +135,12 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
 
         assertThat(resolver.resolve(new ExternalSubjectReference("lifeos", "shared")).value())
                 .isEqualTo(first.userId);
+        assertPocClassification(first.userId, "lifeos", "shared");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM progression_subject_ownership_history history
+                JOIN progression_subject_identity identity ON identity.id = history.identity_id
+                WHERE identity.namespace = 'lifeos' AND identity.external_id = 'shared'
+                """, Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -172,6 +187,34 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
         return mockMvc.perform(post("/api/internal/v1/progression/subject-identities")
                 .header("Authorization", "Bearer " + fixture.token)
                 .contentType(MediaType.APPLICATION_JSON).content(request));
+    }
+
+    private void assertPocClassification(UUID actorId, String namespace, String externalId) {
+        assertThat(jdbc.queryForMap("""
+                SELECT identity.identity_class, identity.ownership_status, identity.verification_status,
+                       identity.ownership_version, history.aggregate_version, history.provenance,
+                       history.actor_type, history.actor_id, history.evidence_reference,
+                       history.effective_at, history.previous_target_jogador_id,
+                       history.new_target_jogador_id
+                FROM progression_subject_identity identity
+                JOIN progression_subject_ownership_history history ON history.identity_id = identity.id
+                WHERE identity.namespace = ? AND identity.external_id = ?
+                """, namespace, externalId))
+                .containsEntry("identity_class", "EXTERNAL")
+                .containsEntry("ownership_status", "ACTIVE")
+                .containsEntry("verification_status", "UNVERIFIED")
+                .containsEntry("ownership_version", 0L)
+                .containsEntry("aggregate_version", 0L)
+                .containsEntry("provenance", "POC_SELF_LINK")
+                .containsEntry("actor_type", "APP_USER")
+                .containsEntry("actor_id", actorId.toString())
+                .containsEntry("evidence_reference", null)
+                .containsEntry("previous_target_jogador_id", null);
+        assertThat(jdbc.queryForObject("""
+                SELECT history.effective_at IS NOT NULL FROM progression_subject_identity identity
+                JOIN progression_subject_ownership_history history ON history.identity_id = identity.id
+                WHERE identity.namespace = ? AND identity.external_id = ?
+                """, Boolean.class, namespace, externalId)).isTrue();
     }
 
     private Fixture player(String email) {

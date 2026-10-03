@@ -1,5 +1,19 @@
 # Migration Log
 
+### 2026-10-02 — HARD-003 C1A External Subject Ownership Foundation
+
+- Baseline commit: `8851871f394de4a9bf121e2be87665c766747157` (V46).
+- Objective: add truthful initial ownership classification and append-only creation history without lifecycle enforcement.
+- Behavior preserved/changed: existing locator, target, uniqueness, provisioning idempotency/conflict behavior, resolver behavior, and progression snapshots are preserved. V47 adds current classification metadata and one initial history entry per existing identity.
+- Legacy classification: `logos-native` rows become `LOGOS_NATIVE / ACTIVE / NOT_REQUIRED / LEGACY_LOGOS_NATIVE_UNKNOWN`; other rows become `EXTERNAL / ACTIVE / UNVERIFIED / LEGACY_EXTERNAL_UNKNOWN`. Legacy actor, evidence, and effective time remain unknown/null.
+- New rows: native registration uses `LOGOS_NATIVE_REGISTRATION`; POC self-link uses `POC_SELF_LINK` and records the authenticated AppUser only as action actor.
+- Migration: V47 preserves identity IDs, locator values, target references, and non-null target semantics. It does not alter progression execution history.
+- Tests executed: recorded in the C1A implementation PR after validation.
+- Result: C1A foundation only; no C1B lifecycle operations, C2 execution enforcement, or operational activation.
+- Decisions: migration application to non-disposable databases requires a separately authorized read-only inventory and verified backup/recovery point.
+- Remaining risks: ownership lifecycle and progression execution coordination remain unimplemented pending later authorization.
+- Next recommended slice: independent review of the C1A PR before any merge decision.
+
 ### 2026-09-03 — TASK-009R-V Validate External Subject Identity Migration
 
 - Environment: PostgreSQL 16.10 reached through the existing local server using two isolated disposable databases: `logos_task009r_validation` (V31 fixture/backfill) and `logos_task009r_clean` (migration and regression suite). Docker/psql were unavailable, so no compose file was changed.

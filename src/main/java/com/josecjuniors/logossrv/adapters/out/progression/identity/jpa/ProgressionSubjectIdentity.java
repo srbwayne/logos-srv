@@ -1,7 +1,13 @@
 package com.josecjuniors.logossrv.adapters.out.progression.identity.jpa;
 
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
+import com.josecjuniors.logossrv.core.subjectownership.domain.model.IdentityClass;
+import com.josecjuniors.logossrv.core.subjectownership.domain.model.OwnershipStatus;
+import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwnershipClassification;
+import com.josecjuniors.logossrv.core.subjectownership.domain.model.VerificationStatus;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Column;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
@@ -27,6 +33,21 @@ public class ProgressionSubjectIdentity {
     @JoinColumn(name = "jogador_id", nullable = false)
     private Jogador jogador;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "identity_class", nullable = false, length = 32)
+    private IdentityClass identityClass;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ownership_status", nullable = false, length = 32)
+    private OwnershipStatus ownershipStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false, length = 32)
+    private VerificationStatus verificationStatus;
+
+    @Column(name = "ownership_version", nullable = false)
+    private long ownershipVersion;
+
     protected ProgressionSubjectIdentity() {
     }
 
@@ -35,9 +56,30 @@ public class ProgressionSubjectIdentity {
         this.namespace = namespace;
         this.externalId = externalId;
         this.jogador = jogador;
+        var classification = SubjectOwnershipClassification.legacy(namespace);
+        this.identityClass = classification.identityClass();
+        this.ownershipStatus = classification.ownershipStatus();
+        this.verificationStatus = classification.verificationStatus();
+        this.ownershipVersion = 0L;
     }
 
     public Jogador getJogador() {
         return jogador;
+    }
+
+    public IdentityClass getIdentityClass() {
+        return identityClass;
+    }
+
+    public OwnershipStatus getOwnershipStatus() {
+        return ownershipStatus;
+    }
+
+    public VerificationStatus getVerificationStatus() {
+        return verificationStatus;
+    }
+
+    public long getOwnershipVersion() {
+        return ownershipVersion;
     }
 }

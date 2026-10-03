@@ -22,12 +22,18 @@ public interface ProgressionSubjectIdentityJpaRepository
 
     @Modifying(flushAutomatically = true)
     @Query(value = """
-            INSERT INTO progression_subject_identity (id, namespace, external_id, jogador_id)
-            VALUES (:id, :namespace, :externalId, :jogadorId)
+            INSERT INTO progression_subject_identity
+                (id, namespace, external_id, jogador_id, identity_class, ownership_status,
+                 verification_status, ownership_version)
+            VALUES (:id, :namespace, :externalId, :jogadorId, :identityClass, :ownershipStatus,
+                    :verificationStatus, 0)
             ON CONFLICT (namespace, external_id) DO NOTHING
             """, nativeQuery = true)
     int insertIfAbsent(@Param("id") UUID id,
                        @Param("namespace") String namespace,
                        @Param("externalId") String externalId,
-                       @Param("jogadorId") UUID jogadorId);
+                       @Param("jogadorId") UUID jogadorId,
+                       @Param("identityClass") String identityClass,
+                       @Param("ownershipStatus") String ownershipStatus,
+                       @Param("verificationStatus") String verificationStatus);
 }

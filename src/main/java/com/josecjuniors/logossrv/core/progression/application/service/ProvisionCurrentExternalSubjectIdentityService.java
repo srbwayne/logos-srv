@@ -35,6 +35,7 @@ public class ProvisionCurrentExternalSubjectIdentityService
         }
         Jogador jogador = jogadorRepository.findByUserEmail(authenticatedUserEmail)
                 .orElseThrow(JogadorNaoEncontradoException::new);
+        // The adapter records this AppUser as the action actor for a new POC row, never as proof.
         provisioning.provision(reference, new SubjectId(jogador.getUser().getId().getValue()));
         return reference;
     }
