@@ -57,6 +57,7 @@ class VerifyExternalSubjectOwnershipPostgresTest {
         var before = jdbc.queryForMap("SELECT id, jogador_id, identity_class, ownership_status, verification_status, ownership_version FROM progression_subject_identity WHERE namespace=? AND external_id=?", ref.namespace(), ref.externalId());
         UUID executionId = insertExecutionSnapshot(ref);
         var executionBefore = jdbc.queryForMap("SELECT subject_namespace, subject_external_id, request_json, response_json, occurred_at FROM progression_external_execution WHERE id = ?", executionId);
+        var trustStateBefore = trustStateCounts();
         verify.verify(command(ref, 0));
         var after = jdbc.queryForMap("SELECT id, namespace, external_id, jogador_id, identity_class, ownership_status, verification_status, ownership_version FROM progression_subject_identity WHERE namespace=? AND external_id=?", ref.namespace(), ref.externalId());
         assertThat(after).containsEntry("id", before.get("id")).containsEntry("namespace", ref.namespace())
@@ -78,7 +79,16 @@ class VerifyExternalSubjectOwnershipPostgresTest {
         assertThat(history.get("recorded_at")).isNotNull();
         assertThat(jdbc.queryForMap("SELECT subject_namespace, subject_external_id, request_json, response_json, occurred_at FROM progression_external_execution WHERE id = ?", executionId))
                 .isEqualTo(executionBefore);
+        assertThat(trustStateCounts()).isEqualTo(trustStateBefore);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_ownership_history h JOIN progression_subject_identity i ON i.id=h.identity_id WHERE i.namespace=? AND i.external_id=?", Integer.class, ref.namespace(), ref.externalId())).isEqualTo(2);
+    }
+
+    private java.util.Map<String, Long> trustStateCounts() {
+        return java.util.Map.of(
+                "authorization_grant", jdbc.queryForObject("SELECT count(*) FROM authorization_grant", Long.class),
+                "workload_principal", jdbc.queryForObject("SELECT count(*) FROM workload_principal", Long.class),
+                "workload_signing_key", jdbc.queryForObject("SELECT count(*) FROM workload_signing_key", Long.class),
+                "workload_trust_audit_event", jdbc.queryForObject("SELECT count(*) FROM workload_trust_audit_event", Long.class));
     }
 
     private UUID insertExecutionSnapshot(ExternalSubjectReference ref) {
