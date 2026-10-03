@@ -1,7 +1,8 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: C1B authority foundation; VERIFY is canonical. This candidate adds
-INVALIDATE; other lifecycle mutations remain unimplemented.
+Status: C1B authority foundation; VERIFY and INVALIDATE are canonical.
+REVERIFY is specified as a design only and is not implemented. Other lifecycle
+mutations remain unimplemented.
 
 ## Authority boundary
 
@@ -35,9 +36,10 @@ this authority.
 
 AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
-scheduled-job, or CLI ingress exists. Lifecycle mutations are limited to the
-canonical VERIFY capability and the INVALIDATE capability in this candidate.
-C2 execution enforcement and transfer remain outside this foundation.
+scheduled-job, or CLI ingress exists. Lifecycle mutations currently
+implemented are VERIFY and INVALIDATE. The REVERIFY section below freezes a
+future design only; it does not implement or authorize that mutation. C2
+execution enforcement and transfer remain outside this foundation.
 
 ## VERIFY slice
 
@@ -62,7 +64,7 @@ resolver or progression execution behavior.
 
 ## INVALIDATE slice
 
-This candidate adds only `EXTERNAL / ACTIVE / VERIFIED` to
+The canonical INVALIDATE slice supports only `EXTERNAL / ACTIVE / VERIFIED` to
 `EXTERNAL / ACTIVE / INVALIDATED`. It preserves the identity, namespace,
 external ID, target, identity class, and ACTIVE ownership status, and advances
 `ownership_version` once. Other states, including native identities, are
@@ -83,3 +85,51 @@ existing identity-row `PESSIMISTIC_WRITE` lock.
 Re-verification, disable, reactivate, revoke, transfer, target correction, and
 C2 enforcement remain unimplemented. No ingress or resolver/execution behavior
 is added by this slice.
+
+## REVERIFY design (not implemented)
+
+The proposed REVERIFY mutation is limited to
+`EXTERNAL / ACTIVE / INVALIDATED` to `EXTERNAL / ACTIVE / VERIFIED`. It does not
+accept `UNVERIFIED` (initial verification uses VERIFY), and it never accepts
+native identities or the `logos-native` namespace. A real transition preserves
+identity ID, namespace, external ID, target jogador ID, identity class, and
+ownership status. It changes verification status and increments
+`ownership_version` exactly once.
+
+The caller must have a verified `WORKLOAD` principal with the exact
+namespace-scoped `SUBJECT_OWNERSHIP_MANAGE` authorization. Authorization
+precedes identity lookup disclosure. The audit actor is the trusted
+`WORKLOAD_OPERATOR` derived from the authenticated principal ID; actor identity
+is not command input. A real REVERIFY requires new mandatory evidence type,
+opaque evidence reference, and reason. Existing normalization and maximum
+lengths apply: trimmed, nonblank values up to 64, 255, and 512 characters,
+respectively. The new evidence is appended to history and never overwrites
+VERIFY or INVALIDATE evidence.
+
+For a real mutation, the command requires the expected ownership version and
+stale values conflict. Under the existing identity-row `PESSIMISTIC_WRITE`
+lock, command handling proceeds in this order: authorize exact namespace,
+lock and load the identity, validate evidence, detect a valid idempotent replay,
+check expected version, apply the domain transition, and persist current state
+and history atomically. If the identity is already `EXTERNAL / ACTIVE /
+VERIFIED`, a syntactically valid REVERIFY request succeeds as a no-op even if
+its expected version is stale. Evidence is still validated before this return.
+The replay does not increment the version, append history, replace evidence,
+or change timestamps.
+
+A real transition appends exactly one immutable `OWNERSHIP_REVERIFIED` history
+event at version N+1 with `LOGOS_OPERATOR_ACTION` provenance. It records the
+before/after identity class (`EXTERNAL`), target (unchanged), ownership status
+(`ACTIVE`), and verification status (`INVALIDATED` to `VERIFIED`), together
+with the trusted actor, new evidence and reason. `effective_at` is
+server-derived and `recorded_at` is database-derived. The existing row lock is
+the serialization point; the state/version mutation and history insert share
+one transaction, so history failure rolls back current state. Concurrent
+equivalent requests produce one mutation and one event; the later lock holder
+observes the valid already-verified replay.
+
+No migration is required by this design; the existing V48 schema supports the
+state, version, event, and evidence fields. REVERIFY remains unimplemented
+pending its own implementation authorization. This design adds no ingress and
+does not change resolver or progression execution behavior. Disable,
+reactivate, revoke, transfer, target correction, and C2 remain out of scope.
