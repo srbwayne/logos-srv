@@ -5,6 +5,9 @@ import com.josecjuniors.logossrv.core.subjectownership.domain.model.OwnershipPro
 import com.josecjuniors.logossrv.core.subjectownership.domain.model.OwnershipStatus;
 import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwnershipClassification;
 import com.josecjuniors.logossrv.core.subjectownership.domain.model.VerificationStatus;
+import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwnershipAggregate;
+import com.josecjuniors.logossrv.core.subjectownership.domain.model.OwnershipVerificationEvidence;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.out.AuthorizedSubjectOwnershipOperator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -115,5 +118,31 @@ public class ProgressionSubjectOwnershipHistoryEntry {
                                                                   Instant effectiveAt) {
         return new ProgressionSubjectOwnershipHistoryEntry(UUID.randomUUID(), identityId, targetJogadorId,
                 classification, actionActorAppUserId, effectiveAt);
+    }
+
+    public static ProgressionSubjectOwnershipHistoryEntry verified(SubjectOwnershipAggregate before,
+            SubjectOwnershipAggregate after, AuthorizedSubjectOwnershipOperator operator,
+            OwnershipVerificationEvidence evidence, Instant effectiveAt) {
+        var entry = new ProgressionSubjectOwnershipHistoryEntry();
+        entry.id = UUID.randomUUID();
+        entry.identityId = before.id();
+        entry.aggregateVersion = after.ownershipVersion();
+        entry.eventType = "OWNERSHIP_VERIFIED";
+        entry.previousIdentityClass = before.identityClass();
+        entry.newIdentityClass = after.identityClass();
+        entry.previousTargetJogadorId = before.targetJogadorId();
+        entry.newTargetJogadorId = after.targetJogadorId();
+        entry.previousOwnershipStatus = before.ownershipStatus();
+        entry.newOwnershipStatus = after.ownershipStatus();
+        entry.previousVerificationStatus = before.verificationStatus();
+        entry.newVerificationStatus = after.verificationStatus();
+        entry.provenance = OwnershipProvenance.LOGOS_OPERATOR_ACTION;
+        entry.actorType = operator.auditActorType();
+        entry.actorId = operator.principalId();
+        entry.evidenceType = evidence.evidenceType();
+        entry.evidenceReference = evidence.evidenceReference();
+        entry.reason = evidence.reason();
+        entry.effectiveAt = effectiveAt;
+        return entry;
     }
 }

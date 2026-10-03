@@ -67,6 +67,12 @@ public class ProgressionSubjectIdentity {
         return jogador;
     }
 
+    public UUID getId() { return id; }
+
+    public String getNamespace() { return namespace; }
+
+    public String getExternalId() { return externalId; }
+
     public IdentityClass getIdentityClass() {
         return identityClass;
     }
@@ -81,5 +87,10 @@ public class ProgressionSubjectIdentity {
 
     public long getOwnershipVersion() {
         return ownershipVersion;
+    }
+
+    public void applyVerification(VerificationStatus nextVerificationStatus, long nextOwnershipVersion) {
+        this.verificationStatus = nextVerificationStatus;
+        this.ownershipVersion = nextOwnershipVersion;
     }
 }

@@ -98,3 +98,16 @@ uses `LOGOS_NATIVE_REGISTRATION`; the new external POC self-link uses
 actor and never as ownership proof. The `logos-native` namespace remains
 Logos-controlled. These physical C1A decisions do not authorize C1B, C2, or
 operational activation.
+
+## C1B VERIFY implementation slice
+
+The first lifecycle mutation is limited to `EXTERNAL / ACTIVE / UNVERIFIED` to
+`EXTERNAL / ACTIVE / VERIFIED`. It requires the namespace-scoped
+`SUBJECT_OWNERSHIP_MANAGE` authority and records a `WORKLOAD_OPERATOR` actor
+from trusted server context. The command supplies mandatory opaque evidence
+type/reference and reason; effective time is server-derived. A row-level
+`PESSIMISTIC_WRITE` lock serializes the current identity, and current state plus
+one append-only `OWNERSHIP_VERIFIED` history event commit atomically at the
+incremented ownership version. An already active verified identity is an
+idempotent no-op. No other lifecycle transition, ingress, or execution
+enforcement is included.
