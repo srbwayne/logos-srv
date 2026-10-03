@@ -37,6 +37,8 @@ import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -50,6 +52,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** PostgreSQL characterization of the actual child-state production services. */
 @FreshPostgresIntegrationTest
+@TestPropertySource(properties = "logos.test.schema-key=child-state-concurrency-c1a")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Import(ChildStateConcurrencyCharacterizationPostgresTest.SynchronousAsyncConfiguration.class)
 class ChildStateConcurrencyCharacterizationPostgresTest {
     @Autowired CreateRegistroVicioService createRegistro;
