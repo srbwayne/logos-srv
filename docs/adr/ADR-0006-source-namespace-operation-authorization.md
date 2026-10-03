@@ -64,3 +64,19 @@ This ADR does not choose physical tables/schema, Spring annotations, admin
 endpoints, error-code conventions, human AppUser authorization policy for
 integration operations, or an audit API. Those belong to a later implementation
 plan.
+
+## HARD-003 C1B ownership-management authority foundation
+
+The C1B authority foundation adds the distinct operation
+`SUBJECT_OWNERSHIP_MANAGE`. It requires an exact grant for one namespace and
+has no source dimension. This authority permits administrative ownership
+lifecycle actions in that namespace; it does not prove ownership of any
+external subject and does not authorize progression execution.
+
+Only an authenticated, verified `WORKLOAD` principal with the exact
+`SUBJECT_OWNERSHIP_MANAGE` grant is supported by this foundation. The existing
+`PROGRESSION_EXECUTE` and `SUBJECT_PROVISION` grants do not imply it. AppUser
+and `SYSTEM` operators are unsupported. The additive V48 migration changes
+authorization schema constraints only; it seeds no grants, principals, or
+trust records. No lifecycle command or ingress is added by this authority
+foundation.

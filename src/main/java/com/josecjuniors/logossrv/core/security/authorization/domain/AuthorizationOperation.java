@@ -4,7 +4,8 @@ public enum AuthorizationOperation {
     PROGRESSION_EXECUTE(true, true),
     PROGRESSION_EXECUTION_READ(true, false),
     PROGRESSION_HISTORY_READ(false, true),
-    SUBJECT_PROVISION(false, true);
+    SUBJECT_PROVISION(false, true),
+    SUBJECT_OWNERSHIP_MANAGE(false, true);
 
     private final boolean requiresSource;
     private final boolean requiresNamespace;

@@ -36,6 +36,8 @@ class AuthorizationGrantRegistryMigrationPostgresTest {
     @Test
     void migrationCreatesEmptyRegistryAndEnforcesAllStructuralConstraints() {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM authorization_grant", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM workload_principal", Long.class)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM workload_signing_key", Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.columns "
                 + "WHERE table_name='authorization_grant' AND column_name='updated_at'", Long.class)).isZero();
 
@@ -55,6 +57,27 @@ class AuthorizationGrantRegistryMigrationPostgresTest {
                 "PROGRESSION_EXECUTION_READ", "lifeos", null))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM authorization_grant", Long.class)).isEqualTo(1L);
+    }
+
+    @Test
+    void ownershipManagementGrantRequiresOnlyAnExactNamespace() {
+        assertInvalid("WORKLOAD", principalId.toString(), "SUBJECT_OWNERSHIP_MANAGE", "lifeos", "lifeos");
+        assertInvalid("WORKLOAD", principalId.toString(), "SUBJECT_OWNERSHIP_MANAGE", null, null);
+
+        insert("WORKLOAD", principalId.toString(), "SUBJECT_OWNERSHIP_MANAGE", null, "lifeos");
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM authorization_grant WHERE operation = ?",
+                Long.class, "SUBJECT_OWNERSHIP_MANAGE")).isEqualTo(1L);
+    }
+
+    @Test
+    void migrationPreservesApplicabilityOfEveryExistingOperation() {
+        insert("WORKLOAD", principalId.toString(), "PROGRESSION_EXECUTE", "lifeos", "lifeos");
+        insert("WORKLOAD", principalId.toString(), "PROGRESSION_EXECUTION_READ", "lifeos", null);
+        insert("WORKLOAD", principalId.toString(), "PROGRESSION_HISTORY_READ", null, "lifeos");
+        insert("WORKLOAD", principalId.toString(), "SUBJECT_PROVISION", null, "lifeos");
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM authorization_grant", Long.class)).isEqualTo(4L);
     }
 
     private void assertInvalid(String type, String id, String operation, String source, String namespace) {

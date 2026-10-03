@@ -44,6 +44,23 @@ The `logos-native` namespace remains Logos-controlled. External workloads and
 human ownership flows cannot claim, transfer, delete, or take over native
 mappings.
 
+## C1B ownership-management authority foundation
+
+The authority foundation defines the distinct HARD-002 operation
+`SUBJECT_OWNERSHIP_MANAGE`, scoped to one namespace and not to a source. It is
+administrative authority only: it does not prove external ownership or imply
+`PROGRESSION_EXECUTE`. Existing `PROGRESSION_EXECUTE` and `SUBJECT_PROVISION`
+grants do not imply ownership-management authority.
+
+This foundation supports only a verified `WORKLOAD` principal whose stable
+principal ID is derived from the trusted server-side security context and
+whose exact namespace grant is evaluated by HARD-002. Immutable lifecycle
+history will use actor type `WORKLOAD_OPERATOR` and that principal ID; actor
+fields are never command input. AppUser and `SYSTEM` operators remain
+unsupported. V48 changes authorization constraints only and creates no
+grants, principals, trust records, lifecycle commands, or ingress. C1B
+lifecycle mutations remain unimplemented.
+
 ## Audit, lifecycle, and concurrency requirements
 
 The architecture must preserve enough information for ownership history,
