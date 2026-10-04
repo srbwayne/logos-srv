@@ -53,4 +53,17 @@ public record SubjectOwnershipAggregate(UUID id, ExternalSubjectReference refere
         return new SubjectOwnershipAggregate(id, reference, targetJogadorId, identityClass, ownershipStatus,
                 VerificationStatus.INVALIDATED, ownershipVersion + 1);
     }
+
+    public SubjectOwnershipAggregate reverify(long expectedVersion) {
+        if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
+            throw new InvalidSubjectOwnershipTransitionException("Only external identities may be reverified");
+        if (ownershipStatus != OwnershipStatus.ACTIVE)
+            throw new InvalidSubjectOwnershipTransitionException("Only active ownership may be reverified");
+        if (verificationStatus != VerificationStatus.INVALIDATED)
+            throw new InvalidSubjectOwnershipTransitionException("Only invalidated ownership may be reverified");
+        if (ownershipVersion != expectedVersion)
+            throw new SubjectOwnershipVersionConflictException(expectedVersion, ownershipVersion);
+        return new SubjectOwnershipAggregate(id, reference, targetJogadorId, identityClass, ownershipStatus,
+                VerificationStatus.VERIFIED, ownershipVersion + 1);
+    }
 }

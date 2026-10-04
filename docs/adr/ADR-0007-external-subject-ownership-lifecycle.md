@@ -60,8 +60,9 @@ fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
 grants, principals, or trust records. It introduced no ingress. The canonical
 VERIFY capability and INVALIDATE capability are the implemented C1B lifecycle
-mutations. REVERIFY is specified below but is not implemented. Other lifecycle
-mutations remain unimplemented.
+mutations. REVERIFY is implemented in this candidate but is not canonical until
+independently reviewed and merged. Other lifecycle mutations remain
+unimplemented.
 
 ## Audit, lifecycle, and concurrency requirements
 
@@ -137,7 +138,7 @@ INVALIDATE adds no migration or ingress and does not change resolver or
 progression execution behavior. Re-verification, disable, reactivate, revoke,
 transfer, target correction, and C2 enforcement remain unimplemented.
 
-## C1B REVERIFY design (not implemented)
+## C1B REVERIFY implementation candidate
 
 REVERIFY is a separate, future-authorized mutation limited to
 `EXTERNAL / ACTIVE / INVALIDATED` to `EXTERNAL / ACTIVE / VERIFIED`. Initial
@@ -179,10 +180,10 @@ concurrent equivalent requests, one performs the transition and appends the
 event, while the next observes `ACTIVE / VERIFIED` under the lock and succeeds
 as the no-op replay.
 
-This design needs no migration: V48 already provides the current verification
+This slice needs no migration: V48 provides the current verification
 state/version and append-only history fields, and the event name fits the
-existing event-type column. It adds no ingress, grants, principals, trust
-records, workload activation, resolver behavior, or execution enforcement.
-REVERIFY remains unimplemented until a separate implementation gate. Disable,
-reactivate, revoke, transfer, target correction, and C2 enforcement also remain
-unimplemented.
+existing event-type column. The implementation candidate adds no ingress,
+grants, principals, trust records, workload activation, resolver behavior, or
+execution enforcement. REVERIFY is not canonical until independently reviewed
+and merged. Disable, reactivate, revoke, transfer, target correction, and C2
+enforcement remain unimplemented.
