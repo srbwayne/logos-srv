@@ -185,3 +185,62 @@ existing event-type column. REVERIFY adds no ingress, grants, principals, trust
 records, workload activation, resolver behavior, or execution enforcement.
 DISABLE, REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2
 enforcement remain unimplemented.
+
+## C1B DISABLE design — implementation not authorized
+
+DISABLE is designed as an ownership-status mutation orthogonal to verification.
+The only eligible source states are `EXTERNAL / ACTIVE / UNVERIFIED`,
+`EXTERNAL / ACTIVE / VERIFIED`, and `EXTERNAL / ACTIVE / INVALIDATED`; each
+transitions to `EXTERNAL / DISABLED` while preserving its verification status.
+V47's class/namespace constraint excludes `NOT_REQUIRED` for external
+identities. `LOGOS_NATIVE` identities and the `logos-native` namespace are
+never eligible. DISABLE does not verify, invalidate, reverify, revoke, transfer,
+reassign, or change the locator or target.
+
+A future `DisableExternalSubjectOwnershipCommand` contains the external subject
+reference, expected ownership version, and mandatory reason. It contains no
+actor, target, state, or timestamp fields. The reason is trimmed, nonblank,
+and at most 512 characters, matching the history column bound. The current
+`OwnershipVerificationEvidence` value object is not reused: its required
+evidence type and reference are specific to verification evidence and are not
+required for this administrative state change. History stores
+`evidence_type = NULL` and `evidence_reference = NULL`; no synthetic evidence
+is created. The reason is stored in the existing nullable `reason VARCHAR(512)`
+column.
+
+The operation reuses exact-namespace `SUBJECT_OWNERSHIP_MANAGE` authorization
+and requires the verified `WORKLOAD` operator context. Authorization precedes
+identity lookup disclosure. The immutable actor is `WORKLOAD_OPERATOR`, with
+its ID derived from the trusted principal context. Provenance is
+`LOGOS_OPERATOR_ACTION`. A real transition requires the expected ownership
+version to match the locked current version and increments it once. An already
+`EXTERNAL / DISABLED` identity with verification state `UNVERIFIED`, `VERIFIED`,
+or `INVALIDATED` is a valid replay after reason validation; stale expected
+versions are ignored and the replay changes no state, version, history, reason,
+or timestamps. Other identity/state combinations are not replay-valid.
+
+A real transition appends one immutable `OWNERSHIP_DISABLED` history event at
+aggregate version N+1. It records `EXTERNAL` before and after; the unchanged
+target before and after; `ACTIVE` to `DISABLED`; and the same eligible
+verification status before and after. It records the trusted actor, mandatory
+reason, null evidence fields, server-derived `effective_at`, and
+database-derived `recorded_at`. V47 defines `event_type` as `VARCHAR(64)` with
+only a nonblank check; it has no event enum, event allowlist, or trigger
+restriction. The value fits the existing column. Ownership status already
+allows `DISABLED`, reason fits the existing column, and evidence columns are
+nullable. No migration is required.
+
+The current identity row's existing `PESSIMISTIC_WRITE` lock remains the
+serialization point. State/version mutation and one history append commit in
+the same transaction; history failure rolls the current row back. Concurrent
+equivalent DISABLE calls produce one mutation and one event, while the later
+lock holder observes the disabled state and succeeds as a validated replay.
+
+DISABLE is reversible in principle and preserves verification status, target,
+locator, identity class, and history so a future separately authorized
+REACTIVATE can restore `DISABLED` to `ACTIVE`. REACTIVATE semantics are not
+defined here. DISABLE is not REVOKE and must not be used as its substitute;
+REVOKE terminality remains unfrozen. DISABLE does not change resolver behavior,
+progression execution authorization/enforcement, or ingress. A future C2
+execution mutation must separately define the active/usable mapping
+requirement. This section freezes design only: DISABLE remains unimplemented.

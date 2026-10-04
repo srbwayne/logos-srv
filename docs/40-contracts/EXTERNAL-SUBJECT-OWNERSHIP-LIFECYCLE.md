@@ -133,3 +133,61 @@ event, and evidence fields. REVERIFY adds no ingress and does not change
 resolver or progression execution behavior. Disable, reactivate, revoke,
 transfer, reassignment, target correction, and C2 remain unimplemented and out
 of scope.
+
+## DISABLE design — unimplemented
+
+The designed DISABLE transition changes only ownership status:
+
+```text
+EXTERNAL / ACTIVE / UNVERIFIED  -> EXTERNAL / DISABLED / UNVERIFIED
+EXTERNAL / ACTIVE / VERIFIED    -> EXTERNAL / DISABLED / VERIFIED
+EXTERNAL / ACTIVE / INVALIDATED -> EXTERNAL / DISABLED / INVALIDATED
+```
+
+Ownership status and verification status are independent. A real DISABLE
+preserves identity ID, namespace, external ID, target jogador ID, identity
+class, and verification status; it changes `ACTIVE` to `DISABLED` and advances
+`ownership_version` exactly once. External `NOT_REQUIRED` is not eligible:
+V47's class/namespace constraint requires non-native `EXTERNAL` identities to
+have a verification status other than `NOT_REQUIRED`. Native identities and
+the `logos-native` namespace are rejected.
+
+The future command contains `ExternalSubjectReference`,
+`expectedOwnershipVersion`, and a mandatory reason. Reason is trimmed,
+nonblank, and limited to 512 characters, matching the history column. Evidence
+type/reference are not required and are stored as NULL. The verification
+evidence value object is not reused because it requires proof-specific fields;
+DISABLE must not fabricate verification evidence. Actor fields and timestamps
+are not command input.
+
+The operation reuses exact-namespace `SUBJECT_OWNERSHIP_MANAGE`, authorizes
+before lookup disclosure, and accepts the trusted verified WORKLOAD operator
+context only. History actor is `WORKLOAD_OPERATOR`, derived from the server-side
+principal ID, with `LOGOS_OPERATOR_ACTION` provenance. For a real transition,
+the expected version must match the locked state; otherwise the existing
+ownership version conflict applies. A valid already-disabled external identity
+with verification status `UNVERIFIED`, `VERIFIED`, or `INVALIDATED` is an
+idempotent replay after reason validation. It ignores stale expected version
+and performs no mutation, version increment, history append, reason
+replacement, or timestamp change.
+
+A real transition appends one immutable `OWNERSHIP_DISABLED` event at version
+N+1 with the full before/after identity class, target, ownership status, and
+verification status snapshot. Evidence fields are NULL; the mandatory reason
+is recorded. `effective_at` is server-derived and `recorded_at` is
+database-derived. The event fits V47's `VARCHAR(64)` nonblank-only event
+constraint; no event enum, allowlist, or trigger restriction exists. Ownership
+status admits `DISABLED`; the reason column is nullable `VARCHAR(512)` and the
+evidence columns are nullable. Therefore V49 is not required.
+
+The existing identity-row `PESSIMISTIC_WRITE` lock serializes this mutation.
+Current state/version and history append commit atomically; history failure
+rolls back the current-row mutation. Concurrent equivalent requests yield one
+transition/event and a successful replay for the later lock holder.
+
+DISABLE is reversible in principle and preserves the verification state and
+identity data needed by a future REACTIVATE. REACTIVATE is not designed here.
+DISABLE is not REVOKE and must not substitute for it; REVOKE terminality remains
+unfrozen. DISABLE changes no resolver or progression execution behavior and
+adds no ingress. Any future active/usable execution requirement belongs to a
+separate C2 gate. DISABLE remains unimplemented.
