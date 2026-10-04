@@ -1,8 +1,8 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: VERIFY and INVALIDATE are canonical. REVERIFY is an implementation
-candidate and is not canonical until independently reviewed and merged. Other
-lifecycle mutations remain unimplemented.
+Status: VERIFY, INVALIDATE, and REVERIFY are canonical. DISABLE, REACTIVATE,
+REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
+unimplemented.
 
 ## Authority boundary
 
@@ -36,10 +36,10 @@ this authority.
 
 AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
-scheduled-job, or CLI ingress exists. Lifecycle mutations currently
-implemented are VERIFY and INVALIDATE. The REVERIFY implementation candidate
-is described below; it is not canonical before independent review and merge.
-C2 execution enforcement and transfer remain outside this foundation.
+scheduled-job, or CLI ingress exists. Canonical lifecycle mutations are VERIFY,
+INVALIDATE, and REVERIFY. DISABLE, REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT,
+TARGET_CORRECTION, and C2 execution enforcement remain unimplemented and
+outside this foundation.
 
 ## VERIFY slice
 
@@ -82,13 +82,13 @@ provenance. Effective time is server-derived; recorded time is database-
 derived. The current-state change and history event are atomic and use the
 existing identity-row `PESSIMISTIC_WRITE` lock.
 
-Re-verification, disable, reactivate, revoke, transfer, target correction, and
-C2 enforcement remain unimplemented. No ingress or resolver/execution behavior
+Disable, reactivate, revoke, transfer, reassignment, target correction, and C2
+enforcement remain unimplemented. No ingress or resolver/execution behavior
 is added by this slice.
 
-## REVERIFY implementation candidate
+## REVERIFY implementation
 
-The proposed REVERIFY mutation is limited to
+The canonical REVERIFY mutation is limited to
 `EXTERNAL / ACTIVE / INVALIDATED` to `EXTERNAL / ACTIVE / VERIFIED`. It does not
 accept `UNVERIFIED` (initial verification uses VERIFY), and it never accepts
 native identities or the `logos-native` namespace. A real transition preserves
@@ -129,7 +129,7 @@ equivalent requests produce one mutation and one event; the later lock holder
 observes the valid already-verified replay.
 
 No migration is required; the existing V48 schema supports the state, version,
-event, and evidence fields. This candidate adds no ingress and does not change
-resolver or progression execution behavior. REVERIFY is not canonical until
-independently reviewed and merged. Disable, reactivate, revoke, transfer,
-target correction, and C2 remain out of scope.
+event, and evidence fields. REVERIFY adds no ingress and does not change
+resolver or progression execution behavior. Disable, reactivate, revoke,
+transfer, reassignment, target correction, and C2 remain unimplemented and out
+of scope.

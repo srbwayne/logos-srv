@@ -59,10 +59,9 @@ history will use actor type `WORKLOAD_OPERATOR` and that principal ID; actor
 fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
 grants, principals, or trust records. It introduced no ingress. The canonical
-VERIFY capability and INVALIDATE capability are the implemented C1B lifecycle
-mutations. REVERIFY is implemented in this candidate but is not canonical until
-independently reviewed and merged. Other lifecycle mutations remain
-unimplemented.
+VERIFY, INVALIDATE, and REVERIFY capabilities are the implemented C1B lifecycle
+mutations. DISABLE, REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT,
+TARGET_CORRECTION, and C2 enforcement remain unimplemented.
 
 ## Audit, lifecycle, and concurrency requirements
 
@@ -135,12 +134,12 @@ database-derived. Current state/version and the history entry are committed
 atomically under the existing identity-row `PESSIMISTIC_WRITE` lock.
 
 INVALIDATE adds no migration or ingress and does not change resolver or
-progression execution behavior. Re-verification, disable, reactivate, revoke,
-transfer, target correction, and C2 enforcement remain unimplemented.
+progression execution behavior. Disable, reactivate, revoke, transfer,
+reassignment, target correction, and C2 enforcement remain unimplemented.
 
-## C1B REVERIFY implementation candidate
+## C1B REVERIFY implementation
 
-REVERIFY is a separate, future-authorized mutation limited to
+REVERIFY is a separate mutation limited to
 `EXTERNAL / ACTIVE / INVALIDATED` to `EXTERNAL / ACTIVE / VERIFIED`. Initial
 `UNVERIFIED` identities continue to use VERIFY; native identities, including
 the `logos-native` namespace, are never eligible. The operation preserves the
@@ -180,10 +179,9 @@ concurrent equivalent requests, one performs the transition and appends the
 event, while the next observes `ACTIVE / VERIFIED` under the lock and succeeds
 as the no-op replay.
 
-This slice needs no migration: V48 provides the current verification
+This canonical slice needs no migration: V48 provides the current verification
 state/version and append-only history fields, and the event name fits the
-existing event-type column. The implementation candidate adds no ingress,
-grants, principals, trust records, workload activation, resolver behavior, or
-execution enforcement. REVERIFY is not canonical until independently reviewed
-and merged. Disable, reactivate, revoke, transfer, target correction, and C2
+existing event-type column. REVERIFY adds no ingress, grants, principals, trust
+records, workload activation, resolver behavior, or execution enforcement.
+DISABLE, REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2
 enforcement remain unimplemented.
