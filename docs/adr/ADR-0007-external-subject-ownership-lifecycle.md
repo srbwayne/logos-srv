@@ -59,9 +59,9 @@ history will use actor type `WORKLOAD_OPERATOR` and that principal ID; actor
 fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
 grants, principals, or trust records. It introduced no ingress. The canonical
-VERIFY capability and the INVALIDATE capability in this candidate are the
-only implemented C1B lifecycle mutations; other lifecycle mutations remain
-unimplemented.
+VERIFY capability and INVALIDATE capability are the implemented C1B lifecycle
+mutations. REVERIFY is specified below but is not implemented. Other lifecycle
+mutations remain unimplemented.
 
 ## Audit, lifecycle, and concurrency requirements
 
@@ -136,3 +136,53 @@ atomically under the existing identity-row `PESSIMISTIC_WRITE` lock.
 INVALIDATE adds no migration or ingress and does not change resolver or
 progression execution behavior. Re-verification, disable, reactivate, revoke,
 transfer, target correction, and C2 enforcement remain unimplemented.
+
+## C1B REVERIFY design (not implemented)
+
+REVERIFY is a separate, future-authorized mutation limited to
+`EXTERNAL / ACTIVE / INVALIDATED` to `EXTERNAL / ACTIVE / VERIFIED`. Initial
+`UNVERIFIED` identities continue to use VERIFY; native identities, including
+the `logos-native` namespace, are never eligible. The operation preserves the
+identity ID, locator, target, `EXTERNAL` identity class, and `ACTIVE` ownership
+status. A real transition changes only verification status and advances
+`ownership_version` from N to N+1.
+
+REVERIFY reuses the namespace-scoped `SUBJECT_OWNERSHIP_MANAGE` capability and
+the verified `WORKLOAD` operator context. Authorization must precede lookup
+disclosure. The immutable audit actor is `WORKLOAD_OPERATOR`, derived from the
+trusted authenticated principal ID; commands contain no actor fields.
+REVERIFY requires new, mandatory evidence type, opaque evidence reference,
+and reason, normalized and bounded by the existing
+`OwnershipVerificationEvidence` rules (64, 255, and 512 characters). It
+appends that evidence to a new history event; it never replaces or edits the
+evidence for VERIFY or INVALIDATE.
+
+For a real transition, `expectedOwnershipVersion` must equal the locked current
+version. An already `EXTERNAL / ACTIVE / VERIFIED` identity is a valid
+idempotent REVERIFY replay: validate mandatory evidence syntax first, then
+return without checking the expected version, changing evidence or timestamps,
+incrementing the version, or appending history. A real stale-version command
+conflicts. The command order is authorization, pessimistic locked lookup,
+evidence construction/validation, valid replay detection, expected-version
+check and domain transition, then persistence.
+
+A real transition appends exactly one immutable `OWNERSHIP_REVERIFIED` event at
+aggregate version N+1 with `LOGOS_OPERATOR_ACTION` provenance. Its snapshot
+records `EXTERNAL` before and after, the unchanged target before and after,
+`ACTIVE` ownership before and after, and `INVALIDATED` to `VERIFIED`; it also
+records the trusted workload actor, new evidence and reason, server-derived
+`effective_at`, and database-derived `recorded_at`. The existing
+`progression_subject_identity` `PESSIMISTIC_WRITE` lock remains the
+serialization point. Current state/version and the history append must commit
+in one transaction; a history failure rolls back the current mutation. Under
+concurrent equivalent requests, one performs the transition and appends the
+event, while the next observes `ACTIVE / VERIFIED` under the lock and succeeds
+as the no-op replay.
+
+This design needs no migration: V48 already provides the current verification
+state/version and append-only history fields, and the event name fits the
+existing event-type column. It adds no ingress, grants, principals, trust
+records, workload activation, resolver behavior, or execution enforcement.
+REVERIFY remains unimplemented until a separate implementation gate. Disable,
+reactivate, revoke, transfer, target correction, and C2 enforcement also remain
+unimplemented.
