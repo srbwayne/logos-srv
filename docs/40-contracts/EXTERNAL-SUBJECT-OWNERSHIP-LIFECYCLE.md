@@ -1,8 +1,8 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: C1B authority foundation; VERIFY and INVALIDATE are canonical.
-REVERIFY is specified as a design only and is not implemented. Other lifecycle
-mutations remain unimplemented.
+Status: VERIFY and INVALIDATE are canonical. REVERIFY is an implementation
+candidate and is not canonical until independently reviewed and merged. Other
+lifecycle mutations remain unimplemented.
 
 ## Authority boundary
 
@@ -37,9 +37,9 @@ this authority.
 AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
 scheduled-job, or CLI ingress exists. Lifecycle mutations currently
-implemented are VERIFY and INVALIDATE. The REVERIFY section below freezes a
-future design only; it does not implement or authorize that mutation. C2
-execution enforcement and transfer remain outside this foundation.
+implemented are VERIFY and INVALIDATE. The REVERIFY implementation candidate
+is described below; it is not canonical before independent review and merge.
+C2 execution enforcement and transfer remain outside this foundation.
 
 ## VERIFY slice
 
@@ -86,7 +86,7 @@ Re-verification, disable, reactivate, revoke, transfer, target correction, and
 C2 enforcement remain unimplemented. No ingress or resolver/execution behavior
 is added by this slice.
 
-## REVERIFY design (not implemented)
+## REVERIFY implementation candidate
 
 The proposed REVERIFY mutation is limited to
 `EXTERNAL / ACTIVE / INVALIDATED` to `EXTERNAL / ACTIVE / VERIFIED`. It does not
@@ -128,8 +128,8 @@ one transaction, so history failure rolls back current state. Concurrent
 equivalent requests produce one mutation and one event; the later lock holder
 observes the valid already-verified replay.
 
-No migration is required by this design; the existing V48 schema supports the
-state, version, event, and evidence fields. REVERIFY remains unimplemented
-pending its own implementation authorization. This design adds no ingress and
-does not change resolver or progression execution behavior. Disable,
-reactivate, revoke, transfer, target correction, and C2 remain out of scope.
+No migration is required; the existing V48 schema supports the state, version,
+event, and evidence fields. This candidate adds no ingress and does not change
+resolver or progression execution behavior. REVERIFY is not canonical until
+independently reviewed and merged. Disable, reactivate, revoke, transfer,
+target correction, and C2 remain out of scope.

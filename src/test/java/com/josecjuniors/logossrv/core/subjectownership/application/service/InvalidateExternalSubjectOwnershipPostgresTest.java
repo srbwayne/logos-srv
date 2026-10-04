@@ -7,6 +7,8 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectRe
 import com.josecjuniors.logossrv.core.security.authentication.domain.PrincipalType;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.in.InvalidateExternalSubjectOwnershipCommand;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.in.InvalidateExternalSubjectOwnershipUseCase;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.ReverifyExternalSubjectOwnershipCommand;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.ReverifyExternalSubjectOwnershipUseCase;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.in.VerifyExternalSubjectOwnershipCommand;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.in.VerifyExternalSubjectOwnershipUseCase;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.out.AuthorizedSubjectOwnershipOperator;
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.when;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class InvalidateExternalSubjectOwnershipPostgresTest {
     @Autowired InvalidateExternalSubjectOwnershipUseCase invalidate;
+    @Autowired ReverifyExternalSubjectOwnershipUseCase reverify;
     @Autowired VerifyExternalSubjectOwnershipUseCase verify;
     @Autowired RegistrationUseCase registration;
     @Autowired ProvisionCurrentExternalSubjectIdentityService provisioning;
@@ -56,6 +59,17 @@ class InvalidateExternalSubjectOwnershipPostgresTest {
     private InvalidateExternalSubjectOwnershipCommand command(ExternalSubjectReference ref, long version) {
         return new InvalidateExternalSubjectOwnershipCommand(ref, version, " operator-review ",
                 " invalidate-case-" + UUID.randomUUID() + " ", " verification no longer supported ");
+    }
+
+    private ReverifyExternalSubjectOwnershipCommand reverifyCommand(ExternalSubjectReference ref, long version) {
+        return new ReverifyExternalSubjectOwnershipCommand(ref, version, " reverify-review ",
+                " reverify-case-" + UUID.randomUUID() + " ", " new evidence reviewed ");
+    }
+
+    private ExternalSubjectReference createInvalidatedIdentity() {
+        var reference = createVerifiedIdentity();
+        invalidate.invalidate(command(reference, 1));
+        return reference;
     }
 
     @Test void invalidatesWithOneCompleteHistorySnapshotAndPreservesTrustAndExecutionState() {
@@ -130,6 +144,96 @@ class InvalidateExternalSubjectOwnershipPostgresTest {
         assertThat(jdbc.queryForObject("SELECT verification_status FROM progression_subject_identity WHERE namespace=? AND external_id=?", String.class, ref.namespace(), ref.externalId())).isEqualTo("INVALIDATED");
         assertThat(jdbc.queryForObject("SELECT ownership_version FROM progression_subject_identity WHERE namespace=? AND external_id=?", Long.class, ref.namespace(), ref.externalId())).isEqualTo(2L);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_ownership_history h JOIN progression_subject_identity i ON i.id=h.identity_id WHERE i.namespace=? AND i.external_id=? AND h.event_type='OWNERSHIP_VERIFICATION_INVALIDATED'", Integer.class, ref.namespace(), ref.externalId())).isEqualTo(1);
+    }
+
+    @Test void reverifiesWithOneCompleteHistoryEventAndPreservesPriorHistoryTrustAndExecution() {
+        var ref = createInvalidatedIdentity();
+        var before = jdbc.queryForMap("SELECT id, namespace, external_id, jogador_id, identity_class, ownership_status, verification_status, ownership_version FROM progression_subject_identity WHERE namespace=? AND external_id=?", ref.namespace(), ref.externalId());
+        UUID executionId = insertExecutionSnapshot(ref);
+        var executionBefore = jdbc.queryForMap("SELECT subject_namespace, subject_external_id, request_json, response_json, occurred_at FROM progression_external_execution WHERE id = ?", executionId);
+        var trustBefore = trustStateCounts();
+        var priorHistoryBefore = priorHistoryForReverification(ref);
+
+        reverify.reverify(reverifyCommand(ref, 2));
+
+        var after = jdbc.queryForMap("SELECT id, namespace, external_id, jogador_id, identity_class, ownership_status, verification_status, ownership_version FROM progression_subject_identity WHERE namespace=? AND external_id=?", ref.namespace(), ref.externalId());
+        assertThat(after).containsEntry("id", before.get("id")).containsEntry("namespace", ref.namespace())
+                .containsEntry("external_id", ref.externalId()).containsEntry("jogador_id", before.get("jogador_id"))
+                .containsEntry("identity_class", "EXTERNAL").containsEntry("ownership_status", "ACTIVE")
+                .containsEntry("verification_status", "VERIFIED").containsEntry("ownership_version", 3L);
+
+        var history = jdbc.queryForMap("SELECT aggregate_version,event_type,previous_identity_class,new_identity_class,previous_target_jogador_id,new_target_jogador_id,previous_ownership_status,new_ownership_status,previous_verification_status,new_verification_status,provenance,actor_type,actor_id,evidence_type,evidence_reference,reason,effective_at,recorded_at FROM progression_subject_ownership_history h JOIN progression_subject_identity i ON i.id=h.identity_id WHERE i.namespace=? AND i.external_id=? AND h.event_type='OWNERSHIP_REVERIFIED'", ref.namespace(), ref.externalId());
+        assertThat(history).containsEntry("aggregate_version", 3L).containsEntry("event_type", "OWNERSHIP_REVERIFIED")
+                .containsEntry("previous_identity_class", "EXTERNAL").containsEntry("new_identity_class", "EXTERNAL")
+                .containsEntry("previous_target_jogador_id", before.get("jogador_id"))
+                .containsEntry("new_target_jogador_id", before.get("jogador_id"))
+                .containsEntry("previous_ownership_status", "ACTIVE").containsEntry("new_ownership_status", "ACTIVE")
+                .containsEntry("previous_verification_status", "INVALIDATED").containsEntry("new_verification_status", "VERIFIED")
+                .containsEntry("provenance", "LOGOS_OPERATOR_ACTION").containsEntry("actor_type", "WORKLOAD_OPERATOR")
+                .containsEntry("actor_id", "verified-workload-invalidate").containsEntry("evidence_type", "reverify-review")
+                .containsEntry("reason", "new evidence reviewed");
+        assertThat(history.get("evidence_reference").toString()).startsWith("reverify-case-");
+        assertThat(history.get("effective_at")).isNotNull();
+        assertThat(history.get("recorded_at")).isNotNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_ownership_history h JOIN progression_subject_identity i ON i.id=h.identity_id WHERE i.namespace=? AND i.external_id=? AND h.event_type='OWNERSHIP_REVERIFIED'", Integer.class, ref.namespace(), ref.externalId())).isEqualTo(1);
+        assertThat(priorHistoryForReverification(ref)).isEqualTo(priorHistoryBefore);
+        assertThat(trustStateCounts()).isEqualTo(trustBefore);
+        assertThat(jdbc.queryForMap("SELECT subject_namespace, subject_external_id, request_json, response_json, occurred_at FROM progression_external_execution WHERE id = ?", executionId)).isEqualTo(executionBefore);
+    }
+
+    @Test void verifiedReverificationReplayDoesNotIncrementVersionAppendHistoryOrReplaceEvidence() {
+        var ref = createInvalidatedIdentity();
+        reverify.reverify(reverifyCommand(ref, 2));
+        var eventBefore = reverificationHistory(ref);
+
+        reverify.reverify(new ReverifyExternalSubjectOwnershipCommand(ref, 0, "new-type", "new-ref", "replay"));
+
+        assertThat(jdbc.queryForObject("SELECT verification_status FROM progression_subject_identity WHERE namespace=? AND external_id=?", String.class, ref.namespace(), ref.externalId())).isEqualTo("VERIFIED");
+        assertThat(jdbc.queryForObject("SELECT ownership_version FROM progression_subject_identity WHERE namespace=? AND external_id=?", Long.class, ref.namespace(), ref.externalId())).isEqualTo(3L);
+        assertThat(reverificationHistory(ref)).isEqualTo(eventBefore);
+        assertThatThrownBy(() -> reverify.reverify(new ReverifyExternalSubjectOwnershipCommand(ref, 0, " ", "ref", "reason"))).isInstanceOf(IllegalArgumentException.class);
+        assertThat(reverificationHistory(ref)).isEqualTo(eventBefore);
+    }
+
+    @Test void reverificationHistoryFailureRollsBackCurrentStateAndVersion() {
+        var ref = createInvalidatedIdentity();
+        jdbc.execute("CREATE FUNCTION reject_reverify_history() RETURNS TRIGGER LANGUAGE plpgsql AS $$ BEGIN IF NEW.event_type = 'OWNERSHIP_REVERIFIED' THEN RAISE EXCEPTION 'intentional reverification history failure'; END IF; RETURN NEW; END; $$");
+        jdbc.execute("CREATE TRIGGER reject_reverify_history BEFORE INSERT ON progression_subject_ownership_history FOR EACH ROW EXECUTE FUNCTION reject_reverify_history()");
+        try {
+            assertThatThrownBy(() -> reverify.reverify(reverifyCommand(ref, 2))).isInstanceOf(RuntimeException.class);
+        } finally {
+            jdbc.execute("DROP TRIGGER reject_reverify_history ON progression_subject_ownership_history");
+            jdbc.execute("DROP FUNCTION reject_reverify_history()");
+        }
+        assertThat(jdbc.queryForObject("SELECT verification_status FROM progression_subject_identity WHERE namespace=? AND external_id=?", String.class, ref.namespace(), ref.externalId())).isEqualTo("INVALIDATED");
+        assertThat(jdbc.queryForObject("SELECT ownership_version FROM progression_subject_identity WHERE namespace=? AND external_id=?", Long.class, ref.namespace(), ref.externalId())).isEqualTo(2L);
+        assertThat(reverificationHistory(ref)).isEmpty();
+    }
+
+    @Test void concurrentEquivalentReverificationsProduceOneMutationAndHistoryEvent() throws Exception {
+        var ref = createInvalidatedIdentity();
+        var start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var first = pool.submit(() -> { start.await(); reverify.reverify(reverifyCommand(ref, 2)); return null; });
+            var second = pool.submit(() -> { start.await(); reverify.reverify(reverifyCommand(ref, 2)); return null; });
+            start.countDown();
+            first.get();
+            second.get();
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject("SELECT verification_status FROM progression_subject_identity WHERE namespace=? AND external_id=?", String.class, ref.namespace(), ref.externalId())).isEqualTo("VERIFIED");
+        assertThat(jdbc.queryForObject("SELECT ownership_version FROM progression_subject_identity WHERE namespace=? AND external_id=?", Long.class, ref.namespace(), ref.externalId())).isEqualTo(3L);
+        assertThat(reverificationHistory(ref)).hasSize(1);
+    }
+
+    private java.util.List<java.util.Map<String, Object>> priorHistoryForReverification(ExternalSubjectReference ref) {
+        return jdbc.queryForList("SELECT aggregate_version,event_type,previous_identity_class,new_identity_class,previous_target_jogador_id,new_target_jogador_id,previous_ownership_status,new_ownership_status,previous_verification_status,new_verification_status,provenance,actor_type,actor_id,evidence_type,evidence_reference,reason,effective_at,recorded_at FROM progression_subject_ownership_history h JOIN progression_subject_identity i ON i.id=h.identity_id WHERE i.namespace=? AND i.external_id=? AND h.event_type <> 'OWNERSHIP_REVERIFIED' ORDER BY h.aggregate_version", ref.namespace(), ref.externalId());
+    }
+
+    private java.util.List<java.util.Map<String, Object>> reverificationHistory(ExternalSubjectReference ref) {
+        return jdbc.queryForList("SELECT aggregate_version,event_type,previous_verification_status,new_verification_status,evidence_type,evidence_reference,reason,effective_at,recorded_at FROM progression_subject_ownership_history h JOIN progression_subject_identity i ON i.id=h.identity_id WHERE i.namespace=? AND i.external_id=? AND h.event_type='OWNERSHIP_REVERIFIED' ORDER BY h.aggregate_version", ref.namespace(), ref.externalId());
     }
 
     private Map<String, Long> trustStateCounts() {
