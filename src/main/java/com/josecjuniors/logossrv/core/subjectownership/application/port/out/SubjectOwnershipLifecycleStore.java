@@ -17,4 +17,6 @@ public interface SubjectOwnershipLifecycleStore {
             AuthorizedSubjectOwnershipOperator operator, OwnershipVerificationEvidence evidence, Instant effectiveAt);
     void saveDisable(SubjectOwnershipAggregate before, SubjectOwnershipAggregate after,
             AuthorizedSubjectOwnershipOperator operator, SubjectOwnershipAdministrativeReason reason, Instant effectiveAt);
+    void saveReactivate(SubjectOwnershipAggregate before, SubjectOwnershipAggregate after,
+            AuthorizedSubjectOwnershipOperator operator, SubjectOwnershipAdministrativeReason reason, Instant effectiveAt);
 }
