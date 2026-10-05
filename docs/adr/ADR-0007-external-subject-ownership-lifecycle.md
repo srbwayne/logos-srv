@@ -59,11 +59,9 @@ history will use actor type `WORKLOAD_OPERATOR` and that principal ID; actor
 fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
 grants, principals, or trust records. It introduced no ingress. The canonical
-VERIFY, INVALIDATE, and REVERIFY capabilities are canonical C1B lifecycle
-mutations. DISABLE is an implementation candidate on its review branch and is
-not canonical until independently reviewed and merged. REACTIVATE, REVOKE,
-TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
-unimplemented.
+C1B lifecycle mutations are VERIFY, INVALIDATE, REVERIFY, and DISABLE.
+REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2
+enforcement remain unimplemented.
 
 ## Audit, lifecycle, and concurrency requirements
 
@@ -136,8 +134,8 @@ database-derived. Current state/version and the history entry are committed
 atomically under the existing identity-row `PESSIMISTIC_WRITE` lock.
 
 INVALIDATE adds no migration or ingress and does not change resolver or
-progression execution behavior. Disable, reactivate, revoke, transfer,
-reassignment, target correction, and C2 enforcement remain unimplemented.
+progression execution behavior. Reactivate, revoke, transfer, reassignment,
+target correction, and C2 enforcement remain unimplemented.
 
 ## C1B REVERIFY implementation
 
@@ -185,12 +183,18 @@ This canonical slice needs no migration: V48 provides the current verification
 state/version and append-only history fields, and the event name fits the
 existing event-type column. REVERIFY adds no ingress, grants, principals, trust
 records, workload activation, resolver behavior, or execution enforcement.
-DISABLE, REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2
+REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2
 enforcement remain unimplemented.
 
-## C1B DISABLE implementation candidate — not canonical
+## C1B DISABLE implementation — canonical
 
-DISABLE is designed as an ownership-status mutation orthogonal to verification.
+The previously designed DISABLE mutation became canonical when PR #60 was
+squash-merged as `64f4f6bd71cb5210f1ecfd9c64b4d0524e0e7909`. Post-merge CI run
+#186 passed. The CI recovery included
+`-Dspring.test.context.cache.maxSize=2` in the test workflow; this is test-
+runtime infrastructure and does not change DISABLE semantics.
+
+DISABLE is an ownership-status mutation orthogonal to verification.
 The only eligible source states are `EXTERNAL / ACTIVE / UNVERIFIED`,
 `EXTERNAL / ACTIVE / VERIFIED`, and `EXTERNAL / ACTIVE / INVALIDATED`; each
 transitions to `EXTERNAL / DISABLED` while preserving its verification status.
@@ -199,7 +203,7 @@ identities. `LOGOS_NATIVE` identities and the `logos-native` namespace are
 never eligible. DISABLE does not verify, invalidate, reverify, revoke, transfer,
 reassign, or change the locator or target.
 
-A future `DisableExternalSubjectOwnershipCommand` contains the external subject
+`DisableExternalSubjectOwnershipCommand` contains the external subject
 reference, expected ownership version, and mandatory reason. It contains no
 actor, target, state, or timestamp fields. The reason is trimmed, nonblank,
 and at most 512 characters, matching the history column bound. The current
@@ -239,11 +243,9 @@ equivalent DISABLE calls produce one mutation and one event, while the later
 lock holder observes the disabled state and succeeds as a validated replay.
 
 DISABLE is reversible in principle and preserves verification status, target,
-locator, identity class, and history so a future separately authorized
-REACTIVATE can restore `DISABLED` to `ACTIVE`. REACTIVATE semantics are not
-defined here. DISABLE is not REVOKE and must not be used as its substitute;
-REVOKE terminality remains unfrozen. DISABLE does not change resolver behavior,
-progression execution authorization/enforcement, or ingress. A future C2
+locator, identity class, and history. REACTIVATE semantics are not defined
+here and require a separate gate. DISABLE is not REVOKE and must not be used as
+its substitute; REVOKE terminality remains unfrozen. DISABLE does not change
+resolver behavior, progression execution authorization/enforcement, or ingress. A future C2
 execution mutation must separately define the active/usable mapping
-requirement. This section records the implementation candidate. DISABLE is
-not canonical until it is independently reviewed and merged.
+requirement. The migration head remains V48; V49 is not required or created.

@@ -1,9 +1,8 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: VERIFY, INVALIDATE, and REVERIFY are canonical. DISABLE is an
-implementation candidate and is not canonical until independently reviewed
-and merged. REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and
-C2 enforcement remain unimplemented.
+Status: VERIFY, INVALIDATE, REVERIFY, and DISABLE are canonical. REACTIVATE,
+REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
+unimplemented.
 
 ## Authority boundary
 
@@ -38,9 +37,9 @@ this authority.
 AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
 scheduled-job, or CLI ingress exists. Canonical lifecycle mutations are VERIFY,
-INVALIDATE, and REVERIFY. DISABLE is an implementation candidate, not yet
-canonical. REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and
-C2 execution enforcement remain unimplemented and outside this foundation.
+INVALIDATE, REVERIFY, and DISABLE. REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT,
+TARGET_CORRECTION, and C2 execution enforcement remain unimplemented and
+outside this foundation.
 
 ## VERIFY slice
 
@@ -83,7 +82,7 @@ provenance. Effective time is server-derived; recorded time is database-
 derived. The current-state change and history event are atomic and use the
 existing identity-row `PESSIMISTIC_WRITE` lock.
 
-Disable, reactivate, revoke, transfer, reassignment, target correction, and C2
+Reactivate, revoke, transfer, reassignment, target correction, and C2
 enforcement remain unimplemented. No ingress or resolver/execution behavior
 is added by this slice.
 
@@ -131,13 +130,18 @@ observes the valid already-verified replay.
 
 No migration is required; the existing V48 schema supports the state, version,
 event, and evidence fields. REVERIFY adds no ingress and does not change
-resolver or progression execution behavior. Disable, reactivate, revoke,
-transfer, reassignment, target correction, and C2 remain unimplemented and out
-of scope.
+resolver or progression execution behavior. Reactivate, revoke, transfer,
+reassignment, target correction, and C2 remain unimplemented and out of scope.
 
-## DISABLE implementation candidate — not canonical
+## DISABLE implementation — canonical
 
-The designed DISABLE transition changes only ownership status:
+The previously designed DISABLE mutation became canonical when PR #60 was
+squash-merged as `64f4f6bd71cb5210f1ecfd9c64b4d0524e0e7909`. Post-merge CI run
+#186 passed. The CI recovery included
+`-Dspring.test.context.cache.maxSize=2` in the test workflow; this is test-
+runtime infrastructure and does not change DISABLE semantics.
+
+The canonical DISABLE transition changes only ownership status:
 
 ```text
 EXTERNAL / ACTIVE / UNVERIFIED  -> EXTERNAL / DISABLED / UNVERIFIED
@@ -153,7 +157,7 @@ V47's class/namespace constraint requires non-native `EXTERNAL` identities to
 have a verification status other than `NOT_REQUIRED`. Native identities and
 the `logos-native` namespace are rejected.
 
-The future command contains `ExternalSubjectReference`,
+The command contains `ExternalSubjectReference`,
 `expectedOwnershipVersion`, and a mandatory reason. Reason is trimmed,
 nonblank, and limited to 512 characters, matching the history column. Evidence
 type/reference are not required and are stored as NULL. The verification
@@ -179,17 +183,17 @@ is recorded. `effective_at` is server-derived and `recorded_at` is
 database-derived. The event fits V47's `VARCHAR(64)` nonblank-only event
 constraint; no event enum, allowlist, or trigger restriction exists. Ownership
 status admits `DISABLED`; the reason column is nullable `VARCHAR(512)` and the
-evidence columns are nullable. Therefore V49 is not required.
+evidence columns are nullable. The migration head remains V48; V49 is not required
+or created.
 
 The existing identity-row `PESSIMISTIC_WRITE` lock serializes this mutation.
 Current state/version and history append commit atomically; history failure
 rolls back the current-row mutation. Concurrent equivalent requests yield one
 transition/event and a successful replay for the later lock holder.
 
-DISABLE is reversible in principle and preserves the verification state and
-identity data needed by a future REACTIVATE. REACTIVATE is not designed here.
+DISABLE is reversible in principle and preserves verification state and
+identity data. REACTIVATE is not designed here and requires a separate gate.
 DISABLE is not REVOKE and must not substitute for it; REVOKE terminality remains
 unfrozen. DISABLE changes no resolver or progression execution behavior and
 adds no ingress. Any future active/usable execution requirement belongs to a
-separate C2 gate. This describes the implementation candidate; DISABLE is not
-canonical until independently reviewed and merged.
+separate C2 gate.
