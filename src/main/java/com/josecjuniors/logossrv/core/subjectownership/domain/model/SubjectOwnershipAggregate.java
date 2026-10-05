@@ -28,6 +28,29 @@ public record SubjectOwnershipAggregate(UUID id, ExternalSubjectReference refere
                 && !reference.namespace().equals("logos-native");
     }
 
+    public boolean isExternalDisabled() {
+        return identityClass == IdentityClass.EXTERNAL && !reference.namespace().equals("logos-native")
+                && ownershipStatus == OwnershipStatus.DISABLED
+                && (verificationStatus == VerificationStatus.UNVERIFIED
+                        || verificationStatus == VerificationStatus.VERIFIED
+                        || verificationStatus == VerificationStatus.INVALIDATED);
+    }
+
+    public SubjectOwnershipAggregate disable(long expectedVersion) {
+        if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
+            throw new InvalidSubjectOwnershipTransitionException("Only external identities may be disabled");
+        if (ownershipStatus != OwnershipStatus.ACTIVE)
+            throw new InvalidSubjectOwnershipTransitionException("Only active ownership may be disabled");
+        if (verificationStatus != VerificationStatus.UNVERIFIED
+                && verificationStatus != VerificationStatus.VERIFIED
+                && verificationStatus != VerificationStatus.INVALIDATED)
+            throw new InvalidSubjectOwnershipTransitionException("Current verification state cannot be disabled");
+        if (ownershipVersion != expectedVersion)
+            throw new SubjectOwnershipVersionConflictException(expectedVersion, ownershipVersion);
+        return new SubjectOwnershipAggregate(id, reference, targetJogadorId, identityClass, OwnershipStatus.DISABLED,
+                verificationStatus, ownershipVersion + 1);
+    }
+
     public SubjectOwnershipAggregate verify(long expectedVersion) {
         if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
             throw new InvalidSubjectOwnershipTransitionException("Only external identities may be verified");

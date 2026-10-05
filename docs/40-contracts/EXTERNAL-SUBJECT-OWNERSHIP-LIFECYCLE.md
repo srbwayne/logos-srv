@@ -1,8 +1,9 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: VERIFY, INVALIDATE, and REVERIFY are canonical. DISABLE, REACTIVATE,
-REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
-unimplemented.
+Status: VERIFY, INVALIDATE, and REVERIFY are canonical. DISABLE is an
+implementation candidate and is not canonical until independently reviewed
+and merged. REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and
+C2 enforcement remain unimplemented.
 
 ## Authority boundary
 
@@ -37,9 +38,9 @@ this authority.
 AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
 scheduled-job, or CLI ingress exists. Canonical lifecycle mutations are VERIFY,
-INVALIDATE, and REVERIFY. DISABLE, REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT,
-TARGET_CORRECTION, and C2 execution enforcement remain unimplemented and
-outside this foundation.
+INVALIDATE, and REVERIFY. DISABLE is an implementation candidate, not yet
+canonical. REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and
+C2 execution enforcement remain unimplemented and outside this foundation.
 
 ## VERIFY slice
 
@@ -134,7 +135,7 @@ resolver or progression execution behavior. Disable, reactivate, revoke,
 transfer, reassignment, target correction, and C2 remain unimplemented and out
 of scope.
 
-## DISABLE design — unimplemented
+## DISABLE implementation candidate — not canonical
 
 The designed DISABLE transition changes only ownership status:
 
@@ -190,4 +191,5 @@ identity data needed by a future REACTIVATE. REACTIVATE is not designed here.
 DISABLE is not REVOKE and must not substitute for it; REVOKE terminality remains
 unfrozen. DISABLE changes no resolver or progression execution behavior and
 adds no ingress. Any future active/usable execution requirement belongs to a
-separate C2 gate. DISABLE remains unimplemented.
+separate C2 gate. This describes the implementation candidate; DISABLE is not
+canonical until independently reviewed and merged.
