@@ -93,4 +93,9 @@ public class ProgressionSubjectIdentity {
         this.verificationStatus = nextVerificationStatus;
         this.ownershipVersion = nextOwnershipVersion;
     }
+
+    public void applyOwnershipStatus(OwnershipStatus nextOwnershipStatus, long nextOwnershipVersion) {
+        this.ownershipStatus = nextOwnershipStatus;
+        this.ownershipVersion = nextOwnershipVersion;
+    }
 }

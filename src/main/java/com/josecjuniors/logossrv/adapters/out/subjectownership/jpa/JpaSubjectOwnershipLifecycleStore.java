@@ -6,6 +6,7 @@ import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectRe
 import com.josecjuniors.logossrv.core.subjectownership.application.port.out.AuthorizedSubjectOwnershipOperator;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipLifecycleStore;
 import com.josecjuniors.logossrv.core.subjectownership.domain.model.OwnershipVerificationEvidence;
+import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwnershipAdministrativeReason;
 import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwnershipAggregate;
 import java.time.Instant;
 import java.util.Optional;
@@ -50,6 +51,14 @@ public class JpaSubjectOwnershipLifecycleStore implements SubjectOwnershipLifecy
         ProgressionSubjectIdentity identity = identities.findById(before.id()).orElseThrow();
         identity.applyVerification(after.verificationStatus(), after.ownershipVersion());
         history.saveAndFlush(ProgressionSubjectOwnershipHistoryEntry.reverified(before, after, operator, evidence, effectiveAt));
+    }
+
+    @Override
+    public void saveDisable(SubjectOwnershipAggregate before, SubjectOwnershipAggregate after,
+            AuthorizedSubjectOwnershipOperator operator, SubjectOwnershipAdministrativeReason reason, Instant effectiveAt) {
+        ProgressionSubjectIdentity identity = identities.findById(before.id()).orElseThrow();
+        identity.applyOwnershipStatus(after.ownershipStatus(), after.ownershipVersion());
+        history.saveAndFlush(ProgressionSubjectOwnershipHistoryEntry.disabled(before, after, operator, reason, effectiveAt));
     }
 
     private static SubjectOwnershipAggregate toAggregate(ProgressionSubjectIdentity identity) {

@@ -59,9 +59,11 @@ history will use actor type `WORKLOAD_OPERATOR` and that principal ID; actor
 fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
 grants, principals, or trust records. It introduced no ingress. The canonical
-VERIFY, INVALIDATE, and REVERIFY capabilities are the implemented C1B lifecycle
-mutations. DISABLE, REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT,
-TARGET_CORRECTION, and C2 enforcement remain unimplemented.
+VERIFY, INVALIDATE, and REVERIFY capabilities are canonical C1B lifecycle
+mutations. DISABLE is an implementation candidate on its review branch and is
+not canonical until independently reviewed and merged. REACTIVATE, REVOKE,
+TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
+unimplemented.
 
 ## Audit, lifecycle, and concurrency requirements
 
@@ -186,7 +188,7 @@ records, workload activation, resolver behavior, or execution enforcement.
 DISABLE, REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2
 enforcement remain unimplemented.
 
-## C1B DISABLE design — implementation not authorized
+## C1B DISABLE implementation candidate — not canonical
 
 DISABLE is designed as an ownership-status mutation orthogonal to verification.
 The only eligible source states are `EXTERNAL / ACTIVE / UNVERIFIED`,
@@ -243,4 +245,5 @@ defined here. DISABLE is not REVOKE and must not be used as its substitute;
 REVOKE terminality remains unfrozen. DISABLE does not change resolver behavior,
 progression execution authorization/enforcement, or ingress. A future C2
 execution mutation must separately define the active/usable mapping
-requirement. This section freezes design only: DISABLE remains unimplemented.
+requirement. This section records the implementation candidate. DISABLE is
+not canonical until it is independently reviewed and merged.
