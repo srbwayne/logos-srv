@@ -36,6 +36,14 @@ public record SubjectOwnershipAggregate(UUID id, ExternalSubjectReference refere
                         || verificationStatus == VerificationStatus.INVALIDATED);
     }
 
+    public boolean isExternalActiveWithSupportedVerification() {
+        return identityClass == IdentityClass.EXTERNAL && !reference.namespace().equals("logos-native")
+                && ownershipStatus == OwnershipStatus.ACTIVE
+                && (verificationStatus == VerificationStatus.UNVERIFIED
+                        || verificationStatus == VerificationStatus.VERIFIED
+                        || verificationStatus == VerificationStatus.INVALIDATED);
+    }
+
     public SubjectOwnershipAggregate disable(long expectedVersion) {
         if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
             throw new InvalidSubjectOwnershipTransitionException("Only external identities may be disabled");
@@ -48,6 +56,21 @@ public record SubjectOwnershipAggregate(UUID id, ExternalSubjectReference refere
         if (ownershipVersion != expectedVersion)
             throw new SubjectOwnershipVersionConflictException(expectedVersion, ownershipVersion);
         return new SubjectOwnershipAggregate(id, reference, targetJogadorId, identityClass, OwnershipStatus.DISABLED,
+                verificationStatus, ownershipVersion + 1);
+    }
+
+    public SubjectOwnershipAggregate reactivate(long expectedVersion) {
+        if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
+            throw new InvalidSubjectOwnershipTransitionException("Only external identities may be reactivated");
+        if (ownershipStatus != OwnershipStatus.DISABLED)
+            throw new InvalidSubjectOwnershipTransitionException("Only disabled ownership may be reactivated");
+        if (verificationStatus != VerificationStatus.UNVERIFIED
+                && verificationStatus != VerificationStatus.VERIFIED
+                && verificationStatus != VerificationStatus.INVALIDATED)
+            throw new InvalidSubjectOwnershipTransitionException("Current verification state cannot be reactivated");
+        if (ownershipVersion != expectedVersion)
+            throw new SubjectOwnershipVersionConflictException(expectedVersion, ownershipVersion);
+        return new SubjectOwnershipAggregate(id, reference, targetJogadorId, identityClass, OwnershipStatus.ACTIVE,
                 verificationStatus, ownershipVersion + 1);
     }
 
