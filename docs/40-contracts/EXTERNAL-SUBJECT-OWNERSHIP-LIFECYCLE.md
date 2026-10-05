@@ -1,8 +1,8 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: VERIFY, INVALIDATE, REVERIFY, and DISABLE are canonical. REACTIVATE,
-REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
-unimplemented.
+Status: VERIFY, INVALIDATE, REVERIFY, and DISABLE are canonical. REACTIVATE is
+designed but unimplemented. REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION,
+and C2 enforcement are unimplemented and not designed by this gate.
 
 ## Authority boundary
 
@@ -37,9 +37,9 @@ this authority.
 AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
 scheduled-job, or CLI ingress exists. Canonical lifecycle mutations are VERIFY,
-INVALIDATE, REVERIFY, and DISABLE. REACTIVATE, REVOKE, TRANSFER, REASSIGNMENT,
-TARGET_CORRECTION, and C2 execution enforcement remain unimplemented and
-outside this foundation.
+INVALIDATE, REVERIFY, and DISABLE. REACTIVATE is designed but unimplemented.
+REVOKE, TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 execution
+enforcement remain unimplemented and outside this foundation.
 
 ## VERIFY slice
 
@@ -192,8 +192,88 @@ rolls back the current-row mutation. Concurrent equivalent requests yield one
 transition/event and a successful replay for the later lock holder.
 
 DISABLE is reversible in principle and preserves verification state and
-identity data. REACTIVATE is not designed here and requires a separate gate.
-DISABLE is not REVOKE and must not substitute for it; REVOKE terminality remains
+identity data. REACTIVATE is designed below but remains unimplemented. DISABLE
+is not REVOKE and must not substitute for it; REVOKE terminality remains
 unfrozen. DISABLE changes no resolver or progression execution behavior and
 adds no ingress. Any future active/usable execution requirement belongs to a
 separate C2 gate.
+
+
+## REACTIVATE design — designed, unimplemented
+
+REACTIVATE is the administrative inverse of DISABLE and changes ownership
+status only. Its exact transitions are:
+
+```text
+EXTERNAL / DISABLED / UNVERIFIED  -> EXTERNAL / ACTIVE / UNVERIFIED
+EXTERNAL / DISABLED / VERIFIED    -> EXTERNAL / ACTIVE / VERIFIED
+EXTERNAL / DISABLED / INVALIDATED -> EXTERNAL / ACTIVE / INVALIDATED
+```
+
+A real transition is eligible only for a non-native `EXTERNAL` identity in
+`DISABLED` ownership state with verification status `UNVERIFIED`, `VERIFIED`,
+or `INVALIDATED`. The `logos-native` namespace, `LOGOS_NATIVE`, `REVOKED`,
+`NOT_REQUIRED` for an external identity, and all unsupported combinations are
+rejected; REACTIVATE does not repair invalid state. It preserves identity ID,
+namespace, external ID, target jogador ID, identity class, and verification
+status. It changes `DISABLED` to `ACTIVE` and increments
+`ownership_version` from N to N+1 exactly once. It never verifies, invalidates,
+or reverifies ownership. In particular, a disabled invalidated identity
+returns as `ACTIVE / INVALIDATED`. This status transition does not define
+resolver or progression execution behavior; an active mapping is not thereby
+declared executable, and C2 remains separate.
+
+The future `ReactivateExternalSubjectOwnershipCommand` contains only the
+external subject reference, expected ownership version, and mandatory
+administrative reason. The reason is trimmed, nonblank, and at most 512
+characters. It contains no actor, target, status, evidence, or timestamp
+fields. REACTIVATE is not proof of ownership: `evidence_type` and
+`evidence_reference` are NULL, and prior history is not changed.
+
+The operation reuses exact-namespace `SUBJECT_OWNERSHIP_MANAGE` authorization
+for an authenticated, verified `WORKLOAD` principal. Authorization occurs
+before identity lookup disclosure. The immutable audit actor is
+`WORKLOAD_OPERATOR`, derived from the trusted server-side principal ID; actor
+fields are not command input. No authorization operation is added.
+
+For a real transition, the expected ownership version must match the locked
+current version or the request conflicts. A valid already-active
+`EXTERNAL` identity with verification status `UNVERIFIED`, `VERIFIED`, or
+`INVALIDATED` is an idempotent `ensure ACTIVE` replay after reason validation.
+It ignores a stale expected version and makes no state, version, history,
+reason, or timestamp change. This replay does not establish that the identity
+was previously disabled or infer historical provenance. Unsupported active
+shapes are not replay-valid. Processing order is authorization,
+`PESSIMISTIC_WRITE` lookup, not-found handling, reason validation, valid
+replay detection, eligible disabled-state validation, expected-version check,
+domain transition, and atomic current-state/history persistence.
+
+A real transition appends exactly one immutable
+`OWNERSHIP_REACTIVATED` event at aggregate version N+1 with
+`LOGOS_OPERATOR_ACTION` provenance. Its complete snapshot records `EXTERNAL`
+before and after; the unchanged target before and after; `DISABLED` to `ACTIVE`;
+and the unchanged eligible verification status. It also records the trusted
+`WORKLOAD_OPERATOR` actor, NULL evidence fields, mandatory normalized reason,
+server-derived `effective_at`, and database-derived `recorded_at`. Existing
+identity-row `PESSIMISTIC_WRITE` locking serializes the operation. State/version
+and history must commit in one transaction; history failure leaves ownership
+`DISABLED` and the version unchanged. Concurrent equivalent requests produce
+one mutation, one version increment, and one event; the later lock holder
+succeeds through the valid already-active replay.
+
+The physical schema supports this design without a migration. V47 stores
+`ownership_status` and `verification_status` as `VARCHAR(32)` with checks that
+allow `ACTIVE`, `DISABLED`, `UNVERIFIED`, `VERIFIED`, and `INVALIDATED`; its
+class/namespace check excludes `NOT_REQUIRED` for external identities. The
+history `event_type` is `VARCHAR(64)` with only a nonblank check, so
+`OWNERSHIP_REACTIVATED` is accepted; no enum or event allowlist exists. The
+append-only triggers reject UPDATE, DELETE, and TRUNCATE, not INSERT of a new
+event. `reason` is `VARCHAR(512)`, both evidence columns are nullable, and
+`recorded_at` is database-defaulted. V48 changes authorization constraints
+only. Migration head remains V48; V49 is not required.
+
+REACTIVATE is distinct from REVOKE. REVOKE remains undesigned here; its
+terminality, verification preservation, evidence requirements, and replay
+semantics are not frozen. TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2
+remain unimplemented and are not designed by this gate. REACTIVATE remains a
+design only and is not canonical or implemented.
