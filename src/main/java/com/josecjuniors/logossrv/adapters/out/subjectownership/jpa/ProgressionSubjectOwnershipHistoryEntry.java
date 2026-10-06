@@ -8,6 +8,7 @@ import com.josecjuniors.logossrv.core.subjectownership.domain.model.Verification
 import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwnershipAggregate;
 import com.josecjuniors.logossrv.core.subjectownership.domain.model.OwnershipVerificationEvidence;
 import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwnershipAdministrativeReason;
+import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwnershipTransferEvidence;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.out.AuthorizedSubjectOwnershipOperator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -19,6 +20,7 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Objects;
 
 @Entity
 @Table(name = "progression_subject_ownership_history", uniqueConstraints =
@@ -275,5 +277,68 @@ public class ProgressionSubjectOwnershipHistoryEntry {
         entry.reason = reason.value();
         entry.effectiveAt = effectiveAt;
         return entry;
+    }
+
+    public static ProgressionSubjectOwnershipHistoryEntry transferred(SubjectOwnershipAggregate before,
+            SubjectOwnershipAggregate after, AuthorizedSubjectOwnershipOperator operator,
+            SubjectOwnershipTransferEvidence evidence, SubjectOwnershipAdministrativeReason reason,
+            Instant effectiveAt) {
+        var entry = new ProgressionSubjectOwnershipHistoryEntry();
+        entry.id = UUID.randomUUID();
+        entry.identityId = before.id();
+        entry.aggregateVersion = after.ownershipVersion();
+        entry.eventType = "OWNERSHIP_TRANSFERRED";
+        entry.previousIdentityClass = before.identityClass();
+        entry.newIdentityClass = after.identityClass();
+        entry.previousTargetJogadorId = before.targetJogadorId();
+        entry.newTargetJogadorId = after.targetJogadorId();
+        entry.previousOwnershipStatus = before.ownershipStatus();
+        entry.newOwnershipStatus = after.ownershipStatus();
+        entry.previousVerificationStatus = before.verificationStatus();
+        entry.newVerificationStatus = after.verificationStatus();
+        entry.provenance = OwnershipProvenance.LOGOS_OPERATOR_ACTION;
+        entry.actorType = operator.auditActorType();
+        entry.actorId = operator.principalId();
+        entry.evidenceType = SubjectOwnershipTransferEvidence.TYPE;
+        entry.evidenceReference = evidence.reference();
+        entry.reason = reason.value();
+        entry.effectiveAt = effectiveAt;
+        return entry;
+    }
+
+    public boolean matchesTransferReplay(SubjectOwnershipAggregate current, long expectedOwnershipVersion,
+            UUID requestedTarget, SubjectOwnershipTransferEvidence evidence,
+            SubjectOwnershipAdministrativeReason requestedReason) {
+        if (expectedOwnershipVersion == Long.MAX_VALUE
+                || current.ownershipVersion() != expectedOwnershipVersion + 1
+                || aggregateVersion != current.ownershipVersion()
+                || !Objects.equals(identityId, current.id())
+                || !"OWNERSHIP_TRANSFERRED".equals(eventType)
+                || provenance != OwnershipProvenance.LOGOS_OPERATOR_ACTION
+                || !"WORKLOAD_OPERATOR".equals(actorType) || actorId == null || actorId.isBlank()) return false;
+
+        if (previousIdentityClass != IdentityClass.EXTERNAL || newIdentityClass != IdentityClass.EXTERNAL
+                || current.identityClass() != IdentityClass.EXTERNAL
+                || !Objects.equals(newTargetJogadorId, requestedTarget)
+                || !Objects.equals(current.targetJogadorId(), requestedTarget)
+                || previousTargetJogadorId == null || previousTargetJogadorId.equals(requestedTarget)
+                || previousOwnershipStatus == null || previousOwnershipStatus != newOwnershipStatus
+                || newOwnershipStatus != current.ownershipStatus()
+                || !isSupportedTransferVerification(previousVerificationStatus)
+                || newVerificationStatus != transferredVerification(previousVerificationStatus)
+                || newVerificationStatus != current.verificationStatus()) return false;
+
+        return SubjectOwnershipTransferEvidence.TYPE.equals(evidenceType)
+                && Objects.equals(evidenceReference, evidence.reference())
+                && Objects.equals(reason, requestedReason.value());
+    }
+
+    private static boolean isSupportedTransferVerification(VerificationStatus status) {
+        return status == VerificationStatus.UNVERIFIED || status == VerificationStatus.VERIFIED
+                || status == VerificationStatus.INVALIDATED;
+    }
+
+    private static VerificationStatus transferredVerification(VerificationStatus status) {
+        return status == VerificationStatus.VERIFIED ? VerificationStatus.UNVERIFIED : status;
     }
 }

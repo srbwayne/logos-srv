@@ -98,4 +98,11 @@ public class ProgressionSubjectIdentity {
         this.ownershipStatus = nextOwnershipStatus;
         this.ownershipVersion = nextOwnershipVersion;
     }
+
+    public void applyTransfer(Jogador nextJogador, VerificationStatus nextVerificationStatus,
+            long nextOwnershipVersion) {
+        this.jogador = nextJogador;
+        this.verificationStatus = nextVerificationStatus;
+        this.ownershipVersion = nextOwnershipVersion;
+    }
 }

@@ -67,6 +67,33 @@ public record SubjectOwnershipAggregate(UUID id, ExternalSubjectReference refere
                 verificationStatus, ownershipVersion + 1);
     }
 
+    public SubjectOwnershipAggregate transfer(long expectedVersion, UUID newTargetJogadorId) {
+        validateTransfer(expectedVersion, newTargetJogadorId);
+        VerificationStatus nextVerificationStatus = verificationStatus == VerificationStatus.VERIFIED
+                ? VerificationStatus.UNVERIFIED : verificationStatus;
+        return new SubjectOwnershipAggregate(id, reference, newTargetJogadorId, identityClass, ownershipStatus,
+                nextVerificationStatus, ownershipVersion + 1);
+    }
+
+    public void validateTransfer(long expectedVersion, UUID newTargetJogadorId) {
+        if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
+            throw new InvalidSubjectOwnershipTransitionException("Only external identities may be transferred");
+        if (ownershipStatus != OwnershipStatus.ACTIVE && ownershipStatus != OwnershipStatus.DISABLED)
+            throw new InvalidSubjectOwnershipTransitionException("Only active or disabled ownership may be transferred");
+        if (verificationStatus != VerificationStatus.UNVERIFIED
+                && verificationStatus != VerificationStatus.VERIFIED
+                && verificationStatus != VerificationStatus.INVALIDATED)
+            throw new InvalidSubjectOwnershipTransitionException("Current verification state cannot be transferred");
+        if (newTargetJogadorId == null)
+            throw new InvalidSubjectOwnershipTransitionException("New target jogador is required");
+        if (targetJogadorId.equals(newTargetJogadorId))
+            throw new InvalidSubjectOwnershipTransitionException("Transfer target must differ from current target");
+        if (ownershipVersion != expectedVersion)
+            throw new SubjectOwnershipVersionConflictException(expectedVersion, ownershipVersion);
+        if (ownershipVersion == Long.MAX_VALUE)
+            throw new InvalidSubjectOwnershipTransitionException("Ownership version cannot be incremented further");
+    }
+
     public SubjectOwnershipAggregate disable(long expectedVersion) {
         if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
             throw new InvalidSubjectOwnershipTransitionException("Only external identities may be disabled");
