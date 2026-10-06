@@ -250,4 +250,30 @@ public class ProgressionSubjectOwnershipHistoryEntry {
         entry.effectiveAt = effectiveAt;
         return entry;
     }
+
+    public static ProgressionSubjectOwnershipHistoryEntry revoked(SubjectOwnershipAggregate before,
+            SubjectOwnershipAggregate after, AuthorizedSubjectOwnershipOperator operator,
+            SubjectOwnershipAdministrativeReason reason, Instant effectiveAt) {
+        var entry = new ProgressionSubjectOwnershipHistoryEntry();
+        entry.id = UUID.randomUUID();
+        entry.identityId = before.id();
+        entry.aggregateVersion = after.ownershipVersion();
+        entry.eventType = "OWNERSHIP_REVOKED";
+        entry.previousIdentityClass = before.identityClass();
+        entry.newIdentityClass = after.identityClass();
+        entry.previousTargetJogadorId = before.targetJogadorId();
+        entry.newTargetJogadorId = after.targetJogadorId();
+        entry.previousOwnershipStatus = before.ownershipStatus();
+        entry.newOwnershipStatus = after.ownershipStatus();
+        entry.previousVerificationStatus = before.verificationStatus();
+        entry.newVerificationStatus = after.verificationStatus();
+        entry.provenance = OwnershipProvenance.LOGOS_OPERATOR_ACTION;
+        entry.actorType = operator.auditActorType();
+        entry.actorId = operator.principalId();
+        entry.evidenceType = null;
+        entry.evidenceReference = null;
+        entry.reason = reason.value();
+        entry.effectiveAt = effectiveAt;
+        return entry;
+    }
 }

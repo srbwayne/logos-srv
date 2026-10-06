@@ -44,6 +44,29 @@ public record SubjectOwnershipAggregate(UUID id, ExternalSubjectReference refere
                         || verificationStatus == VerificationStatus.INVALIDATED);
     }
 
+    public boolean isExternalRevokedWithSupportedVerification() {
+        return identityClass == IdentityClass.EXTERNAL && !reference.namespace().equals("logos-native")
+                && ownershipStatus == OwnershipStatus.REVOKED
+                && (verificationStatus == VerificationStatus.UNVERIFIED
+                        || verificationStatus == VerificationStatus.VERIFIED
+                        || verificationStatus == VerificationStatus.INVALIDATED);
+    }
+
+    public SubjectOwnershipAggregate revoke(long expectedVersion) {
+        if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
+            throw new InvalidSubjectOwnershipTransitionException("Only external identities may be revoked");
+        if (ownershipStatus != OwnershipStatus.ACTIVE && ownershipStatus != OwnershipStatus.DISABLED)
+            throw new InvalidSubjectOwnershipTransitionException("Only active or disabled ownership may be revoked");
+        if (verificationStatus != VerificationStatus.UNVERIFIED
+                && verificationStatus != VerificationStatus.VERIFIED
+                && verificationStatus != VerificationStatus.INVALIDATED)
+            throw new InvalidSubjectOwnershipTransitionException("Current verification state cannot be revoked");
+        if (ownershipVersion != expectedVersion)
+            throw new SubjectOwnershipVersionConflictException(expectedVersion, ownershipVersion);
+        return new SubjectOwnershipAggregate(id, reference, targetJogadorId, identityClass, OwnershipStatus.REVOKED,
+                verificationStatus, ownershipVersion + 1);
+    }
+
     public SubjectOwnershipAggregate disable(long expectedVersion) {
         if (reference.namespace().equals("logos-native") || identityClass != IdentityClass.EXTERNAL)
             throw new InvalidSubjectOwnershipTransitionException("Only external identities may be disabled");
