@@ -3,7 +3,7 @@
 Status: VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, and REVOKE are
 canonical and implemented. TRANSFER is designed but unimplemented.
 REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain unimplemented and
-undesignated.
+undesigned.
 
 ## Authority boundary
 
@@ -439,7 +439,7 @@ implementation authorization.
 ### Meaning, eligibility, and verification
 
 TRANSFER means an intentional, legitimate handoff of the same external
-subject locator from current target A to a distincttarget B. It is neither
+subject locator from current target A to a distinct target B. It is neither
 REASSIGNMENT nor correction of erroneous data. It is allowed only for
 non-native EXTERNAL identities outside `logos-native` in ACTIVE or DISABLED
 ownership state. REVOKED is forbidden: it remains terminal for the current
@@ -497,7 +497,7 @@ Do not accept replay by testing only whether the current target equals the
 requested target. Equivalent retry is valid only when expected version plus
 one equals the current version and the immutable event at that exact version
 proves the same transfer: `OWNERSHIP_TRANSFERRED`, same identity and locator,
-old target A, requested newtarget B, expected before/after ownership and
+old target A, requested new target B, expected before/after ownership and
 verification states, same evidence type/reference, and same normalized
 reason. Otherwise a stale or competing command conflicts. A valid replay has
 no mutation, version increment, event, or timestamp change. Different target,
@@ -533,7 +533,7 @@ version remain unchanged.
   against the new state and version.
 
 TRANSFER is a consensual handoff. Future REASSIGNMENT is a separate,
-undesignated recovery/replacement flow, potentially for an unavailable source
+undesigned recovery/replacement flow, potentially for an unavailable source
 target or a new binding after current-binding revocation. This design does not
 specify it, and TRANSFER cannot bypass REVOKE. TARGET_CORRECTION means fixing
 erroneous target data, not a consensual handoff. It needs separate evidence

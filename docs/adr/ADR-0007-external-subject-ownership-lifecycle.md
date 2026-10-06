@@ -415,11 +415,11 @@ head remains V48; V49 is not required.
 REVOKED is terminal only for the current binding. TRANSFER is separately
 designed below for eligible ACTIVE or DISABLED bindings and cannot revive a
 REVOKED binding or define replacement bindings. REASSIGNMENT remains
-undesignated. This design does not define resolver or progression-execution
+undesigned. This design does not define resolver or progression-execution
 enforcement: C2 must separately decide how ownership status affects execution
 eligibility and remains unimplemented. REVOKE is canonical and implemented;
 TRANSFER is designed but unimplemented. TARGET_CORRECTION and C2 remain
-undesignated.
+undesigned.
 
 
 ## C1B TRANSFER design — proposed, unimplemented
@@ -451,7 +451,7 @@ authorization constraints only.
 ### Model decision: same-row target change
 
 Select Model A: keep the same current identity row and UUID, locator, class,
-and ownership status, while changing target jogador A to distincttarget B
+and ownership status, while changing target jogador A to distinct target B
 through this explicit evidence-backed operation. Increment its existing
 ownership version once and append complete target/state snapshots. This is a
 narrow audited exception to immutability by default, not a generic target
@@ -523,7 +523,7 @@ same-target requests.
 Replay is not inferred from current target alone. Accept an equivalent retry
 only if current version equals expected version plus one and the immutable
 history event at that version proves the same identity/locator, old target A,
-newtarget B, before/after ownership and verification states, evidence type
+new target B, before/after ownership and verification states, evidence type
 and reference, and normalized reason under `OWNERSHIP_TRANSFERRED`. Otherwise
 stale or competing requests conflict. Valid replay has no mutation, version
 increment, event, or timestamp change.
