@@ -59,10 +59,9 @@ history will use actor type `WORKLOAD_OPERATOR` and that principal ID; actor
 fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
 grants, principals, or trust records. It introduced no ingress. The canonical
-C1B lifecycle mutations are VERIFY, INVALIDATE, REVERIFY, DISABLE, and
-REACTIVATE. REVOKE is designed but unimplemented. TRANSFER, REASSIGNMENT,
-TARGET_CORRECTION, and C2 enforcement remain unimplemented and are not designed
-by this gate.
+implemented C1B lifecycle mutations are VERIFY, INVALIDATE, REVERIFY, DISABLE,
+REACTIVATE, and REVOKE. TRANSFER is designed but unimplemented. REASSIGNMENT,
+TARGET_CORRECTION, and C2 enforcement remain unimplemented and undesigned.
 
 ## Audit, lifecycle, and concurrency requirements
 
@@ -135,9 +134,9 @@ database-derived. Current state/version and the history entry are committed
 atomically under the existing identity-row `PESSIMISTIC_WRITE` lock.
 
 INVALIDATE adds no migration or ingress and does not change resolver or
-progression execution behavior. REACTIVATE is canonical. REVOKE is designed
-but unimplemented. Transfer, reassignment, target correction, and C2
-enforcement remain unimplemented and not designed by this gate.
+progression execution behavior. REACTIVATE and REVOKE are canonical and
+implemented. TRANSFER is designed below but unimplemented; REASSIGNMENT,
+TARGET_CORRECTION, and C2 remain undesigned and unimplemented.
 
 ## C1B REVERIFY implementation
 
@@ -185,9 +184,9 @@ This canonical slice needs no migration: V48 provides the current verification
 state/version and append-only history fields, and the event name fits the
 existing event-type column. REVERIFY adds no ingress, grants, principals, trust
 records, workload activation, resolver behavior, or execution enforcement.
-REACTIVATE is canonical and implemented. REVOKE is designed but unimplemented.
-TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
-unimplemented and are not designed by this gate.
+REACTIVATE and REVOKE are canonical and implemented. TRANSFER is designed but
+unimplemented. REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
+unimplemented and undesigned.
 
 ## C1B DISABLE implementation — canonical
 
@@ -325,11 +324,15 @@ changes authorization constraints only. Migration head remains V48; V49 is not
 required.
 
 REACTIVATE became canonical when PR #63 was squash-merged as
-`2b8a5ac1aaf4e5639612090bcb57a5892168fc02`. REVOKE is designed below but
-remains unimplemented. TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 remain
-unimplemented and are not designed by this gate.
+`2b8a5ac1aaf4e5639612090bcb57a5892168fc02`. REVOKE is canonical and
+implemented. TRANSFER is designed below but remains unimplemented.
+REASSIGNMENT, TARGET_CORRECTION, and C2 remain unimplemented and undesigned.
 
-## C1B REVOKE design — designed, unimplemented
+## C1B REVOKE — canonical implementation semantics
+
+The implementation became canonical in PR #65. This section records the
+frozen transition semantics and schema basis that were designed before that
+merge.
 
 REVOKE terminates the current external ownership binding. It is stronger than
 DISABLE and terminal for this binding lifecycle; REACTIVATE does not accept a
@@ -409,9 +412,148 @@ Append-only triggers reject UPDATE, DELETE, and TRUNCATE while permitting
 history INSERT. V48 changes authorization constraints only. The migration
 head remains V48; V49 is not required.
 
-REVOKED is terminal only for the current binding. This design does not specify
-replacement bindings or transfer/reassignment behavior. It does not define
-resolver or progression-execution enforcement: C2 must separately decide how
-ownership status affects execution eligibility and remains unimplemented.
-REVOKE is designed but not canonical or implemented. TRANSFER, REASSIGNMENT,
-TARGET_CORRECTION, and C2 remain unimplemented and undesigned by this gate.
+REVOKED is terminal only for the current binding. TRANSFER is separately
+designed below for eligible ACTIVE or DISABLED bindings and cannot revive a
+REVOKED binding or define replacement bindings. REASSIGNMENT remains
+undesigned. This design does not define resolver or progression-execution
+enforcement: C2 must separately decide how ownership status affects execution
+eligibility and remains unimplemented. REVOKE is canonical and implemented;
+TRANSFER is designed but unimplemented. TARGET_CORRECTION and C2 remain
+undesigned.
+
+
+## C1B TRANSFER design — proposed, unimplemented
+
+This proposed design is documentation-only. It does not alter the canonical
+VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, or REVOKE semantics and
+confers no implementation authority.
+
+### Frozen behavior and physical model
+
+The locator `(namespace, externalId)` is not ownership proof. Bindings remain
+immutable by default and history append-only; `LOGOS_NATIVE` and
+`logos-native` remain Logos-controlled. REVOKED is terminal for the current
+binding. C2 is independent and unimplemented.
+
+Inspection of V32/V47/V48 and the current model confirms that
+`progression_subject_identity` has a UUID identity, a required `jogador_id`
+foreign key, and full uniqueness on `(namespace, external_id)`. Exact-locator
+repository lookup returns one optional row; lifecycle mutation uses
+`PESSIMISTIC_WRITE` on that row. No current-binding marker or predecessor /
+successor link exists. V47 history is keyed by identity and aggregate version,
+records before/after targets and lifecycle states, permits arbitrary nonblank
+`VARCHAR(64)` event names, nullable evidence (`VARCHAR(64)` type and
+`VARCHAR(255)` reference), nullable `VARCHAR(512)` reason, and database-defaulted
+`recorded_at`. Its triggers prohibit UPDATE, DELETE, and TRUNCATE but allow
+INSERT. Target and identity foreign keys are restrictive. V48 changes
+authorization constraints only.
+
+### Model decision: same-row target change
+
+Select Model A: keep the same current identity row and UUID, locator, class,
+and ownership status, while changing target jogador A to distinct target B
+through this explicit evidence-backed operation. Increment its existing
+ownership version once and append complete target/state snapshots. This is a
+narrow audited exception to immutability by default, not a generic target
+mutation.
+
+Reject Model B (terminate old row and create a successor row): the full
+locator unique constraint prevents coexistence, lookup has no current-row
+selection rule, and the schema has no cross-row lineage or transfer
+correlation. That model requires schema support for historical rows and a
+unique current row, predecessor/successor linkage, and matching lookup/resolver
+changes. No Model C is naturally represented by the inspected code/schema.
+Model A fits the mutable target column and existing history fields; no schema
+change is required, so `V49_REQUIRED = NO`. This is only a compatibility
+finding.
+
+### Meaning and allowed states
+
+TRANSFER is an intentional legitimate handoff of the same external locator
+from A to distinct B, evidenced as a release by A and acceptance by B. It is
+allowed from EXTERNAL ACTIVE and EXTERNAL DISABLED, preserving the ownership
+status. DISABLED remains disabled. It is forbidden from REVOKED, which remains
+terminal for the current binding. Native identities, `logos-native`, and
+EXTERNAL / NOT_REQUIRED are excluded.
+
+Verification is a property of the external-subject-to-target binding, not the
+locator alone. Therefore:
+
+| Verification before | Verification after target handoff | Rationale |
+| --- | --- | --- |
+| UNVERIFIED | UNVERIFIED | No verified assertion exists. |
+| VERIFIED | UNVERIFIED | Proof connecting the subject to A does not establish the connection to B. |
+| INVALIDATED | INVALIDATED | Preserve the negative signal; changing target must not launder it. |
+| NOT_REQUIRED | rejected | Invalid for EXTERNAL under V47. |
+
+TRANSFER performs no VERIFY, INVALIDATE, or REVERIFY. Its evidence is not
+verification proof. A later separately authorized verification action is
+needed to reach VERIFIED; only REVERIFY can change INVALIDATED under its
+existing rules.
+
+### Command, authorization, reason, and evidence
+
+The proposed `TransferExternalSubjectOwnershipCommand` contains the external
+subject reference, expected ownership version, new target jogador UUID,
+transfer evidence type/reference, and mandatory administrative reason. It
+contains no actor, lifecycle status, verification status, or timestamps. No
+separate idempotency key is proposed.
+
+Reuse exact-namespace `SUBJECT_OWNERSHIP_MANAGE`. Authorization precedes
+lookup/disclosure, then the locked row is validated. Require an authenticated
+verified WORKLOAD. History actor remains `WORKLOAD_OPERATOR` with trusted
+server-derived principal ID. No new authorization operation or actor input is
+introduced.
+
+Reason is trimmed, nonblank, and at most 512 characters. Require separate
+transfer evidence, not `OwnershipVerificationEvidence`: the proposed fixed
+type is `BILATERAL_TRANSFER_CONSENT`, with trimmed nonblank opaque reference
+of at most 255 characters. The referenced record must identify the exact
+locator and old/new target IDs, attest release by A and acceptance by B, and
+record operator review. This evidence supports the administrative handoff; it
+does not prove external identity or change verification status.
+
+### Version, replay, history, and atomicity
+
+A real transfer requires expected version N and changes it to N+1. It
+preserves identity UUID, locator and EXTERNAL class; target changes A to B;
+ownership status is unchanged; verification follows the table above. Reject
+same-target requests.
+
+Replay is not inferred from current target alone. Accept an equivalent retry
+only if current version equals expected version plus one and the immutable
+history event at that version proves the same identity/locator, old target A,
+new target B, before/after ownership and verification states, evidence type
+and reference, and normalized reason under `OWNERSHIP_TRANSFERRED`. Otherwise
+stale or competing requests conflict. Valid replay has no mutation, version
+increment, event, or timestamp change.
+
+Append one immutable `OWNERSHIP_TRANSFERRED` event with full before/after
+class, target, ownership, verification, and version snapshots;
+`LOGOS_OPERATOR_ACTION`; trusted `WORKLOAD_OPERATOR`; evidence; normalized
+reason; server-derived `effective_at`; and database-derived `recorded_at`.
+The existing identity-row `PESSIMISTIC_WRITE` lock serializes target/version
+change and history append in one transaction. History failure rolls back both.
+
+### Concurrency and boundaries
+
+Equivalent concurrent A-to-B requests yield one transition/event; the later
+lock holder succeeds only through the exact history-backed replay test.
+Competing A-to-B and A-to-C requests cannot both succeed: the winner commits
+and the other conflicts. TRANSFER racing DISABLE, REACTIVATE, REVOKE, VERIFY,
+INVALIDATE, or REVERIFY serializes on the same row and version; the stale
+mutation conflicts. A transfer retried explicitly after another operation
+may proceed only if the then-current state is ACTIVE or DISABLED. REVOKE winning
+makes transfer ineligible; transfer winning first lets a correctly versioned
+later REVOKE act on the new target. A DISABLED transfer racing REACTIVATE
+follows the same lock/version rule. Verification races do not imply or reorder
+proof; no automatic retries are allowed.
+
+TRANSFER is a consensual handoff. REASSIGNMENT remains a separate, undesigned
+recovery/replacement flow (for example, an unavailable source target or a
+separately authorized binding after revocation); TRANSFER cannot bypass
+REVOKE. TARGET_CORRECTION is a clerical fix to erroneous target data, not a
+handoff; it needs distinct evidence and immutable audit history and must not
+bypass transfer auditing. Its semantics remain unfrozen. Neither is
+implemented. No resolver, ingress, or execution behavior changes; ACTIVE does
+not mean executable and C2 remains separate.
