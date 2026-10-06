@@ -69,6 +69,14 @@ public class JpaSubjectOwnershipLifecycleStore implements SubjectOwnershipLifecy
         history.saveAndFlush(ProgressionSubjectOwnershipHistoryEntry.reactivated(before, after, operator, reason, effectiveAt));
     }
 
+    @Override
+    public void saveRevoke(SubjectOwnershipAggregate before, SubjectOwnershipAggregate after,
+            AuthorizedSubjectOwnershipOperator operator, SubjectOwnershipAdministrativeReason reason, Instant effectiveAt) {
+        ProgressionSubjectIdentity identity = identities.findById(before.id()).orElseThrow();
+        identity.applyOwnershipStatus(after.ownershipStatus(), after.ownershipVersion());
+        history.saveAndFlush(ProgressionSubjectOwnershipHistoryEntry.revoked(before, after, operator, reason, effectiveAt));
+    }
+
     private static SubjectOwnershipAggregate toAggregate(ProgressionSubjectIdentity identity) {
         return new SubjectOwnershipAggregate(identity.getId(),
                 new ExternalSubjectReference(identity.getNamespace(), identity.getExternalId()),
