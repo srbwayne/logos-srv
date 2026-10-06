@@ -59,8 +59,8 @@ history will use actor type `WORKLOAD_OPERATOR` and that principal ID; actor
 fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
 grants, principals, or trust records. It introduced no ingress. The canonical
-C1B lifecycle mutations are VERIFY, INVALIDATE, REVERIFY, and DISABLE.
-REACTIVATE is designed but unimplemented. REVOKE, TRANSFER, REASSIGNMENT,
+C1B lifecycle mutations are VERIFY, INVALIDATE, REVERIFY, DISABLE, and
+REACTIVATE. REVOKE is designed but unimplemented. TRANSFER, REASSIGNMENT,
 TARGET_CORRECTION, and C2 enforcement remain unimplemented and are not designed
 by this gate.
 
@@ -135,8 +135,9 @@ database-derived. Current state/version and the history entry are committed
 atomically under the existing identity-row `PESSIMISTIC_WRITE` lock.
 
 INVALIDATE adds no migration or ingress and does not change resolver or
-progression execution behavior. Reactivate, revoke, transfer, reassignment,
-target correction, and C2 enforcement remain unimplemented.
+progression execution behavior. REACTIVATE is canonical. REVOKE is designed
+but unimplemented. Transfer, reassignment, target correction, and C2
+enforcement remain unimplemented and not designed by this gate.
 
 ## C1B REVERIFY implementation
 
@@ -184,9 +185,9 @@ This canonical slice needs no migration: V48 provides the current verification
 state/version and append-only history fields, and the event name fits the
 existing event-type column. REVERIFY adds no ingress, grants, principals, trust
 records, workload activation, resolver behavior, or execution enforcement.
-REACTIVATE is designed but unimplemented. REVOKE, TRANSFER, REASSIGNMENT,
-TARGET_CORRECTION, and C2 enforcement remain unimplemented and are not designed
-by this gate.
+REACTIVATE is canonical and implemented. REVOKE is designed but unimplemented.
+TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
+unimplemented and are not designed by this gate.
 
 ## C1B DISABLE implementation — canonical
 
@@ -323,8 +324,94 @@ evidence columns are nullable and `recorded_at` has a database default. V48
 changes authorization constraints only. Migration head remains V48; V49 is not
 required.
 
-REACTIVATE is designed but remains unimplemented and noncanonical until a
-separate implementation review and merge. REVOKE remains undesigned; its
-terminality, verification preservation, evidence requirements, and replay
-semantics are not frozen. TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2
-remain unimplemented and are not designed by this gate.
+REACTIVATE became canonical when PR #63 was squash-merged as
+`2b8a5ac1aaf4e5639612090bcb57a5892168fc02`. REVOKE is designed below but
+remains unimplemented. TRANSFER, REASSIGNMENT, TARGET_CORRECTION, and C2 remain
+unimplemented and are not designed by this gate.
+
+## C1B REVOKE design — designed, unimplemented
+
+REVOKE terminates the current external ownership binding. It is stronger than
+DISABLE and terminal for this binding lifecycle; REACTIVATE does not accept a
+REVOKED source. This does not decide whether a separately authorized future
+operation may create a new binding, transfer ownership, reassign ownership, or
+correct a target. No unrevoke, recovery, or automatic rebinding is defined.
+
+The only real REVOKE transitions are:
+
+```text
+EXTERNAL / ACTIVE   / UNVERIFIED  -> EXTERNAL / REVOKED / UNVERIFIED
+EXTERNAL / ACTIVE   / VERIFIED    -> EXTERNAL / REVOKED / VERIFIED
+EXTERNAL / ACTIVE   / INVALIDATED -> EXTERNAL / REVOKED / INVALIDATED
+EXTERNAL / DISABLED / UNVERIFIED  -> EXTERNAL / REVOKED / UNVERIFIED
+EXTERNAL / DISABLED / VERIFIED    -> EXTERNAL / REVOKED / VERIFIED
+EXTERNAL / DISABLED / INVALIDATED -> EXTERNAL / REVOKED / INVALIDATED
+```
+
+Eligibility is limited to an `EXTERNAL` identity outside `logos-native` with
+ownership `ACTIVE` or `DISABLED` and verification `UNVERIFIED`, `VERIFIED`, or
+`INVALIDATED`. Native identities, the native namespace, `NOT_REQUIRED`,
+unsupported states, and `REVOKED` as a real-transition source are rejected.
+A real transition changes only ownership status to `REVOKED` and advances
+`ownership_version` from N to N+1. It preserves identity ID, namespace,
+external ID, target jogador ID, identity class, and verification status
+exactly; it does not verify, invalidate, or reverify. REVOKE is a state
+transition, never hard deletion, and preserves the current identity row and
+all prior history.
+
+The future `RevokeExternalSubjectOwnershipCommand` contains only
+`ExternalSubjectReference reference`, `long expectedOwnershipVersion`, and a
+mandatory administrative reason. The reason is trimmed, nonblank, and at most
+512 characters; reuse `SubjectOwnershipAdministrativeReason`. No actor,
+target, status, evidence, or timestamp is command input. Evidence is not
+required: `evidence_type` and `evidence_reference` are NULL. Audit uses
+`LOGOS_OPERATOR_ACTION`, actor type `WORKLOAD_OPERATOR`, and the trusted
+server-derived principal ID.
+
+Authorization reuses exact-namespace `SUBJECT_OWNERSHIP_MANAGE` and occurs
+before identity lookup disclosure. The operator remains an authenticated,
+verified `WORKLOAD`. Processing order is: authorize namespace; lock and look up
+the identity; report not-found only after authorization; validate the reason;
+detect a supported already-REVOKED replay; validate eligible ACTIVE or
+DISABLED source state; validate expected version; apply the domain transition;
+and atomically persist current state/version and history. A real transition
+requires the expected version to match the locked version; a stale version
+conflicts.
+
+A supported `EXTERNAL / REVOKED` state with verification `UNVERIFIED`,
+`VERIFIED`, or `INVALIDATED` is a valid ensure-revoked replay after reason
+validation. Replay ignores a stale expected version and succeeds without
+mutation, version increment, history append, reason replacement, or timestamp
+replacement. It does not rewrite or replace the original revocation reason.
+Unsupported revoked shapes are not replay-valid.
+
+A real transition appends exactly one immutable `OWNERSHIP_REVOKED` event at
+aggregate version N+1 with `LOGOS_OPERATOR_ACTION` provenance. The snapshot
+records `EXTERNAL` before and after; the same target before and after;
+`ACTIVE` or `DISABLED` to `REVOKED`; and the same eligible verification state
+before and after. It includes the trusted `WORKLOAD_OPERATOR` actor, NULL
+evidence fields, normalized reason, server-derived `effective_at`, and
+database-derived `recorded_at`.
+
+REVOKE reuses the identity-row `PESSIMISTIC_WRITE` lock. State/version mutation
+and the history append must commit in one transaction. If history persistence
+fails, ownership remains in its source state and the version remains N. Two
+equivalent concurrent requests serialize to one transition, one version
+increment, and one `OWNERSHIP_REVOKED` event; the later lock holder succeeds as
+a valid replay.
+
+The physical schema supports the design without a migration. V47 allows
+`REVOKED` in the ownership-status check and excludes `NOT_REQUIRED` for
+external identities. `event_type` is nonblank `VARCHAR(64)` without an enum or
+event-name allowlist; `OWNERSHIP_REVOKED` fits. The reason is `VARCHAR(512)`,
+evidence columns are nullable, and `recorded_at` is database-defaulted.
+Append-only triggers reject UPDATE, DELETE, and TRUNCATE while permitting
+history INSERT. V48 changes authorization constraints only. The migration
+head remains V48; V49 is not required.
+
+REVOKED is terminal only for the current binding. This design does not specify
+replacement bindings or transfer/reassignment behavior. It does not define
+resolver or progression-execution enforcement: C2 must separately decide how
+ownership status affects execution eligibility and remains unimplemented.
+REVOKE is designed but not canonical or implemented. TRANSFER, REASSIGNMENT,
+TARGET_CORRECTION, and C2 remain unimplemented and undesigned by this gate.
