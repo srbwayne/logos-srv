@@ -18,6 +18,7 @@ import com.josecjuniors.logossrv.core.progression.domain.model.SubjectId;
 import com.josecjuniors.logossrv.core.progression.application.port.out.ProgressionSubjectIdentityProvisioningPort;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.RepeatedTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -129,7 +130,7 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
                 """, Integer.class)).isEqualTo(1);
     }
 
-    @Test
+    @RepeatedTest(50)
     void concurrentFirstProvisionClaimsOnePointerAndIdentity() throws Exception {
         var fixture = player("concurrent-first-" + UUID.randomUUID() + "@example.com");
         var reference = new ExternalSubjectReference("lifeos", "first-" + UUID.randomUUID());
@@ -166,6 +167,7 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
                 JOIN progression_subject_identity identity ON identity.id = history.identity_id
                 WHERE identity.namespace = ? AND identity.external_id = ?
                 """, Integer.class, reference.namespace(), reference.externalId())).isEqualTo(1);
+        assertThat(resolver.resolve(reference).value()).isEqualTo(fixture.userId);
     }
 
     private void provisionConcurrently(ExternalSubjectReference reference, UUID targetId,
