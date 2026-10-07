@@ -13,6 +13,8 @@ import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwner
 import com.josecjuniors.logossrv.core.subjectownership.domain.model.SubjectOwnershipTransferEvidence;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -30,8 +32,28 @@ public class JpaSubjectOwnershipLifecycleStore implements SubjectOwnershipLifecy
 
     @Override
     public Optional<SubjectOwnershipAggregate> findForUpdate(ExternalSubjectReference reference) {
-        return identities.findByNamespaceAndExternalIdForUpdate(reference.namespace(), reference.externalId())
-                .map(JpaSubjectOwnershipLifecycleStore::toAggregate);
+        Optional<UUID> currentIdentityId = identities.lockCurrentIdentityId(
+                reference.namespace(), reference.externalId());
+        if (currentIdentityId.isEmpty()) {
+            if (identities.existsByNamespaceAndExternalId(reference.namespace(), reference.externalId())) {
+                throw new DataIntegrityViolationException(
+                        "Subject identity exists without a current-binding pointer");
+            }
+            return Optional.empty();
+        }
+        return identities.findCurrentIdentityByIdForUpdate(currentIdentityId.get())
+                .map(identity -> {
+                    if (!identity.getNamespace().equals(reference.namespace())
+                            || !identity.getExternalId().equals(reference.externalId())) {
+                        throw new DataIntegrityViolationException(
+                                "Current-binding pointer locator does not match identity locator");
+                    }
+                    return toAggregate(identity);
+                })
+                .or(() -> {
+                    throw new DataIntegrityViolationException(
+                            "Current-binding pointer references a missing identity");
+                });
     }
 
     @Override

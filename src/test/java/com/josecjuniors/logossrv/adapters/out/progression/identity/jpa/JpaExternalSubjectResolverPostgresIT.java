@@ -33,8 +33,8 @@ class JpaExternalSubjectResolverPostgresIT {
 
         assertThat(subjectId.value())
                 .isEqualTo(appUserId);
-        var identity = identities.findByNamespaceAndExternalId("logos-native",
-                appUserId.toString()).orElseThrow();
+        var identityId = identities.findCurrentIdentityId("logos-native", appUserId.toString()).orElseThrow();
+        var identity = identities.findById(identityId).orElseThrow();
         assertThat(identity.getIdentityClass()).isEqualTo(
                 com.josecjuniors.logossrv.core.subjectownership.domain.model.IdentityClass.LOGOS_NATIVE);
         assertThat(identity.getOwnershipStatus()).isEqualTo(
