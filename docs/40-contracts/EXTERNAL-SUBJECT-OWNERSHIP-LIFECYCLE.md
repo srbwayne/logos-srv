@@ -780,3 +780,6 @@ are unchanged.
 REASSIGNMENT is proposed and unimplemented. This section does not design
 TARGET_CORRECTION, change TRANSFER/REVOKE semantics, change resolver
 implementation, or authorize implementation, ingress, or migration work.
+The implementation architecture is documented in
+[EXTERNAL-SUBJECT-OWNERSHIP-REASSIGNMENT-IMPLEMENTATION-DESIGN.md](EXTERNAL-SUBJECT-OWNERSHIP-REASSIGNMENT-IMPLEMENTATION-DESIGN.md);
+that document is planning only and does not authorize implementation.
