@@ -1,0 +1,268 @@
+package com.josecjuniors.logossrv.core.subjectownership.application.service;
+
+import com.josecjuniors.logossrv.core.appuser.application.port.in.RegistrationCommand;
+import com.josecjuniors.logossrv.core.appuser.application.port.in.RegistrationUseCase;
+import com.josecjuniors.logossrv.core.progression.application.service.ProvisionCurrentExternalSubjectIdentityService;
+import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
+import com.josecjuniors.logossrv.core.security.authentication.domain.PrincipalType;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.ApproveExternalSubjectReassignmentCommand;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.ApproveExternalSubjectReassignmentUseCase;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.ReassignExternalSubjectOwnershipCommand;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.ReassignExternalSubjectOwnershipUseCase;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.RevokeExternalSubjectOwnershipCommand;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.RevokeExternalSubjectOwnershipUseCase;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.ReactivateExternalSubjectOwnershipCommand;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.ReactivateExternalSubjectOwnershipUseCase;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.TransferExternalSubjectOwnershipCommand;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.TransferExternalSubjectOwnershipUseCase;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.VerifyExternalSubjectOwnershipCommand;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.VerifyExternalSubjectOwnershipUseCase;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.InvalidateExternalSubjectOwnershipCommand;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.in.InvalidateExternalSubjectOwnershipUseCase;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.out.AuthorizedSubjectOwnershipOperator;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipOperatorContext;
+import com.josecjuniors.logossrv.core.subjectownership.domain.exception.SubjectOwnershipReassignmentConflictException;
+import com.josecjuniors.logossrv.support.test.FreshPostgresIntegrationTest;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
+
+@FreshPostgresIntegrationTest
+@TestPropertySource(properties = "logos.test.schema-key=subject-ownership-reassignment-r2")
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
+class ReassignExternalSubjectOwnershipPostgresTest {
+    private static final String NAMESPACE = "lifeos";
+    @Autowired ApproveExternalSubjectReassignmentUseCase approval;
+    @Autowired ReassignExternalSubjectOwnershipUseCase reassignment;
+    @Autowired RevokeExternalSubjectOwnershipUseCase revoke;
+    @Autowired ReactivateExternalSubjectOwnershipUseCase reactivate;
+    @Autowired TransferExternalSubjectOwnershipUseCase transfer;
+    @Autowired VerifyExternalSubjectOwnershipUseCase verify;
+    @Autowired InvalidateExternalSubjectOwnershipUseCase invalidate;
+    @Autowired RegistrationUseCase registration;
+    @Autowired ProvisionCurrentExternalSubjectIdentityService provisioning;
+    @Autowired JdbcTemplate jdbc;
+    @MockBean SubjectOwnershipOperatorContext operatorContext;
+    private final AtomicReference<String> principal = new AtomicReference<>("reviewer-r2");
+
+    @BeforeEach void setup() {
+        when(operatorContext.authorizeForNamespace(NAMESPACE)).thenAnswer(invocation ->
+                new AuthorizedSubjectOwnershipOperator(PrincipalType.WORKLOAD, principal.get(), NAMESPACE));
+    }
+
+    @Test void approvesRevokedCurrentPredecessorAndExecutesAtomicSuccessorThenExactReplay() {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID oldTarget = targetFor(reference);
+        UUID newTarget = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        UUID requestId = UUID.randomUUID();
+        var command = new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1, newTarget,
+                requestId, "  compromised account  ", "  case-42  ");
+
+        var authorized = approval.approve(command);
+        assertThat(authorized.authorizationId()).isNotNull();
+        assertThat(authorized.recoveryBasis()).isEqualTo("compromised account");
+        assertThat(authorized.reviewedCaseReference()).isEqualTo("case-42");
+        assertThat(authorized.predecessorTargetJogadorId()).isEqualTo(oldTarget);
+        assertThat(authorized.reviewedAt()).isNotNull();
+        assertThat(approval.approve(command)).isEqualTo(authorized);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_reassignment_authorization WHERE reassignment_request_id=?",
+                Integer.class, requestId)).isEqualTo(1);
+
+        principal.set("executor-r2");
+        var reassignmentCommand = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, newTarget,
+                requestId, authorized.evidenceReference(), "  replaced compromised target  ");
+        var result = reassignment.reassign(reassignmentCommand);
+        assertThat(result.successorIdentityId()).isNotEqualTo(predecessor);
+        assertThat(result.targetJogadorId()).isEqualTo(newTarget);
+        assertThat(result.ownershipStatus()).hasToString("DISABLED");
+        assertThat(result.verificationStatus()).hasToString("UNVERIFIED");
+        assertThat(result.ownershipVersion()).isZero();
+        assertThat(jdbc.queryForObject("SELECT current_identity_id FROM progression_subject_current_binding WHERE namespace=? AND external_id=?",
+                UUID.class, reference.namespace(), reference.externalId())).isEqualTo(result.successorIdentityId());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_ownership_history WHERE event_type='OWNERSHIP_REASSIGNED' AND reassignment_request_id=?",
+                Integer.class, requestId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT ownership_status FROM progression_subject_identity WHERE id=?",
+                String.class, predecessor)).isEqualTo("REVOKED");
+
+        reactivate.reactivate(new ReactivateExternalSubjectOwnershipCommand(reference, 0, "activate successor"));
+        var replay = reassignment.reassign(reassignmentCommand);
+        assertThat(replay).isEqualTo(result);
+        assertThat(jdbc.queryForObject("SELECT ownership_status FROM progression_subject_identity WHERE id=?",
+                String.class, result.successorIdentityId())).isEqualTo("ACTIVE");
+
+        verify.verify(new VerifyExternalSubjectOwnershipCommand(reference, 1,
+                "follow-up-verification", "follow-up-case", "verify reassigned successor"));
+        assertThat(reassignment.reassign(reassignmentCommand)).isEqualTo(result);
+
+        UUID transferredTarget = createTarget();
+        transfer.transfer(new TransferExternalSubjectOwnershipCommand(reference, 2, transferredTarget,
+                "bilateral-consent", "subsequent legitimate handoff"));
+        assertThat(reassignment.reassign(reassignmentCommand)).isEqualTo(result);
+
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 3, "terminalize second binding"));
+        assertThat(reassignment.reassign(reassignmentCommand)).isEqualTo(result);
+        principal.set("reviewer-r2");
+        UUID nextTarget = createTarget();
+        UUID nextRequest = UUID.randomUUID();
+        var nextApproval = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference,
+                result.successorIdentityId(), 4, nextTarget, nextRequest, "second recovery", "case-43"));
+        principal.set("executor-r2");
+        reassignment.reassign(new ReassignExternalSubjectOwnershipCommand(reference, result.successorIdentityId(), 4,
+                nextTarget, nextRequest, nextApproval.evidenceReference(), "second recovery operation"));
+        assertThat(reassignment.reassign(reassignmentCommand)).isEqualTo(result);
+    }
+
+    @Test void preservesCanonicalVerificationMappingForAllEligiblePredecessorStates() {
+        for (String state : new String[] {"UNVERIFIED", "VERIFIED", "INVALIDATED"}) {
+            var reference = createIdentity();
+            UUID predecessor = currentIdentity(reference);
+            UUID target = createTarget();
+            long version = 0;
+            if (state.equals("VERIFIED") || state.equals("INVALIDATED")) {
+                verify.verify(new VerifyExternalSubjectOwnershipCommand(reference, version,
+                        "initial-review", "verification-case", "verified before recovery"));
+                version++;
+            }
+            if (state.equals("INVALIDATED")) {
+                invalidate.invalidate(new InvalidateExternalSubjectOwnershipCommand(reference, version,
+                        "withdrawal-review", "withdrawal-case", "verification invalidated"));
+                version++;
+            }
+            revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, version, "terminal recovery predecessor"));
+            version++;
+            UUID request = UUID.randomUUID();
+            var auth = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor,
+                    version, target, request, "recovery", "case-" + state));
+            principal.set("executor-map-" + state);
+            var result = reassignment.reassign(new ReassignExternalSubjectOwnershipCommand(reference, predecessor,
+                    version, target, request, auth.evidenceReference(), "recovery " + state));
+            String expected = state.equals("VERIFIED") ? "UNVERIFIED" : state;
+            assertThat(result.verificationStatus().name()).isEqualTo(expected);
+            principal.set("reviewer-r2");
+        }
+    }
+
+    @Test void approvalRequestPayloadOrReviewerChangesConflict() {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID newTarget = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        UUID request = UUID.randomUUID();
+        var original = new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1, newTarget,
+                request, "recover", "case");
+        approval.approve(original);
+        assertThatThrownBy(() -> approval.approve(new ApproveExternalSubjectReassignmentCommand(reference,
+                predecessor, 1, newTarget, request, "different basis", "case")))
+                .isInstanceOf(SubjectOwnershipReassignmentConflictException.class);
+        principal.set("different-reviewer");
+        assertThatThrownBy(() -> approval.approve(original))
+                .isInstanceOf(SubjectOwnershipReassignmentConflictException.class);
+    }
+
+    @Test void sameRequestDifferentExecutorCannotReplay() {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID target = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        UUID request = UUID.randomUUID();
+        var auth = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
+                target, request, "recover", "case"));
+        principal.set("executor-one");
+        var cmd = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target, request,
+                auth.evidenceReference(), "replacement");
+        reassignment.reassign(cmd);
+        assertThatThrownBy(() -> reassignment.reassign(new ReassignExternalSubjectOwnershipCommand(reference,
+                predecessor, 1, target, request, auth.evidenceReference(), "different reason")))
+                .isInstanceOf(SubjectOwnershipReassignmentConflictException.class);
+        principal.set("executor-two");
+        assertThatThrownBy(() -> reassignment.reassign(cmd))
+                .isInstanceOf(SubjectOwnershipReassignmentConflictException.class);
+    }
+
+    @Test void concurrentEquivalentApprovalReturnsOneImmutableAuthorization() throws Exception {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID target = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        var command = new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1, target,
+                UUID.randomUUID(), "recover", "case");
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = pool.submit(() -> approval.approve(command));
+            Future<?> second = pool.submit(() -> approval.approve(command));
+            var a = (com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipReassignmentAuthorization) first.get();
+            var b = (com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipReassignmentAuthorization) second.get();
+            assertThat(a).isEqualTo(b);
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_reassignment_authorization WHERE reassignment_request_id=?",
+                Integer.class, command.reassignmentRequestId())).isEqualTo(1);
+    }
+
+    @Test void equivalentConcurrentReassignmentProducesOneSuccessorAndEvent() throws Exception {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID target = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        UUID request = UUID.randomUUID();
+        var auth = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
+                target, request, "recover", "case"));
+        principal.set("executor-concurrent");
+        var command = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target, request,
+                auth.evidenceReference(), "replacement");
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = pool.submit(() -> reassignment.reassign(command));
+            Future<?> second = pool.submit(() -> reassignment.reassign(command));
+            var a = (com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipReassignmentResult) first.get();
+            var b = (com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipReassignmentResult) second.get();
+            assertThat(a).isEqualTo(b);
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_identity WHERE namespace=? AND external_id=?",
+                Integer.class, reference.namespace(), reference.externalId())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_ownership_history WHERE event_type='OWNERSHIP_REASSIGNED' AND reassignment_request_id=?",
+                Integer.class, request)).isEqualTo(1);
+    }
+
+    private ExternalSubjectReference createIdentity() {
+        String email = "reassign-r2-" + UUID.randomUUID() + "@example.test";
+        registration.register(new RegistrationCommand(email, "password", "Reassignment " + UUID.randomUUID()));
+        var reference = new ExternalSubjectReference(NAMESPACE, "external-" + UUID.randomUUID());
+        provisioning.provision(email, reference);
+        return reference;
+    }
+
+    private UUID createTarget() {
+        String email = "reassign-target-" + UUID.randomUUID() + "@example.test";
+        registration.register(new RegistrationCommand(email, "password", "Reassignment target " + UUID.randomUUID()));
+        return jdbc.queryForObject("SELECT id FROM jogador WHERE user_id=(SELECT id FROM app_user WHERE email=?)",
+                UUID.class, email);
+    }
+
+    private UUID currentIdentity(ExternalSubjectReference reference) {
+        return jdbc.queryForObject("SELECT current_identity_id FROM progression_subject_current_binding WHERE namespace=? AND external_id=?",
+                UUID.class, reference.namespace(), reference.externalId());
+    }
+
+    private UUID targetFor(ExternalSubjectReference reference) {
+        return jdbc.queryForObject("SELECT jogador_id FROM progression_subject_identity WHERE id=?",
+                UUID.class, currentIdentity(reference));
+    }
+}
