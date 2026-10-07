@@ -48,6 +48,9 @@ public class ProgressionSubjectIdentity {
     @Column(name = "ownership_version", nullable = false)
     private long ownershipVersion;
 
+    @Column(name = "predecessor_identity_id")
+    private UUID predecessorIdentityId;
+
     protected ProgressionSubjectIdentity() {
     }
 
@@ -87,6 +90,10 @@ public class ProgressionSubjectIdentity {
 
     public long getOwnershipVersion() {
         return ownershipVersion;
+    }
+
+    public UUID getPredecessorIdentityId() {
+        return predecessorIdentityId;
     }
 
     public void applyVerification(VerificationStatus nextVerificationStatus, long nextOwnershipVersion) {

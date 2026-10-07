@@ -1,13 +1,10 @@
 package com.josecjuniors.logossrv.adapters.out.progression.identity.jpa;
 
-import com.josecjuniors.logossrv.core.appuser.domain.model.AppUser;
-import com.josecjuniors.logossrv.core.appuser.domain.model.AppUserId;
-import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
-import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
 import com.josecjuniors.logossrv.core.progression.domain.exception.ProgressionSubjectNotFoundException;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -27,11 +24,8 @@ class JpaExternalSubjectResolverTest {
     @Test
     void resolveMappingRetornaSubjectIdDoAppUserDoJogador() {
         UUID appUserId = UUID.randomUUID();
-        var user = new AppUser(new AppUserId(appUserId), "user@example.com", "password");
-        var jogador = new Jogador(JogadorId.generate(), user, "jogador");
-        var identity = new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "ABC123", jogador);
-        when(repository.findAppUserIdByNamespaceAndExternalId("lifeos", "ABC123"))
-                .thenReturn(Optional.of(new AppUserId(appUserId)));
+        when(repository.findCurrentAppUserId("lifeos", "ABC123"))
+                .thenReturn(Optional.of(appUserId));
 
         var subjectId = new JpaExternalSubjectResolver(repository)
                 .resolve(new ExternalSubjectReference(" LifeOS ", " ABC123 "));
@@ -41,7 +35,7 @@ class JpaExternalSubjectResolverTest {
 
     @Test
     void mappingAusenteRetornaNotFound() {
-        when(repository.findAppUserIdByNamespaceAndExternalId("lifeos", "missing"))
+        when(repository.findCurrentAppUserId("lifeos", "missing"))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> new JpaExternalSubjectResolver(repository)
@@ -50,16 +44,25 @@ class JpaExternalSubjectResolverTest {
     }
 
     @Test
+    void identityHistoryWithoutCurrentPointerFailsAsIntegrityError() {
+        when(repository.findCurrentAppUserId("lifeos", "orphan"))
+                .thenReturn(Optional.empty());
+        when(repository.existsByNamespaceAndExternalId("lifeos", "orphan"))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> new JpaExternalSubjectResolver(repository)
+                .resolve(new ExternalSubjectReference("lifeos", "orphan")))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("without a current binding pointer");
+    }
+
+    @Test
     void identidadesDiferentesPodemResolverOMesmoJogador() {
         UUID appUserId = UUID.randomUUID();
-        var user = new AppUser(new AppUserId(appUserId), "user@example.com", "password");
-        var jogador = new Jogador(JogadorId.generate(), user, "jogador");
-        var nativeIdentity = new ProgressionSubjectIdentity(UUID.randomUUID(), "logos-native", "A", jogador);
-        var lifeOsIdentity = new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "B", jogador);
-        when(repository.findAppUserIdByNamespaceAndExternalId("logos-native", "A"))
-                .thenReturn(Optional.of(new AppUserId(appUserId)));
-        when(repository.findAppUserIdByNamespaceAndExternalId("lifeos", "B"))
-                .thenReturn(Optional.of(new AppUserId(appUserId)));
+        when(repository.findCurrentAppUserId("logos-native", "A"))
+                .thenReturn(Optional.of(appUserId));
+        when(repository.findCurrentAppUserId("lifeos", "B"))
+                .thenReturn(Optional.of(appUserId));
         var resolver = new JpaExternalSubjectResolver(repository);
 
         assertThat(resolver.resolve(new ExternalSubjectReference("logos-native", "A")).value())

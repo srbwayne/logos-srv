@@ -73,19 +73,20 @@ class ProgressionExecutionPostgresTest {
     private UUID secondJogadorId;
     private String token;
     private String configurationKey;
+    private String primaryExternalId;
+    private String secondaryExternalId;
 
     @BeforeEach
     void setUp() {
         executions.deleteAll();
-        identities.deleteAll();
-        estresses.deleteAll();
-        jogadores.deleteAll();
         configs.deleteAll();
-        users.deleteAll();
 
-        var user = users.saveAndFlush(new AppUser(new AppUserId(), "idempotency@example.test", encoder.encode("password")));
+        primaryExternalId = "user-" + UUID.randomUUID();
+        secondaryExternalId = "user-" + UUID.randomUUID();
+        var user = users.saveAndFlush(new AppUser(new AppUserId(),
+                "idempotency-" + UUID.randomUUID() + "@example.test", encoder.encode("password")));
         subjectId = user.getId().getValue();
-        var player = new Jogador(JogadorId.generate(), user, "idempotent-player");
+        var player = new Jogador(JogadorId.generate(), user, "idempotent-" + UUID.randomUUID());
         player.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), player));
         jogadores.saveAndFlush(player);
         jogadorId = player.getId().getValue();
@@ -95,7 +96,7 @@ class ProgressionExecutionPostgresTest {
                 INSERT INTO atributo_jogador (id, jogador_id, atributo_id, xp_total, nivel_atual)
                 VALUES (?, ?, ?, 0, 1)
                 """, UUID.randomUUID(), jogadorId, learningId);
-        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "user-1", player));
+        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", primaryExternalId, player));
         var config = configs.saveAndFlush(new AtividadeConfig(new AtividadeConfigId(), "Reading", "fixture"));
         configurationKey = "task041-execution-" + UUID.randomUUID();
         var definitionId = UUID.randomUUID();
@@ -119,7 +120,6 @@ class ProgressionExecutionPostgresTest {
     @AfterEach
     void tearDown() {
         executions.deleteAll();
-        identities.deleteAll();
         jdbc.update("DELETE FROM progression_configuration_version_xp_rule WHERE distribution_id IN "
                 + "(SELECT d.id FROM progression_configuration_version_distribution d "
                 + "JOIN progression_configuration_version v ON v.id = d.configuration_version_id "
@@ -137,10 +137,7 @@ class ProgressionExecutionPostgresTest {
         jdbc.update("DELETE FROM progression_configuration_version WHERE definition_id IN "
                 + "(SELECT id FROM progression_configuration_definition WHERE logical_key LIKE 'task041-execution-%')");
         jdbc.update("DELETE FROM progression_configuration_definition WHERE logical_key LIKE 'task041-execution-%'");
-        estresses.deleteAll();
-        jogadores.deleteAll();
         configs.deleteAll();
-        users.deleteAll();
     }
 
     @Test
@@ -283,7 +280,7 @@ class ProgressionExecutionPostgresTest {
 
     private ProgressionExecutionRequest request(String source, String key, double pages) {
         return new ProgressionExecutionRequest(
-                new ProgressionExecutionRequest.SubjectReference("lifeos", "user-1"),
+                new ProgressionExecutionRequest.SubjectReference("lifeos", primaryExternalId),
                 new ProgressionExecutionRequest.ExecutionIdentity(source, key),
                 new ProgressionExecutionRequest.ConfigurationReference(configurationKey, null),
                 List.of(new ProgressionExecutionRequest.DetailRequest("pages_read", pages)));
@@ -305,7 +302,7 @@ class ProgressionExecutionPostgresTest {
             if (start != null) start.await(10, TimeUnit.SECONDS);
             idempotentUseCase.execute(
                     new ProgressionExecutionIdentity("lifeos", key),
-                    new ExternalSubjectReference("lifeos", "user-1"),
+                    new ExternalSubjectReference("lifeos", primaryExternalId),
                     new ExternalProgressionConfigurationReference(configurationKey, null),
                     new ProgressionFact(List.of(new ProgressionFact.Detail("pages_read", pages))));
             return 200;
@@ -329,7 +326,8 @@ class ProgressionExecutionPostgresTest {
             start.await(10, TimeUnit.SECONDS);
             idempotentUseCase.execute(
                     new ProgressionExecutionIdentity("lifeos", key),
-                    new ExternalSubjectReference("lifeos", subject.equals(subjectId) ? "user-1" : "user-2"),
+                    new ExternalSubjectReference("lifeos", subject.equals(subjectId)
+                            ? primaryExternalId : secondaryExternalId),
                     new ExternalProgressionConfigurationReference(configurationKey, null),
                     new ProgressionFact(List.of(new ProgressionFact.Detail("pages_read", pages))));
             return true;
@@ -355,13 +353,14 @@ class ProgressionExecutionPostgresTest {
     private record ConcurrentAttempt(boolean success, Throwable failure) {}
 
     private void createSecondSubject() {
-        var user = users.saveAndFlush(new AppUser(new AppUserId(), "idempotency-second@example.test", encoder.encode("password")));
+        var user = users.saveAndFlush(new AppUser(new AppUserId(),
+                "idempotency-second-" + UUID.randomUUID() + "@example.test", encoder.encode("password")));
         secondSubjectId = user.getId().getValue();
-        var player = new Jogador(JogadorId.generate(), user, "idempotent-second-player");
+        var player = new Jogador(JogadorId.generate(), user, "idempotent-second-" + UUID.randomUUID());
         player.setEstresseGlobal(new EstresseGlobal(EstresseGlobalId.generate(), player));
         jogadores.saveAndFlush(player);
         secondJogadorId = player.getId().getValue();
-        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", "user-2", player));
+        identities.saveAndFlush(new ProgressionSubjectIdentity(UUID.randomUUID(), "lifeos", secondaryExternalId, player));
     }
 
     private int directFactValueConcurrent(String key, double pages, CountDownLatch start) {
@@ -377,7 +376,7 @@ class ProgressionExecutionPostgresTest {
     private void directFactValue(String key, double pages) {
         idempotentUseCase.execute(
                 new ProgressionExecutionIdentity("lifeos", key),
-                new ExternalSubjectReference("lifeos", "user-1"),
+                new ExternalSubjectReference("lifeos", primaryExternalId),
                 new ExternalProgressionConfigurationReference("reading", 2),
                 new ProgressionFact(List.of(new ProgressionFact.Detail("pages_read", pages))));
     }

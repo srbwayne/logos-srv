@@ -14,6 +14,8 @@ import com.josecjuniors.logossrv.core.estresseglobal.domain.model.EstresseGlobal
 import com.josecjuniors.logossrv.core.jogador.domain.model.Jogador;
 import com.josecjuniors.logossrv.core.jogador.domain.model.JogadorId;
 import com.josecjuniors.logossrv.core.progression.domain.model.ExternalSubjectReference;
+import com.josecjuniors.logossrv.core.progression.domain.model.SubjectId;
+import com.josecjuniors.logossrv.core.progression.application.port.out.ProgressionSubjectIdentityProvisioningPort;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +28,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -46,6 +51,7 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
     @Autowired PasswordEncoder encoder;
     @Autowired JwtService jwt;
     @Autowired JdbcTemplate jdbc;
+    @Autowired ProgressionSubjectIdentityProvisioningPort identityProvisioning;
 
     @Test
     void registrationCreatesAndResolverReadsLogosNativeMapping() throws Exception {
@@ -121,6 +127,52 @@ class ProgressionSubjectIdentityProvisioningPostgresTest {
                 JOIN progression_subject_identity identity ON identity.id = history.identity_id
                 WHERE identity.namespace = 'lifeos' AND identity.external_id = 'repeat'
                 """, Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentFirstProvisionClaimsOnePointerAndIdentity() throws Exception {
+        var fixture = player("concurrent-first-" + UUID.randomUUID() + "@example.com");
+        var reference = new ExternalSubjectReference("lifeos", "first-" + UUID.randomUUID());
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> {
+                provisionConcurrently(reference, fixture.userId, ready, start);
+                return null;
+            });
+            var second = executor.submit(() -> {
+                provisionConcurrently(reference, fixture.userId, ready, start);
+                return null;
+            });
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            first.get(20, TimeUnit.SECONDS);
+            second.get(20, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM progression_subject_identity
+                WHERE namespace = ? AND external_id = ?
+                """, Integer.class, reference.namespace(), reference.externalId())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM progression_subject_current_binding
+                WHERE namespace = ? AND external_id = ?
+                """, Integer.class, reference.namespace(), reference.externalId())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM progression_subject_ownership_history history
+                JOIN progression_subject_identity identity ON identity.id = history.identity_id
+                WHERE identity.namespace = ? AND identity.external_id = ?
+                """, Integer.class, reference.namespace(), reference.externalId())).isEqualTo(1);
+    }
+
+    private void provisionConcurrently(ExternalSubjectReference reference, UUID targetId,
+                                      CountDownLatch ready, CountDownLatch start) throws Exception {
+        ready.countDown();
+        if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent provision did not start");
+        identityProvisioning.provision(reference, new SubjectId(targetId));
     }
 
     @Test

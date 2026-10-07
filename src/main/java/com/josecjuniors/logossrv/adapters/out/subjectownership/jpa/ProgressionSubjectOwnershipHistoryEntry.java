@@ -95,6 +95,18 @@ public class ProgressionSubjectOwnershipHistoryEntry {
     @Column(name = "recorded_at", nullable = false, insertable = false, updatable = false)
     private Instant recordedAt;
 
+    @Column(name = "predecessor_identity_id")
+    private UUID predecessorIdentityId;
+
+    @Column(name = "predecessor_ownership_version")
+    private Long predecessorOwnershipVersion;
+
+    @Column(name = "reassignment_request_id")
+    private UUID reassignmentRequestId;
+
+    @Column(name = "reassignment_authorization_id")
+    private UUID reassignmentAuthorizationId;
+
     protected ProgressionSubjectOwnershipHistoryEntry() {
     }
 

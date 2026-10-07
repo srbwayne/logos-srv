@@ -138,6 +138,31 @@ class SubjectOwnershipFoundationMigrationPostgresTest {
                     "UPDATE progression_subject_identity SET identity_class = 'EXTERNAL' WHERE id = '"
                             + nativeIdentity + "'"))
                     .isInstanceOf(SQLException.class);
+
+            flyway(baseUrl, username, password, schema, "48").migrate();
+            assertThat(latestVersion(isolatedUrl, username, password)).isEqualTo("48");
+            flyway(baseUrl, username, password, schema, "49").migrate();
+            assertThat(latestVersion(isolatedUrl, username, password)).isEqualTo("49");
+            assertThat(queryLong(isolatedUrl, username, password,
+                    "SELECT count(*) FROM progression_subject_current_binding")).isEqualTo(2L);
+            assertThat(queryLong(isolatedUrl, username, password, """
+                    SELECT count(*) FROM progression_subject_identity identity
+                    JOIN progression_subject_current_binding pointer
+                      ON pointer.namespace = identity.namespace
+                     AND pointer.external_id = identity.external_id
+                     AND pointer.current_identity_id = identity.id
+                    """)).isEqualTo(2L);
+            assertThat(queryLong(isolatedUrl, username, password, """
+                    SELECT count(*) FROM progression_subject_current_binding pointer
+                    JOIN progression_subject_identity identity
+                      ON identity.id = pointer.current_identity_id
+                    WHERE pointer.namespace = 'logos-native'
+                    """)).isEqualTo(1L);
+            assertThat(queryLong(isolatedUrl, username, password, """
+                    SELECT count(*) FROM pg_constraint
+                    WHERE conrelid = 'progression_subject_identity'::regclass
+                      AND conname = 'uk_progression_subject_identity_namespace_external_id'
+                    """)).isZero();
         } finally {
             try (Connection connection = DriverManager.getConnection(baseUrl, username, password);
                  Statement statement = connection.createStatement()) {
