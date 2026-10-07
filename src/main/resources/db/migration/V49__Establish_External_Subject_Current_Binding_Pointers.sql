@@ -139,20 +139,28 @@ ALTER TABLE progression_subject_ownership_history
             AND predecessor_ownership_version >= 0
             AND reassignment_request_id IS NOT NULL
             AND reassignment_authorization_id IS NOT NULL
+            AND previous_identity_class IS NOT NULL
             AND previous_identity_class = 'EXTERNAL'
+            AND new_identity_class IS NOT NULL
             AND new_identity_class = 'EXTERNAL'
+            AND previous_ownership_status IS NOT NULL
             AND previous_ownership_status = 'REVOKED'
+            AND new_ownership_status IS NOT NULL
             AND new_ownership_status = 'DISABLED'
             AND previous_target_jogador_id IS NOT NULL
+            AND new_target_jogador_id IS NOT NULL
             AND previous_target_jogador_id <> new_target_jogador_id
+            AND previous_verification_status IS NOT NULL
             AND previous_verification_status IN ('UNVERIFIED', 'VERIFIED', 'INVALIDATED')
-            AND new_verification_status = CASE previous_verification_status
+            AND new_verification_status IS NOT NULL
+            AND new_verification_status IS NOT DISTINCT FROM CASE previous_verification_status
                 WHEN 'VERIFIED' THEN 'UNVERIFIED'
                 ELSE previous_verification_status
             END
-            AND provenance = 'LOGOS_OPERATOR_ACTION'
-            AND actor_type = 'WORKLOAD_OPERATOR'
+            AND provenance IS NOT DISTINCT FROM 'LOGOS_OPERATOR_ACTION'
+            AND actor_type IS NOT DISTINCT FROM 'WORKLOAD_OPERATOR'
             AND actor_id IS NOT NULL AND btrim(actor_id) <> ''
+            AND evidence_type IS NOT NULL
             AND evidence_type = 'ADMINISTRATIVE_REASSIGNMENT_AUTHORIZATION'
             AND evidence_reference IS NOT NULL AND btrim(evidence_reference) <> ''
             AND reason IS NOT NULL AND btrim(reason) <> ''
@@ -196,29 +204,45 @@ BEGIN
     WHERE namespace = successor.namespace AND external_id = successor.external_id;
 
     IF successor.id IS NULL OR predecessor.id IS NULL OR approval_row.authorization_id IS NULL
+       OR NEW.aggregate_version IS DISTINCT FROM 0
+       OR NEW.previous_identity_class IS DISTINCT FROM 'EXTERNAL'
+       OR NEW.new_identity_class IS DISTINCT FROM 'EXTERNAL'
+       OR NEW.previous_ownership_status IS DISTINCT FROM 'REVOKED'
+       OR NEW.new_ownership_status IS DISTINCT FROM 'DISABLED'
+       OR NEW.previous_verification_status IS DISTINCT FROM predecessor.verification_status
+       OR NEW.new_verification_status IS DISTINCT FROM successor.verification_status
+       OR NEW.previous_target_jogador_id IS DISTINCT FROM predecessor.jogador_id
+       OR NEW.new_target_jogador_id IS DISTINCT FROM successor.jogador_id
+       OR NEW.previous_target_jogador_id IS NULL
+       OR NEW.new_target_jogador_id IS NULL
+       OR NEW.previous_target_jogador_id = NEW.new_target_jogador_id
+       OR NEW.provenance IS DISTINCT FROM 'LOGOS_OPERATOR_ACTION'
+       OR NEW.actor_type IS DISTINCT FROM 'WORKLOAD_OPERATOR'
+       OR NEW.actor_id IS NULL OR btrim(NEW.actor_id) = ''
+       OR NEW.evidence_type IS DISTINCT FROM 'ADMINISTRATIVE_REASSIGNMENT_AUTHORIZATION'
+       OR NEW.evidence_reference IS DISTINCT FROM NEW.reassignment_authorization_id::text
+       OR NEW.reason IS NULL OR btrim(NEW.reason) = ''
        OR successor.predecessor_identity_id IS DISTINCT FROM predecessor.id
        OR successor.namespace IS DISTINCT FROM predecessor.namespace
        OR successor.external_id IS DISTINCT FROM predecessor.external_id
-       OR successor.identity_class <> 'EXTERNAL'
-       OR successor.ownership_status <> 'DISABLED'
-       OR successor.ownership_version <> 0
-       OR successor.jogador_id <> NEW.new_target_jogador_id
-       OR predecessor.identity_class <> 'EXTERNAL'
-       OR predecessor.ownership_status <> 'REVOKED'
-       OR predecessor.ownership_version <> NEW.predecessor_ownership_version
-       OR predecessor.jogador_id <> NEW.previous_target_jogador_id
-       OR predecessor.verification_status <> NEW.previous_verification_status
-       OR successor.verification_status <> NEW.new_verification_status
+       OR successor.identity_class IS DISTINCT FROM 'EXTERNAL'
+       OR successor.ownership_status IS DISTINCT FROM 'DISABLED'
+       OR successor.ownership_version IS DISTINCT FROM 0
+       OR successor.jogador_id IS DISTINCT FROM NEW.new_target_jogador_id
+       OR predecessor.identity_class IS DISTINCT FROM 'EXTERNAL'
+       OR predecessor.ownership_status IS DISTINCT FROM 'REVOKED'
+       OR predecessor.ownership_version IS DISTINCT FROM NEW.predecessor_ownership_version
+       OR predecessor.jogador_id IS DISTINCT FROM NEW.previous_target_jogador_id
        OR selected_identity IS DISTINCT FROM successor.id
-       OR approval_row.reassignment_request_id <> NEW.reassignment_request_id
-       OR approval_row.namespace <> successor.namespace
-       OR approval_row.external_id <> successor.external_id
-       OR approval_row.predecessor_identity_id <> predecessor.id
-       OR approval_row.predecessor_ownership_version <> predecessor.ownership_version
-       OR approval_row.predecessor_target_jogador_id <> predecessor.jogador_id
-       OR approval_row.proposed_successor_target_jogador_id <> successor.jogador_id
-       OR approval_row.authorization_id::text <> NEW.evidence_reference
-       OR approval_row.reviewer_principal_id = NEW.actor_id THEN
+       OR approval_row.reassignment_request_id IS DISTINCT FROM NEW.reassignment_request_id
+       OR approval_row.namespace IS DISTINCT FROM successor.namespace
+       OR approval_row.external_id IS DISTINCT FROM successor.external_id
+       OR approval_row.predecessor_identity_id IS DISTINCT FROM predecessor.id
+       OR approval_row.predecessor_ownership_version IS DISTINCT FROM predecessor.ownership_version
+       OR approval_row.predecessor_target_jogador_id IS DISTINCT FROM predecessor.jogador_id
+       OR approval_row.proposed_successor_target_jogador_id IS DISTINCT FROM successor.jogador_id
+       OR approval_row.authorization_id::text IS DISTINCT FROM NEW.evidence_reference
+       OR approval_row.reviewer_principal_id IS NOT DISTINCT FROM NEW.actor_id THEN
         RAISE EXCEPTION 'OWNERSHIP_REASSIGNED history must match its successor, predecessor, pointer, and authorization';
     END IF;
     RETURN NULL;

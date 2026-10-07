@@ -8,6 +8,7 @@ import com.josecjuniors.logossrv.core.progression.domain.model.SubjectId;
 import com.josecjuniors.logossrv.support.test.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -161,6 +162,78 @@ class CurrentBindingPointerPostgresTest {
                     "different-locator-" + UUID.randomUUID(), targetJogador(target.userId),
                     "EXTERNAL", "DISABLED", "UNVERIFIED", 0L, predecessor);
         })).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void reassignmentHistoryRejectsNullPreviousIdentityClass() {
+        assertReassignmentEventRejected(null, "REVOKED", "UNVERIFIED",
+                "ADMINISTRATIVE_REASSIGNMENT_AUTHORIZATION");
+    }
+
+    @Test
+    void reassignmentHistoryRejectsNullPreviousOwnershipStatus() {
+        assertReassignmentEventRejected("EXTERNAL", null, "UNVERIFIED",
+                "ADMINISTRATIVE_REASSIGNMENT_AUTHORIZATION");
+    }
+
+    @Test
+    void reassignmentHistoryRejectsNullPreviousVerificationStatus() {
+        assertReassignmentEventRejected("EXTERNAL", "REVOKED", null,
+                "ADMINISTRATIVE_REASSIGNMENT_AUTHORIZATION");
+    }
+
+    @Test
+    void reassignmentHistoryRejectsNullEvidenceType() {
+        assertReassignmentEventRejected("EXTERNAL", "REVOKED", "UNVERIFIED", null);
+    }
+
+    @Test
+    void reassignmentHistoryRejectsWrongNonNullSnapshot() {
+        assertReassignmentEventRejected("EXTERNAL", "ACTIVE", "UNVERIFIED",
+                "ADMINISTRATIVE_REASSIGNMENT_AUTHORIZATION");
+    }
+
+    private void assertReassignmentEventRejected(String previousIdentityClass,
+                                                 String previousOwnershipStatus,
+                                                 String previousVerificationStatus,
+                                                 String evidenceType) {
+        var source = newTarget("reassignment-null-source-" + UUID.randomUUID());
+        var destination = newTarget("reassignment-null-destination-" + UUID.randomUUID());
+        var reference = new ExternalSubjectReference(NAMESPACE, "invalid-event-" + UUID.randomUUID());
+        provisioning.provision(reference, new SubjectId(source.userId));
+        UUID identityId = currentIdentity(reference);
+        UUID oldTarget = targetJogador(source.userId);
+        UUID newTarget = destination.jogadorId;
+        UUID authorizationId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> inNewTransaction(() -> {
+            jdbc.update("""
+                    INSERT INTO progression_subject_reassignment_authorization
+                        (authorization_id, reassignment_request_id, namespace, external_id,
+                         predecessor_identity_id, predecessor_ownership_version,
+                         predecessor_target_jogador_id, proposed_successor_target_jogador_id,
+                         recovery_basis, reviewed_case_reference, reviewer_principal_id)
+                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, 'reviewed recovery', 'case-reference', 'reviewer-principal')
+                    """, authorizationId, requestId, reference.namespace(), reference.externalId(),
+                    identityId, oldTarget, newTarget);
+            jdbc.update("""
+                    INSERT INTO progression_subject_ownership_history
+                        (id, identity_id, aggregate_version, event_type,
+                         previous_identity_class, new_identity_class,
+                         previous_target_jogador_id, new_target_jogador_id,
+                         previous_ownership_status, new_ownership_status,
+                         previous_verification_status, new_verification_status,
+                         provenance, actor_type, actor_id, evidence_type, evidence_reference,
+                         reason, effective_at, predecessor_identity_id, predecessor_ownership_version,
+                         reassignment_request_id, reassignment_authorization_id)
+                    VALUES (?, ?, 100, 'OWNERSHIP_REASSIGNED', ?, 'EXTERNAL', ?, ?, ?, 'DISABLED', ?, 'UNVERIFIED',
+                            'LOGOS_OPERATOR_ACTION', 'WORKLOAD_OPERATOR', 'executor-principal', ?, ?,
+                            'structural rejection test', clock_timestamp(), ?, 0, ?, ?)
+                    """, UUID.randomUUID(), identityId, previousIdentityClass, oldTarget, newTarget,
+                    previousOwnershipStatus, previousVerificationStatus, evidenceType, authorizationId.toString(),
+                    identityId, requestId, authorizationId);
+        })).isInstanceOf(DataAccessException.class);
     }
 
     private UUID createSuccessor(ExternalSubjectReference reference, UUID predecessorId,
