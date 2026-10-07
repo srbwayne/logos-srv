@@ -49,6 +49,12 @@ public class JpaProgressionSubjectIdentityProvisioningAdapter
             return;
         }
         if (repository.existsByNamespaceAndExternalId(reference.namespace(), reference.externalId())) {
+            var concurrentlyProvisionedIdentityId = repository.lockCurrentIdentityId(
+                    reference.namespace(), reference.externalId());
+            if (concurrentlyProvisionedIdentityId.isPresent()) {
+                ensureSameCurrentTarget(reference, target, concurrentlyProvisionedIdentityId.get());
+                return;
+            }
             throw new DataIntegrityViolationException(
                     "Subject identity history exists without a current-binding pointer");
         }
