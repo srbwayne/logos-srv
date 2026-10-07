@@ -60,8 +60,8 @@ fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
 grants, principals, or trust records. It introduced no ingress. The canonical
 implemented C1B lifecycle mutations are VERIFY, INVALIDATE, REVERIFY, DISABLE,
-REACTIVATE, and REVOKE. TRANSFER is designed but unimplemented. REASSIGNMENT,
-TARGET_CORRECTION, and C2 enforcement remain unimplemented and undesigned.
+REACTIVATE, REVOKE, and TRANSFER are canonical and implemented. REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
+undesigned and unimplemented; C2 enforcement remains unimplemented.
 
 ## Audit, lifecycle, and concurrency requirements
 
@@ -135,8 +135,9 @@ atomically under the existing identity-row `PESSIMISTIC_WRITE` lock.
 
 INVALIDATE adds no migration or ingress and does not change resolver or
 progression execution behavior. REACTIVATE and REVOKE are canonical and
-implemented. TRANSFER is designed below but unimplemented; REASSIGNMENT,
-TARGET_CORRECTION, and C2 remain undesigned and unimplemented.
+implemented. TRANSFER is canonical and implemented; its frozen semantics are
+recorded below; REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
+undesigned and unimplemented; C2 remains unimplemented.
 
 ## C1B REVERIFY implementation
 
@@ -184,9 +185,8 @@ This canonical slice needs no migration: V48 provides the current verification
 state/version and append-only history fields, and the event name fits the
 existing event-type column. REVERIFY adds no ingress, grants, principals, trust
 records, workload activation, resolver behavior, or execution enforcement.
-REACTIVATE and REVOKE are canonical and implemented. TRANSFER is designed but
-unimplemented. REASSIGNMENT, TARGET_CORRECTION, and C2 enforcement remain
-unimplemented and undesigned.
+REACTIVATE, REVOKE, and TRANSFER are canonical and implemented. REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
+undesigned and unimplemented; C2 enforcement remains unimplemented.
 
 ## C1B DISABLE implementation — canonical
 
@@ -325,8 +325,10 @@ required.
 
 REACTIVATE became canonical when PR #63 was squash-merged as
 `2b8a5ac1aaf4e5639612090bcb57a5892168fc02`. REVOKE is canonical and
-implemented. TRANSFER is designed below but remains unimplemented.
-REASSIGNMENT, TARGET_CORRECTION, and C2 remain unimplemented and undesigned.
+implemented. TRANSFER is canonical and implemented; its semantics are
+recorded below.
+REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
+undesigned and unimplemented; C2 remains unimplemented.
 
 ## C1B REVOKE — canonical implementation semantics
 
@@ -412,21 +414,22 @@ Append-only triggers reject UPDATE, DELETE, and TRUNCATE while permitting
 history INSERT. V48 changes authorization constraints only. The migration
 head remains V48; V49 is not required.
 
-REVOKED is terminal only for the current binding. TRANSFER is separately
-designed below for eligible ACTIVE or DISABLED bindings and cannot revive a
-REVOKED binding or define replacement bindings. REASSIGNMENT remains
-undesigned. This design does not define resolver or progression-execution
+REVOKED is terminal only for the current binding. TRANSFER is canonical; its
+frozen semantics are recorded below for eligible ACTIVE or DISABLED bindings,
+and it cannot revive a
+REVOKED binding or define replacement bindings. REASSIGNMENT is proposed in a
+separate section below and remains unimplemented. This design does not define resolver or progression-execution
 enforcement: C2 must separately decide how ownership status affects execution
-eligibility and remains unimplemented. REVOKE is canonical and implemented;
-TRANSFER is designed but unimplemented. TARGET_CORRECTION and C2 remain
+eligibility and remains unimplemented. REVOKE and TRANSFER are canonical and
+implemented. TARGET_CORRECTION and C2 remain
 undesigned.
 
 
-## C1B TRANSFER design — proposed, unimplemented
+## C1B TRANSFER — canonical implementation semantics
 
-This proposed design is documentation-only. It does not alter the canonical
-VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, or REVOKE semantics and
-confers no implementation authority.
+The TRANSFER implementation became canonical in PR #67. This section preserves
+the design rationale and frozen semantics; it does not alter VERIFY,
+INVALIDATE, REVERIFY, DISABLE, REACTIVATE, or REVOKE.
 
 ### Frozen behavior and physical model
 
@@ -549,11 +552,132 @@ later REVOKE act on the new target. A DISABLED transfer racing REACTIVATE
 follows the same lock/version rule. Verification races do not imply or reorder
 proof; no automatic retries are allowed.
 
-TRANSFER is a consensual handoff. REASSIGNMENT remains a separate, undesigned
-recovery/replacement flow (for example, an unavailable source target or a
-separately authorized binding after revocation); TRANSFER cannot bypass
-REVOKE. TARGET_CORRECTION is a clerical fix to erroneous target data, not a
+TRANSFER is a consensual handoff. REASSIGNMENT is proposed below as a separate
+successor-binding flow after REVOKE; it cannot bypass REVOKE. TARGET_CORRECTION is a clerical fix to erroneous target data, not a
 handoff; it needs distinct evidence and immutable audit history and must not
 bypass transfer auditing. Its semantics remain unfrozen. Neither is
 implemented. No resolver, ingress, or execution behavior changes; ACTIVE does
 not mean executable and C2 remains separate.
+
+
+## REASSIGNMENT design — proposed, unimplemented
+
+This proposal defines exceptional administrative recovery without changing
+accepted lifecycle implementation. It selects a successor binding (Model B):
+the current EXTERNAL binding must first be canonically REVOKED; then a
+separately reviewed operation may create a new identity for the same locator
+and a different target. REASSIGNMENT cannot mutate an ACTIVE or DISABLED row,
+cannot serve as a second spelling of bilateral TRANSFER, and cannot revive a
+REVOKED identity. Model A (same-row target mutation) is rejected because it
+blurs lifecycle identity and risks reusing a terminal binding. No existing
+Model C representation supports current selection and lineage safely.
+
+### Eligibility and boundaries
+
+Only the current pointer-selected `EXTERNAL / REVOKED` predecessor is
+conditionally eligible, at its exact identity UUID and ownership version.
+ACTIVE and DISABLED are ineligible; use canonical TRANSFER for consensual
+handoff or REVOKE before exceptional reassignment. Native identities,
+`logos-native`, EXTERNAL/NOT_REQUIRED, malformed states, and unsupported
+verification states are rejected. The predecessor stays REVOKED, with the
+same target, version, and immutable history. No predecessor state transition
+is synthesized.
+
+TRANSFER remains the bilateral ACTIVE/DISABLED A-to-B handoff with fixed
+`BILATERAL_TRANSFER_CONSENT`. TARGET_CORRECTION is reserved for a target that
+was erroneous from inception. A valid A-to-B handoff is TRANSFER; unavailable,
+compromised, or revoked predecessor recovery is REVOKE followed by proposed
+REASSIGNMENT. This boundary prevents reassignment from bypassing consent or
+turning correction into a history bypass. TARGET_CORRECTION is not designed
+by this section.
+
+### Successor identity and verification
+
+The successor has a new identity UUID, same `(namespace, externalId)`, a
+distinct target B, identity class EXTERNAL, and initial ownership status
+DISABLED. It is a separate lifecycle, not a resurrection. Positive
+verification is not inherited: predecessor UNVERIFIED or VERIFIED yields
+successor UNVERIFIED because old evidence does not prove the new target.
+Predecessor INVALIDATED yields successor INVALIDATED to avoid laundering the
+negative signal; this is not inherited proof and reassignment itself emits no
+verification event. NOT_REQUIRED is rejected for EXTERNAL. Later lifecycle
+changes require their own existing authorization and semantics. No state
+implies C2 execution eligibility.
+
+### Command, authority, evidence, and reason
+
+The proposed minimum command is
+`ReassignExternalSubjectOwnershipCommand(reference, predecessorIdentityId,
+expectedPredecessorOwnershipVersion, newTargetJogadorId, reassignmentRequestId,
+evidenceReference, reason)`. Explicit predecessor ID prevents a stale locator
+command from binding to a newer lifecycle; a request UUID is required for
+exact two-identity replay. Actor, result states, provenance, timestamps, and
+event type are server-owned.
+
+Reuse `SUBJECT_OWNERSHIP_MANAGE` for the exact namespace and authorize before
+any binding or request lookup. Require authenticated verified WORKLOAD; audit
+as `WORKLOAD_OPERATOR` using the trusted server-derived principal ID. Reason
+is mandatory, trimmed, nonblank, maximum 512. Evidence is not
+`BILATERAL_TRANSFER_CONSENT` or verification evidence: use the fixed type
+`ADMINISTRATIVE_REASSIGNMENT_AUTHORIZATION`, with required trimmed,
+nonblank reference up to 255 characters. The reference must resolve to a
+trusted review record binding locator, predecessor UUID/version/target,
+successor target, recovery basis, and approval. Arbitrary caller text is not
+approval.
+
+### History, versions, replay, locking
+
+Predecessor must be current, REVOKED at expected version N. Reassignment does
+not change predecessor state/version/history. Successor starts its own
+version stream at 0. Append one initial `OWNERSHIP_REASSIGNED` event on the
+successor at version 0, carrying predecessor UUID/version, successor UUID,
+request ID, locator, old/new targets, before/after lifecycle and verification
+states, trusted actor, `LOGOS_OPERATOR_ACTION`, fixed evidence, normalized
+reason, server-derived effective time, and DB-derived recorded time. Link the
+successor to its predecessor and correlate the history event; never rewrite
+the predecessor's `OWNERSHIP_REVOKED` event.
+
+Exact replay requires the same request UUID and immutable history proof of the
+same predecessor, locator/version/state/target, successor UUID/target/state,
+evidence, reason, and correlation. Return the original successor without
+mutation. Reusing an ID with a different payload conflicts. Current target
+alone is not replay. Stale commands for an older predecessor conflict unless
+they identify that exact completed request.
+
+Lock the current-locator pointer then predecessor row in deterministic order.
+Create successor, append event, and switch pointer atomically. A unique
+current locator, one-successor-per-predecessor rule, and unique request/event
+constraint guard concurrent requests. Equivalent concurrent requests create
+one successor; competing targets cannot both become current. Reassignment
+cannot race ahead of REVOKE: lifecycle changes serialize, and only a committed
+REVOKED predecessor is eligible.
+
+### Schema and lookup consequence
+
+Read-only V32/V47/V48 inspection found full unique `(namespace, external_id)`
+on the identity table, no current discriminator/pointer, no lineage fields,
+and history keyed only by identity UUID with unique per-identity aggregate
+version. Event type is VARCHAR(64), nonblank rather than allowlisted;
+evidence type/reference are nullable VARCHAR(64/255), reason nullable
+VARCHAR(512), and `recorded_at` is DB-defaulted. Append-only triggers permit
+INSERT and reject UPDATE/DELETE/TRUNCATE. Exact-locator repositories, resolver,
+lifecycle store, and provisioning assume one row per locator.
+
+Therefore `V49_REQUIRED = YES`; no migration is created by this proposal. At
+minimum, a future migration must permit historical rows per locator, establish
+exactly one current binding per locator (prefer a unique current-pointer
+relation), add predecessor/successor and request correlation, and extend
+history to link predecessor/version to successor. Existing rows must receive
+one current pointer. The pointer locator must be unique, match its referenced
+identity, and database constraints/triggers must enforce exactly one selected
+identity per known locator at commit. A predecessor link must prevent
+branching but permit a later successor after the new current binding is
+revoked. Exact-locator lifecycle and resolver reads must select through that
+pointer; history remains UUID-addressable. Provisioning must
+create only a first binding and must reject historical locators with a missing
+current pointer rather than bypassing reassignment. These lookup-selection
+changes are not C2 execution enforcement.
+
+REASSIGNMENT remains proposed and unimplemented. This section neither changes
+frozen TRANSFER/REVOKE semantics nor designs TARGET_CORRECTION or authorizes
+implementation, migration, ingress, or resolver changes.
