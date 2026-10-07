@@ -247,14 +247,52 @@ authorization exists.
 
 After steps 1–5, look up a completed `OWNERSHIP_REASSIGNED` event by
 `reassignmentRequestId`, independent of the current pointer. V49's unique
-event-scoped request index makes the result singular. Load the immutable event,
-its successor by `identity_id`, and its authorization. Compare the request
-against completed facts:
+event-scoped request index makes the result singular. The immutable
+`OWNERSHIP_REASSIGNED` event is the source of truth for every creation-time
+fact. Exact replay MUST NOT compare mutable current successor lifecycle fields
+with the original command.
+
+Read creation facts from the event as follows:
+
+| Creation fact | Immutable event field |
+| --- | --- |
+| Successor identity UUID | `identity_id` |
+| Successor target | `new_target_jogador_id` |
+| Successor ownership at creation | `new_ownership_status` |
+| Successor verification at creation | `new_verification_status` |
+| Successor version at creation | `aggregate_version` |
+| Predecessor target | `previous_target_jogador_id` |
+| Predecessor ownership | `previous_ownership_status` |
+| Predecessor verification | `previous_verification_status` |
+| Predecessor version | `predecessor_ownership_version` |
+| Reason | `reason` |
+| Evidence type/reference | `evidence_type` / `evidence_reference` |
+| Provenance | `provenance` |
+| Actor type/executor principal | `actor_type` / `actor_id` |
+| Request/authorization UUID | `reassignment_request_id` / `reassignment_authorization_id` |
+
+The event's successor UUID, snapshot, reason, evidence, provenance, and actor
+fields are immutable. The event identity's locator is obtained from immutable
+identity columns (`id`, `namespace`, `external_id`); its immutable
+`predecessor_identity_id` may also be checked. Those identity fields may be
+used only to bind the event to the correct locator and lineage.
+
+Do NOT use current successor `jogador_id`, `ownership_status`,
+`verification_status`, or `ownership_version` to prove replay equivalence.
+Valid later lifecycle operations can change those fields after reassignment.
+The successor may be REACTIVATED, verified/reverified, REVOKED, or TRANSFERRED
+to another target; none rewrites the original reassignment event. An exact A →
+B replay still succeeds after any such valid mutation and returns the original
+A → B result. The same applies after B later becomes the predecessor of B → C:
+the old A → B request returns its original B result without requiring B to be
+the current pointer target.
+
+Compare the command against event creation facts and the immutable
+authorization record:
 
 - request UUID and authorization UUID/evidence reference;
-- locator, predecessor UUID/version/target and successor UUID/target;
-- successor creation state DISABLED, version 0, and exact verification
-  mapping;
+- locator, predecessor UUID/version/target/ownership/verification and
+  successor UUID/target/ownership/verification/version at creation;
 - normalized reason, fixed evidence type, `LOGOS_OPERATOR_ACTION`,
   `WORKLOAD_OPERATOR`, and recorded executor principal;
 - authorization payload, including reviewer provenance and reviewer/executor
@@ -264,7 +302,24 @@ Exact match returns the original successor result. Any mismatch is conflict,
 including a different executor principal. Current-target equality is never
 replay proof. Because lookup uses the immutable request event, an old A → B
 request remains replayable after a later B → C reassignment has moved the
-pointer again.
+pointer again or B's lifecycle state/target has since changed.
+
+Reconstruct `SubjectOwnershipReassignmentResult` from the event and immutable
+locator identity facts, never from mutable successor columns:
+
+```text
+successorIdentityId = event.identity_id
+reference = immutable identity namespace + external_id
+targetJogadorId = event.new_target_jogador_id
+ownershipStatus = event.new_ownership_status // DISABLED at creation
+verificationStatus = event.new_verification_status
+ownershipVersion = event.aggregate_version // 0 at creation
+reassignmentRequestId = event.reassignment_request_id
+authorizationId = event.reassignment_authorization_id
+```
+
+Thus replay returns the original reassignment result, not the successor's
+current target, status, verification, or version.
 
 ### 5.3 Real-operation path and mandatory second replay check
 
@@ -339,7 +394,12 @@ authorization remain unchanged. Do not automatically retry a real transition.
 - `findAuthorizationByRequestId`: approval idempotency lookup, only after
   namespace authorization.
 - `findCompletedReassignmentByRequestId`: event + successor + authorization
-  projection, usable for exact replay after pointer movement.
+  projection containing all immutable event facts needed for exact matching
+  and result reconstruction, plus immutable authorization facts. It does not
+  require current-pointer membership or mutable successor lifecycle state.
+  The associated identity row, if queried, supplies only immutable identity,
+  locator, and predecessor-link values; current target/status/verification/
+  version are excluded from replay evidence.
 - `lockCurrentPredecessor`: pointer lock followed by the selected identity
   lock and locator/current confirmation.
 - `targetExists`: read-only target check; the target FK remains authoritative.
@@ -427,6 +487,13 @@ may distinguish those authorization cases to an unauthorized caller.
 - exact replay returns the original successor;
 - replay still returns A → B's original result after the current pointer has
   advanced to C;
+- exact replay succeeds after successor REACTIVATE;
+- exact replay succeeds after successor VERIFY/REVERIFY where applicable;
+- exact replay succeeds after successor REVOKE;
+- exact replay succeeds after successor TRANSFER;
+- replay result retains original creation target, DISABLED status, verification,
+  and version 0 rather than projecting later mutable successor state;
+- exact A → B replay succeeds after a later B → C chain and returns original B;
 - changed target, evidence, reason, predecessor/version, authorization, or
   executor conflicts;
 - current target alone never satisfies replay.
