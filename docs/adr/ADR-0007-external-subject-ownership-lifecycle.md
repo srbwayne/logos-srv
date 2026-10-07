@@ -60,7 +60,7 @@ fields are never command input. AppUser and `SYSTEM` operators remain
 unsupported. V48 changes authorization constraints only and creates no
 grants, principals, or trust records. It introduced no ingress. The canonical
 implemented C1B lifecycle mutations are VERIFY, INVALIDATE, REVERIFY, DISABLE,
-REACTIVATE, and REVOKE. TRANSFER is designed but unimplemented. REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
+REACTIVATE, REVOKE, and TRANSFER are canonical and implemented. REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
 undesigned and unimplemented; C2 enforcement remains unimplemented.
 
 ## Audit, lifecycle, and concurrency requirements
@@ -135,7 +135,8 @@ atomically under the existing identity-row `PESSIMISTIC_WRITE` lock.
 
 INVALIDATE adds no migration or ingress and does not change resolver or
 progression execution behavior. REACTIVATE and REVOKE are canonical and
-implemented. TRANSFER is designed below but unimplemented; REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
+implemented. TRANSFER is canonical and implemented; its frozen semantics are
+recorded below; REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
 undesigned and unimplemented; C2 remains unimplemented.
 
 ## C1B REVERIFY implementation
@@ -184,8 +185,7 @@ This canonical slice needs no migration: V48 provides the current verification
 state/version and append-only history fields, and the event name fits the
 existing event-type column. REVERIFY adds no ingress, grants, principals, trust
 records, workload activation, resolver behavior, or execution enforcement.
-REACTIVATE and REVOKE are canonical and implemented. TRANSFER is designed but
-unimplemented. REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
+REACTIVATE, REVOKE, and TRANSFER are canonical and implemented. REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
 undesigned and unimplemented; C2 enforcement remains unimplemented.
 
 ## C1B DISABLE implementation — canonical
@@ -325,7 +325,8 @@ required.
 
 REACTIVATE became canonical when PR #63 was squash-merged as
 `2b8a5ac1aaf4e5639612090bcb57a5892168fc02`. REVOKE is canonical and
-implemented. TRANSFER is designed below but remains unimplemented.
+implemented. TRANSFER is canonical and implemented; its semantics are
+recorded below.
 REASSIGNMENT is proposed below but unimplemented. TARGET_CORRECTION remains
 undesigned and unimplemented; C2 remains unimplemented.
 
@@ -413,21 +414,22 @@ Append-only triggers reject UPDATE, DELETE, and TRUNCATE while permitting
 history INSERT. V48 changes authorization constraints only. The migration
 head remains V48; V49 is not required.
 
-REVOKED is terminal only for the current binding. TRANSFER is separately
-designed below for eligible ACTIVE or DISABLED bindings and cannot revive a
+REVOKED is terminal only for the current binding. TRANSFER is canonical; its
+frozen semantics are recorded below for eligible ACTIVE or DISABLED bindings,
+and it cannot revive a
 REVOKED binding or define replacement bindings. REASSIGNMENT is proposed in a
 separate section below and remains unimplemented. This design does not define resolver or progression-execution
 enforcement: C2 must separately decide how ownership status affects execution
-eligibility and remains unimplemented. REVOKE is canonical and implemented;
-TRANSFER is designed but unimplemented. TARGET_CORRECTION and C2 remain
+eligibility and remains unimplemented. REVOKE and TRANSFER are canonical and
+implemented. TARGET_CORRECTION and C2 remain
 undesigned.
 
 
-## C1B TRANSFER design — proposed, unimplemented
+## C1B TRANSFER — canonical implementation semantics
 
-This proposed design is documentation-only. It does not alter the canonical
-VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, or REVOKE semantics and
-confers no implementation authority.
+The TRANSFER implementation became canonical in PR #67. This section preserves
+the design rationale and frozen semantics; it does not alter VERIFY,
+INVALIDATE, REVERIFY, DISABLE, REACTIVATE, or REVOKE.
 
 ### Frozen behavior and physical model
 

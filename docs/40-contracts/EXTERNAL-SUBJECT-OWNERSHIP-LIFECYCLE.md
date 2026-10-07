@@ -1,7 +1,7 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, and REVOKE are
-canonical and implemented. TRANSFER is designed but unimplemented.
+Status: VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, REVOKE, and
+TRANSFER are canonical and implemented.
 REASSIGNMENT is proposed below and remains unimplemented. TARGET_CORRECTION
 remains undesigned and unimplemented; C2 enforcement remains unimplemented.
 
@@ -38,8 +38,8 @@ this authority.
 AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
 scheduled-job, or CLI ingress exists. Canonical implemented lifecycle
-mutations are VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, and REVOKE.
-TRANSFER is designed but unimplemented. REASSIGNMENT is proposed below but
+mutations are VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, REVOKE, and
+TRANSFER. REASSIGNMENT is proposed below but
 unimplemented. TARGET_CORRECTION remains undesigned and unimplemented; C2
 execution enforcement remains unimplemented.
 
@@ -84,8 +84,8 @@ provenance. Effective time is server-derived; recorded time is database-
 derived. The current-state change and history event are atomic and use the
 existing identity-row `PESSIMISTIC_WRITE` lock.
 
-REACTIVATE and REVOKE are canonical as documented below. TRANSFER is designed
-but unimplemented. REASSIGNMENT is proposed below but unimplemented.
+REACTIVATE, REVOKE, and TRANSFER are canonical and implemented as documented
+below. REASSIGNMENT is proposed below but unimplemented.
 TARGET_CORRECTION remains undesigned and unimplemented; C2 enforcement remains
 unimplemented. No ingress or
 resolver/execution behavior is added by these lifecycle capabilities.
@@ -276,8 +276,8 @@ event. `reason` is `VARCHAR(512)`, both evidence columns are nullable, and
 `recorded_at` is database-defaulted. V48 changes authorization constraints
 only. Migration head remains V48; V49 is not required.
 
-REACTIVATE and REVOKE are canonical and implemented. TRANSFER is specified
-in the design-only section below and remains unimplemented. REASSIGNMENT is
+REACTIVATE, REVOKE, and TRANSFER are canonical and implemented. TRANSFER
+semantics are recorded in the section below. REASSIGNMENT is
 proposed below but unimplemented. TARGET_CORRECTION remains undesigned and
 unimplemented; C2 remains unimplemented.
 
@@ -363,17 +363,17 @@ REVOKE is a state transition, never hard deletion. `REVOKED` is terminal for
 the current binding, and REACTIVATE continues to reject it. No runtime resolver
 or progression execution behavior is specified or changed here; C2 remains
 unimplemented and must separately determine how ownership status affects
-execution eligibility. REVOKE is canonical and implemented. TRANSFER is designed below
-but remains unimplemented; it cannot reverse REVOKE. REASSIGNMENT is proposed
+execution eligibility. REVOKE and TRANSFER are canonical and implemented;
+TRANSFER cannot reverse REVOKE. REASSIGNMENT is proposed
 below but unimplemented. TARGET_CORRECTION remains undesigned and
 unimplemented; C2 remains unimplemented.
 
 
-## TRANSFER design — proposed, unimplemented
+## TRANSFER — canonical implementation semantics
 
-This section records a documentation-only design decision. It does not change
-frozen VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, or REVOKE behavior and
-authorizes no implementation.
+The implementation became canonical in PR #67. This section preserves the
+frozen design rationale and records the implemented contract. It does not
+change VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, or REVOKE semantics.
 
 ### Frozen existing behavior and schema facts
 
@@ -546,8 +546,8 @@ implemented here.
 
 No resolver, ingress, or progression-execution behavior changes. ACTIVE does
 not thereby mean executable; C2 remains separate and unimplemented. Existing
-canonical lifecycle semantics remain unchanged. TRANSFER is design-only and
-unimplemented; REASSIGNMENT is proposed but unimplemented, TARGET_CORRECTION
+canonical lifecycle semantics remain unchanged. TRANSFER is canonical and
+implemented; REASSIGNMENT is proposed but unimplemented, TARGET_CORRECTION
 remains undesigned and unimplemented, and C2 remains unimplemented.
 
 ## REASSIGNMENT design — proposed, unimplemented
