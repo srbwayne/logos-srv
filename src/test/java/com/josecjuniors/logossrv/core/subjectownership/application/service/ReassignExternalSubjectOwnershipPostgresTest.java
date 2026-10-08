@@ -21,6 +21,7 @@ import com.josecjuniors.logossrv.core.subjectownership.application.port.in.Inval
 import com.josecjuniors.logossrv.core.subjectownership.application.port.in.InvalidateExternalSubjectOwnershipUseCase;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.out.AuthorizedSubjectOwnershipOperator;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipOperatorContext;
+import com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipReassignmentStore;
 import com.josecjuniors.logossrv.core.subjectownership.domain.exception.SubjectOwnershipReassignmentConflictException;
 import com.josecjuniors.logossrv.support.test.FreshPostgresIntegrationTest;
 import java.util.UUID;
@@ -31,6 +32,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Propagation;
@@ -38,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.reset;
 
 @FreshPostgresIntegrationTest
 @TestPropertySource(properties = "logos.test.schema-key=subject-ownership-reassignment-r2")
@@ -55,11 +59,73 @@ class ReassignExternalSubjectOwnershipPostgresTest {
     @Autowired ProvisionCurrentExternalSubjectIdentityService provisioning;
     @Autowired JdbcTemplate jdbc;
     @MockBean SubjectOwnershipOperatorContext operatorContext;
+    @SpyBean SubjectOwnershipReassignmentStore reassignmentStore;
     private final AtomicReference<String> principal = new AtomicReference<>("reviewer-r2");
 
     @BeforeEach void setup() {
+        reset(reassignmentStore);
         when(operatorContext.authorizeForNamespace(NAMESPACE)).thenAnswer(invocation ->
                 new AuthorizedSubjectOwnershipOperator(PrincipalType.WORKLOAD, principal.get(), NAMESPACE));
+    }
+
+    @Test void historyInsertFailureRollsBackSuccessorAndLeavesPointerUnchanged() {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID target = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        UUID request = UUID.randomUUID();
+        var auth = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
+                target, request, "recover", "case-history-failure"));
+        principal.set("executor-history-failure");
+        jdbc.execute("""
+                CREATE FUNCTION reject_test_reassignment_history() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION 'intentional reassignment history failure'; END;
+                $$
+                """);
+        jdbc.execute("""
+                CREATE TRIGGER trg_reject_test_reassignment_history
+                BEFORE INSERT ON progression_subject_ownership_history
+                FOR EACH ROW WHEN (NEW.event_type = 'OWNERSHIP_REASSIGNED')
+                EXECUTE FUNCTION reject_test_reassignment_history()
+                """);
+        try {
+            var command = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target,
+                    request, auth.evidenceReference(), "replacement");
+            assertThatThrownBy(() -> reassignment.reassign(command)).isInstanceOf(DataAccessException.class);
+            assertThat(currentIdentity(reference)).isEqualTo(predecessor);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_identity WHERE namespace=? AND external_id=?",
+                    Integer.class, reference.namespace(), reference.externalId())).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_ownership_history WHERE event_type='OWNERSHIP_REASSIGNED' AND reassignment_request_id=?",
+                    Integer.class, request)).isZero();
+        } finally {
+            jdbc.execute("DROP TRIGGER IF EXISTS trg_reject_test_reassignment_history ON progression_subject_ownership_history");
+            jdbc.execute("DROP FUNCTION IF EXISTS reject_test_reassignment_history()");
+        }
+    }
+
+    @Test void pointerCompareAndSwitchFailureRollsBackSuccessorAndHistory() {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID target = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        UUID request = UUID.randomUUID();
+        var auth = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
+                target, request, "recover", "case-pointer-failure"));
+        principal.set("executor-pointer-failure");
+        // Match any server-generated successor ID while keeping the adapter's write path intact.
+        org.mockito.Mockito.doAnswer(invocation -> 0).when(reassignmentStore)
+                .switchCurrentPointer(org.mockito.ArgumentMatchers.eq(reference),
+                        org.mockito.ArgumentMatchers.eq(predecessor), org.mockito.ArgumentMatchers.any(UUID.class));
+        var command = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target,
+                request, auth.evidenceReference(), "replacement");
+        assertThatThrownBy(() -> reassignment.reassign(command))
+                .isInstanceOf(SubjectOwnershipReassignmentConflictException.class);
+        reset(reassignmentStore);
+        assertThat(currentIdentity(reference)).isEqualTo(predecessor);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_identity WHERE namespace=? AND external_id=?",
+                Integer.class, reference.namespace(), reference.externalId())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_ownership_history WHERE event_type='OWNERSHIP_REASSIGNED' AND reassignment_request_id=?",
+                Integer.class, request)).isZero();
     }
 
     @Test void approvesRevokedCurrentPredecessorAndExecutesAtomicSuccessorThenExactReplay() {
