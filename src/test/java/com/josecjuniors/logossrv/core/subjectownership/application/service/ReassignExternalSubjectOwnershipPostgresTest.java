@@ -241,6 +241,84 @@ class ReassignExternalSubjectOwnershipPostgresTest {
                 Integer.class, request)).isEqualTo(1);
     }
 
+    @Test void concurrentSameRequestWithDifferentPayloadHasOneWinnerAndOneConflict() throws Exception {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID target = createTarget();
+        UUID alternateTarget = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        UUID request = UUID.randomUUID();
+        var auth = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
+                target, request, "recover", "case"));
+        principal.set("executor-race");
+        var accepted = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target, request,
+                auth.evidenceReference(), "payload one");
+        var changed = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, alternateTarget, request,
+                auth.evidenceReference(), "payload two");
+        var outcomes = race(() -> reassignment.reassign(accepted), () -> reassignment.reassign(changed));
+        assertOneSuccessOneConflict(outcomes);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_identity WHERE namespace=? AND external_id=?",
+                Integer.class, reference.namespace(), reference.externalId())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_ownership_history WHERE event_type='OWNERSHIP_REASSIGNED' AND reassignment_request_id=?",
+                Integer.class, request)).isEqualTo(1);
+    }
+
+    @Test void distinctRequestsCompetingForOnePredecessorHaveOneWinner() throws Exception {
+        for (boolean sameTarget : new boolean[] {true, false}) {
+            principal.set("reviewer-r2");
+            var reference = createIdentity();
+            UUID predecessor = currentIdentity(reference);
+            UUID targetA = createTarget();
+            UUID targetB = sameTarget ? targetA : createTarget();
+            revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+            UUID requestA = UUID.randomUUID();
+            UUID requestB = UUID.randomUUID();
+            var authA = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
+                    targetA, requestA, "recover A", "case A"));
+            var authB = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
+                    targetB, requestB, "recover B", "case B"));
+            principal.set("executor-competing");
+            var commandA = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, targetA, requestA,
+                    authA.evidenceReference(), "competing A");
+            var commandB = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, targetB, requestB,
+                    authB.evidenceReference(), "competing B");
+            assertOneSuccessOneConflict(race(() -> reassignment.reassign(commandA),
+                    () -> reassignment.reassign(commandB)));
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_identity WHERE namespace=? AND external_id=?",
+                    Integer.class, reference.namespace(), reference.externalId())).isEqualTo(2);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM progression_subject_ownership_history WHERE event_type='OWNERSHIP_REASSIGNED' AND identity_id IN (SELECT id FROM progression_subject_identity WHERE namespace=? AND external_id=?)",
+                    Integer.class, reference.namespace(), reference.externalId())).isEqualTo(1);
+        }
+    }
+
+    private Object[] race(java.util.concurrent.Callable<?> first, java.util.concurrent.Callable<?> second)
+            throws Exception {
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Object> a = pool.submit(() -> outcome(first));
+            Future<Object> b = pool.submit(() -> outcome(second));
+            return new Object[] {a.get(), b.get()};
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private static Object outcome(java.util.concurrent.Callable<?> call) {
+        try { return call.call(); }
+        catch (RuntimeException failure) { return failure; }
+        catch (Exception failure) { throw new RuntimeException(failure); }
+    }
+
+    private static void assertOneSuccessOneConflict(Object[] outcomes) {
+        long results = java.util.Arrays.stream(outcomes)
+                .filter(com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipReassignmentResult.class::isInstance)
+                .count();
+        long conflicts = java.util.Arrays.stream(outcomes)
+                .filter(SubjectOwnershipReassignmentConflictException.class::isInstance).count();
+        assertThat(results).as("concurrent outcomes: %s", java.util.Arrays.toString(outcomes)).isEqualTo(1);
+        assertThat(conflicts).as("concurrent outcomes: %s", java.util.Arrays.toString(outcomes)).isEqualTo(1);
+    }
+
     private ExternalSubjectReference createIdentity() {
         String email = "reassign-r2-" + UUID.randomUUID() + "@example.test";
         registration.register(new RegistrationCommand(email, "password", "Reassignment " + UUID.randomUUID()));

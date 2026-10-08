@@ -109,7 +109,8 @@ public class ReassignExternalSubjectOwnershipService implements ReassignExternal
                 || authorization.predecessorOwnershipVersion() != command.expectedPredecessorOwnershipVersion()
                 || !authorization.predecessorTargetJogadorId().equals(predecessor.targetJogadorId())
                 || !authorization.proposedSuccessorTargetJogadorId().equals(command.newTargetJogadorId()))
-            throw new SubjectOwnershipReassignmentAuthorizationException();
+            throw new SubjectOwnershipReassignmentConflictException(
+                    "Reassignment request is already bound to different authorized facts");
     }
 
     private static SubjectOwnershipReassignmentResult replay(SubjectOwnershipReassignmentStore.ReassignmentEvent event,
