@@ -49,10 +49,14 @@ public class ReassignExternalSubjectOwnershipService implements ReassignExternal
 
         var authorization = store.findAuthorizationById(authorizationId)
                 .orElseThrow(SubjectOwnershipReassignmentAuthorizationException::new);
-        var predecessor = store.lockCurrentPredecessor(command.reference())
-                .orElseThrow(SubjectOwnershipIdentityNotFoundException::new);
+        var selectedIdentityId = store.lockCurrentPointer(command.reference());
         var afterLock = store.findCompletedReassignmentByRequestId(command.reassignmentRequestId());
         if (afterLock.isPresent()) return replayWithAuthorization(afterLock.get(), command, executor.principalId());
+
+        var predecessor = selectedIdentityId
+                .map(id -> store.lockSelectedIdentity(command.reference(), id)
+                        .orElseThrow(() -> new IllegalStateException("Current pointer references a missing identity")))
+                .orElseThrow(SubjectOwnershipIdentityNotFoundException::new);
 
         if (!predecessor.id().equals(command.predecessorIdentityId()))
             throw new SubjectOwnershipReassignmentConflictException("Predecessor is not current");
@@ -66,7 +70,7 @@ public class ReassignExternalSubjectOwnershipService implements ReassignExternal
             throw new SubjectOwnershipReassignmentConflictException("Predecessor version conflict");
         validateAuthorization(authorization, command, predecessor);
         if (authorization.reviewerPrincipalId().equals(executor.principalId()))
-            throw new InvalidSubjectOwnershipTransitionException("Reviewer and executor must differ");
+            throw new SubjectOwnershipReassignmentAuthorizationException();
         if (predecessor.targetJogadorId().equals(command.newTargetJogadorId()))
             throw new InvalidSubjectOwnershipTransitionException("Successor target must differ from predecessor target");
         if (!store.targetExists(command.newTargetJogadorId()))
@@ -86,6 +90,7 @@ public class ReassignExternalSubjectOwnershipService implements ReassignExternal
     private SubjectOwnershipReassignmentResult replayWithAuthorization(
             SubjectOwnershipReassignmentStore.ReassignmentEvent event,
             ReassignExternalSubjectOwnershipCommand command, String executor) {
+        var result = replay(event, command, executor);
         var authorization = store.findAuthorizationById(command.authorizationId())
                 .orElseThrow(SubjectOwnershipReassignmentAuthorizationException::new);
         if (!authorization.reassignmentRequestId().equals(event.reassignmentRequestId())
@@ -94,9 +99,10 @@ public class ReassignExternalSubjectOwnershipService implements ReassignExternal
                 || authorization.predecessorOwnershipVersion() != event.predecessorOwnershipVersion()
                 || !authorization.predecessorTargetJogadorId().equals(event.previousTargetJogadorId())
                 || !authorization.proposedSuccessorTargetJogadorId().equals(event.newTargetJogadorId())
-                || authorization.reviewerPrincipalId().equals(executor))
-            throw new SubjectOwnershipReassignmentConflictException("Completed reassignment authorization does not match");
-        return replay(event, command, executor);
+                || !authorization.authorizationId().equals(event.reassignmentAuthorizationId())
+                || authorization.reviewerPrincipalId().equals(event.actorId()))
+            throw new SubjectOwnershipReassignmentAuthorizationException();
+        return result;
     }
 
     private static void validateAuthorization(SubjectOwnershipReassignmentAuthorization authorization,
@@ -109,8 +115,7 @@ public class ReassignExternalSubjectOwnershipService implements ReassignExternal
                 || authorization.predecessorOwnershipVersion() != command.expectedPredecessorOwnershipVersion()
                 || !authorization.predecessorTargetJogadorId().equals(predecessor.targetJogadorId())
                 || !authorization.proposedSuccessorTargetJogadorId().equals(command.newTargetJogadorId()))
-            throw new SubjectOwnershipReassignmentConflictException(
-                    "Reassignment request is already bound to different authorized facts");
+            throw new SubjectOwnershipReassignmentAuthorizationException();
     }
 
     private static SubjectOwnershipReassignmentResult replay(SubjectOwnershipReassignmentStore.ReassignmentEvent event,

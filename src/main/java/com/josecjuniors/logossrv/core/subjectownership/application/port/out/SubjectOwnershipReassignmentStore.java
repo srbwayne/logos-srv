@@ -10,6 +10,8 @@ public interface SubjectOwnershipReassignmentStore {
     Optional<SubjectOwnershipReassignmentAuthorization> findAuthorizationById(UUID id);
     Optional<SubjectOwnershipReassignmentAuthorization> findAuthorizationByRequestId(UUID requestId);
     SubjectOwnershipReassignmentAuthorization insertAuthorizationIfAbsent(SubjectOwnershipReassignmentAuthorization proposed);
+    Optional<UUID> lockCurrentPointer(ExternalSubjectReference reference);
+    Optional<ReassignmentPredecessor> lockSelectedIdentity(ExternalSubjectReference reference, UUID identityId);
     Optional<ReassignmentPredecessor> lockCurrentPredecessor(ExternalSubjectReference reference);
     Optional<ReassignmentEvent> findCompletedReassignmentByRequestId(UUID requestId);
     boolean targetExists(UUID targetId);

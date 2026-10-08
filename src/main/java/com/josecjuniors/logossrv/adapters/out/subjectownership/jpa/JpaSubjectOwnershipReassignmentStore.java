@@ -83,20 +83,32 @@ public class JpaSubjectOwnershipReassignmentStore implements SubjectOwnershipRea
 
     @Override
     @Transactional
-    public Optional<ReassignmentPredecessor> lockCurrentPredecessor(ExternalSubjectReference reference) {
+    public Optional<UUID> lockCurrentPointer(ExternalSubjectReference reference) {
         var id = identities.lockCurrentIdentityId(reference.namespace(), reference.externalId());
         if (id.isEmpty()) {
             if (identities.existsByNamespaceAndExternalId(reference.namespace(), reference.externalId()))
                 throw new DataIntegrityViolationException("Subject identity exists without a current-binding pointer");
             return Optional.empty();
         }
-        ProgressionSubjectIdentity row = identities.findCurrentIdentityByIdForUpdate(id.get())
+        return id;
+    }
+
+    @Override
+    @Transactional
+    public Optional<ReassignmentPredecessor> lockSelectedIdentity(ExternalSubjectReference reference, UUID identityId) {
+        ProgressionSubjectIdentity row = identities.findCurrentIdentityByIdForUpdate(identityId)
                 .orElseThrow(() -> new IllegalStateException("Current pointer references a missing identity"));
         if (!reference.namespace().equals(row.getNamespace()) || !reference.externalId().equals(row.getExternalId()))
             throw new IllegalStateException("Current pointer locator does not match identity");
         return Optional.of(new ReassignmentPredecessor(row.getId(), reference, row.getJogador().getId().getValue(),
                 row.getIdentityClass().name(), row.getOwnershipStatus().name(), row.getVerificationStatus(),
                 row.getOwnershipVersion()));
+    }
+
+    @Override
+    @Transactional
+    public Optional<ReassignmentPredecessor> lockCurrentPredecessor(ExternalSubjectReference reference) {
+        return lockCurrentPointer(reference).flatMap(id -> lockSelectedIdentity(reference, id));
     }
 
     @Override

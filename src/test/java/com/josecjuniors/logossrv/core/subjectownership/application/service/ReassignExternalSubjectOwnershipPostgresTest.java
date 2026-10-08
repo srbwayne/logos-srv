@@ -23,6 +23,7 @@ import com.josecjuniors.logossrv.core.subjectownership.application.port.out.Auth
 import com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipOperatorContext;
 import com.josecjuniors.logossrv.core.subjectownership.application.port.out.SubjectOwnershipReassignmentStore;
 import com.josecjuniors.logossrv.core.subjectownership.domain.exception.SubjectOwnershipReassignmentConflictException;
+import com.josecjuniors.logossrv.core.subjectownership.domain.exception.SubjectOwnershipReassignmentAuthorizationException;
 import com.josecjuniors.logossrv.support.test.FreshPostgresIntegrationTest;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -42,6 +43,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 
 @FreshPostgresIntegrationTest
 @TestPropertySource(properties = "logos.test.schema-key=subject-ownership-reassignment-r2")
@@ -259,6 +262,90 @@ class ReassignExternalSubjectOwnershipPostgresTest {
                 .isInstanceOf(SubjectOwnershipReassignmentConflictException.class);
     }
 
+    @Test void missingAndMismatchedTrustedAuthorizationUseSameGenericFailure() {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID target = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        UUID request = UUID.randomUUID();
+        var authorization = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
+                target, request, "recover", "case"));
+        principal.set("executor-auth-errors");
+
+        var missing = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target, request,
+                UUID.randomUUID().toString(), "replacement");
+        assertThatThrownBy(() -> reassignment.reassign(missing))
+                .isInstanceOf(SubjectOwnershipReassignmentAuthorizationException.class)
+                .hasMessage("Trusted reassignment authorization is unavailable or does not match");
+
+        var anotherRequest = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target,
+                UUID.randomUUID(), authorization.evidenceReference(), "replacement");
+        assertThatThrownBy(() -> reassignment.reassign(anotherRequest))
+                .isInstanceOf(SubjectOwnershipReassignmentAuthorizationException.class)
+                .hasMessage("Trusted reassignment authorization is unavailable or does not match");
+
+        var mismatchedPredecessorBinding = new com.josecjuniors.logossrv.core.subjectownership.application.port.out
+                .SubjectOwnershipReassignmentAuthorization(authorization.authorizationId(),
+                authorization.reassignmentRequestId(), authorization.reference(), UUID.randomUUID(),
+                authorization.predecessorOwnershipVersion(), authorization.predecessorTargetJogadorId(),
+                authorization.proposedSuccessorTargetJogadorId(), authorization.recoveryBasis(),
+                authorization.reviewedCaseReference(), authorization.reviewerPrincipalId(), authorization.reviewedAt());
+        doReturn(java.util.Optional.of(mismatchedPredecessorBinding)).when(reassignmentStore)
+                .findAuthorizationById(authorization.authorizationId());
+        var predecessorMismatch = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target,
+                request, authorization.evidenceReference(), "replacement");
+        assertThatThrownBy(() -> reassignment.reassign(predecessorMismatch))
+                .isInstanceOf(SubjectOwnershipReassignmentAuthorizationException.class)
+                .hasMessage("Trusted reassignment authorization is unavailable or does not match");
+        var mismatchedVersionBinding = new com.josecjuniors.logossrv.core.subjectownership.application.port.out
+                .SubjectOwnershipReassignmentAuthorization(authorization.authorizationId(),
+                authorization.reassignmentRequestId(), authorization.reference(), authorization.predecessorIdentityId(),
+                authorization.predecessorOwnershipVersion() + 1, authorization.predecessorTargetJogadorId(),
+                authorization.proposedSuccessorTargetJogadorId(), authorization.recoveryBasis(),
+                authorization.reviewedCaseReference(), authorization.reviewerPrincipalId(), authorization.reviewedAt());
+        doReturn(java.util.Optional.of(mismatchedVersionBinding)).when(reassignmentStore)
+                .findAuthorizationById(authorization.authorizationId());
+        assertThatThrownBy(() -> reassignment.reassign(predecessorMismatch))
+                .isInstanceOf(SubjectOwnershipReassignmentAuthorizationException.class)
+                .hasMessage("Trusted reassignment authorization is unavailable or does not match");
+        reset(reassignmentStore);
+
+        var targetMismatch = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, createTarget(),
+                request, authorization.evidenceReference(), "replacement");
+        assertThatThrownBy(() -> reassignment.reassign(targetMismatch))
+                .isInstanceOf(SubjectOwnershipReassignmentAuthorizationException.class)
+                .hasMessage("Trusted reassignment authorization is unavailable or does not match");
+
+        principal.set(authorization.reviewerPrincipalId());
+        var reviewerExecutor = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target,
+                request, authorization.evidenceReference(), "replacement");
+        assertThatThrownBy(() -> reassignment.reassign(reviewerExecutor))
+                .isInstanceOf(SubjectOwnershipReassignmentAuthorizationException.class)
+                .hasMessage("Trusted reassignment authorization is unavailable or does not match");
+        principal.set("reviewer-r2");
+    }
+
+    @Test void secondCompletedRequestCheckRunsAfterPointerLockAndBeforeIdentityLock() {
+        var reference = createIdentity();
+        UUID predecessor = currentIdentity(reference);
+        UUID target = createTarget();
+        revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
+        UUID request = UUID.randomUUID();
+        var authorization = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
+                target, request, "recover", "case-order"));
+        reset(reassignmentStore);
+        principal.set("executor-lock-order");
+        reassignment.reassign(new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target,
+                request, authorization.evidenceReference(), "replacement"));
+
+        var order = inOrder(reassignmentStore);
+        order.verify(reassignmentStore).findCompletedReassignmentByRequestId(request);
+        order.verify(reassignmentStore).findAuthorizationById(authorization.authorizationId());
+        order.verify(reassignmentStore).lockCurrentPointer(reference);
+        order.verify(reassignmentStore).findCompletedReassignmentByRequestId(request);
+        order.verify(reassignmentStore).lockSelectedIdentity(reference, predecessor);
+    }
+
     @Test void concurrentEquivalentApprovalReturnsOneImmutableAuthorization() throws Exception {
         var reference = createIdentity();
         UUID predecessor = currentIdentity(reference);
@@ -311,7 +398,6 @@ class ReassignExternalSubjectOwnershipPostgresTest {
         var reference = createIdentity();
         UUID predecessor = currentIdentity(reference);
         UUID target = createTarget();
-        UUID alternateTarget = createTarget();
         revoke.revoke(new RevokeExternalSubjectOwnershipCommand(reference, 0, "terminal recovery predecessor"));
         UUID request = UUID.randomUUID();
         var auth = approval.approve(new ApproveExternalSubjectReassignmentCommand(reference, predecessor, 1,
@@ -319,7 +405,7 @@ class ReassignExternalSubjectOwnershipPostgresTest {
         principal.set("executor-race");
         var accepted = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target, request,
                 auth.evidenceReference(), "payload one");
-        var changed = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, alternateTarget, request,
+        var changed = new ReassignExternalSubjectOwnershipCommand(reference, predecessor, 1, target, request,
                 auth.evidenceReference(), "payload two");
         var outcomes = race(() -> reassignment.reassign(accepted), () -> reassignment.reassign(changed));
         assertOneSuccessOneConflict(outcomes);
