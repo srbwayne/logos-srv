@@ -1,9 +1,18 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, REVOKE, and
-TRANSFER are canonical and implemented.
-REASSIGNMENT is proposed below and remains unimplemented. TARGET_CORRECTION
-remains undesigned and unimplemented; C2 enforcement remains unimplemented.
+Status: VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, REVOKE, TRANSFER,
+and REASSIGNMENT are canonical and implemented. TARGET_CORRECTION has a
+canonical design and remains unimplemented. C2 enforcement remains
+unimplemented.
+
+The REASSIGNMENT material below records earlier design stages and is superseded
+by the canonical [REASSIGNMENT R2 design](EXTERNAL-SUBJECT-OWNERSHIP-REASSIGNMENT-R2-DESIGN.md).
+TARGET_CORRECTION semantics are frozen in the separate
+[TARGET_CORRECTION design](EXTERNAL-SUBJECT-OWNERSHIP-TARGET-CORRECTION-DESIGN.md);
+its operation remains unimplemented. These designs do not change C2 or
+authorize runtime work beyond their separate implementation gates. Conflicting
+status statements in the historical sections below are superseded by this
+status and the linked contracts.
 
 ## Authority boundary
 
@@ -37,10 +46,9 @@ this authority.
 
 AppUser operators and `SYSTEM` automation are unsupported. No grant, principal,
 role, or trust entry is seeded by the authority foundation. No HTTP, message,
-scheduled-job, or CLI ingress exists. Canonical implemented lifecycle
-mutations are VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, REVOKE, and
-TRANSFER. REASSIGNMENT is proposed below but
-unimplemented. TARGET_CORRECTION remains undesigned and unimplemented; C2
+scheduled-job, or CLI ingress exists. VERIFY, INVALIDATE, REVERIFY, DISABLE,
+REACTIVATE, REVOKE, TRANSFER, and REASSIGNMENT are canonical and implemented.
+TARGET_CORRECTION has a canonical design and remains unimplemented; C2
 execution enforcement remains unimplemented.
 
 ## VERIFY slice
@@ -84,10 +92,9 @@ provenance. Effective time is server-derived; recorded time is database-
 derived. The current-state change and history event are atomic and use the
 existing identity-row `PESSIMISTIC_WRITE` lock.
 
-REACTIVATE, REVOKE, and TRANSFER are canonical and implemented as documented
-below. REASSIGNMENT is proposed below but unimplemented.
-TARGET_CORRECTION remains undesigned and unimplemented; C2 enforcement remains
-unimplemented. No ingress or
+REACTIVATE, REVOKE, TRANSFER, and REASSIGNMENT are canonical and implemented
+as documented below. TARGET_CORRECTION has a canonical design and remains
+unimplemented; C2 enforcement remains unimplemented. No ingress or
 resolver/execution behavior is added by these lifecycle capabilities.
 
 ## REVERIFY implementation
@@ -132,10 +139,12 @@ one transaction, so history failure rolls back current state. Concurrent
 equivalent requests produce one mutation and one event; the later lock holder
 observes the valid already-verified replay.
 
-No migration is required; the existing V48 schema supports the state, version,
-event, and evidence fields. REVERIFY adds no ingress and does not change
-resolver or progression execution behavior. Reactivate, revoke, transfer,
-reassignment, target correction, and C2 remain unimplemented and out of scope.
+No migration was required for the original REVERIFY implementation; its
+state, version, event, and evidence fields use the existing history structure.
+REVERIFY adds no ingress and does not change resolver or progression
+execution behavior. REACTIVATE, REVOKE, TRANSFER, and REASSIGNMENT are now
+canonical and implemented. TARGET_CORRECTION has a canonical design and
+remains unimplemented; C2 remains unimplemented.
 
 ## DISABLE implementation — canonical
 
@@ -187,8 +196,8 @@ is recorded. `effective_at` is server-derived and `recorded_at` is
 database-derived. The event fits V47's `VARCHAR(64)` nonblank-only event
 constraint; no event enum, allowlist, or trigger restriction exists. Ownership
 status admits `DISABLED`; the reason column is nullable `VARCHAR(512)` and the
-evidence columns are nullable. The migration head remains V48; V49 is not required
-or created.
+evidence columns are nullable. At the time of the original DISABLE design, the
+migration head was V48; the current canonical migration head is V49.
 
 The existing identity-row `PESSIMISTIC_WRITE` lock serializes this mutation.
 Current state/version and history append commit atomically; history failure
@@ -196,14 +205,14 @@ rolls back the current-row mutation. Concurrent equivalent requests yield one
 transition/event and a successful replay for the later lock holder.
 
 DISABLE is reversible in principle and preserves verification state and
-identity data. REACTIVATE is designed below but remains unimplemented. DISABLE
-is not REVOKE and must not substitute for it; REVOKE terminality remains
-unfrozen. DISABLE changes no resolver or progression execution behavior and
-adds no ingress. Any future active/usable execution requirement belongs to a
-separate C2 gate.
+identity data. REACTIVATE is canonical and implemented as documented below.
+DISABLE is not REVOKE and must not substitute for it; REVOKE terminality is
+canonical and preserved. DISABLE changes no resolver or progression execution
+behavior and adds no ingress. Any future active/usable execution requirement
+belongs to a separate C2 gate.
 
 
-## REACTIVATE design — designed, unimplemented
+## REACTIVATE — canonical implementation semantics
 
 REACTIVATE is the administrative inverse of DISABLE and changes ownership
 status only. Its exact transitions are:
@@ -274,12 +283,12 @@ history `event_type` is `VARCHAR(64)` with only a nonblank check, so
 append-only triggers reject UPDATE, DELETE, and TRUNCATE, not INSERT of a new
 event. `reason` is `VARCHAR(512)`, both evidence columns are nullable, and
 `recorded_at` is database-defaulted. V48 changes authorization constraints
-only. Migration head remains V48; V49 is not required.
+only. The migration head at the time of this earlier design was V48; the
+current canonical migration head is V49.
 
-REACTIVATE, REVOKE, and TRANSFER are canonical and implemented. TRANSFER
-semantics are recorded in the section below. REASSIGNMENT is
-proposed below but unimplemented. TARGET_CORRECTION remains undesigned and
-unimplemented; C2 remains unimplemented.
+REACTIVATE, REVOKE, TRANSFER, and REASSIGNMENT are canonical and implemented.
+TRANSFER semantics are recorded in the section below. TARGET_CORRECTION has a
+canonical design and remains unimplemented; C2 remains unimplemented.
 
 ## REVOKE — canonical implementation semantics
 
@@ -356,16 +365,15 @@ nonblank `VARCHAR(64)` without an event-name allowlist. The reason column is
 `VARCHAR(512)`, evidence columns are nullable, `recorded_at` is
 database-defaulted, and append-only triggers prohibit UPDATE, DELETE, and
 TRUNCATE while allowing new history inserts. V48 changes authorization
-constraints only. The design requires no migration; the head remains V48 and
-V49 is not required.
+constraints only. The original REVOKE design required no migration at that stage. V49 is now
+canonical and provides the current-binding infrastructure.
 
 REVOKE is a state transition, never hard deletion. `REVOKED` is terminal for
 the current binding, and REACTIVATE continues to reject it. No runtime resolver
 or progression execution behavior is specified or changed here; C2 remains
 unimplemented and must separately determine how ownership status affects
-execution eligibility. REVOKE and TRANSFER are canonical and implemented;
-TRANSFER cannot reverse REVOKE. REASSIGNMENT is proposed
-below but unimplemented. TARGET_CORRECTION remains undesigned and
+execution eligibility. REVOKE, TRANSFER, and REASSIGNMENT are canonical and implemented; TRANSFER
+cannot reverse REVOKE. TARGET_CORRECTION has a canonical design and remains
 unimplemented; C2 remains unimplemented.
 
 
@@ -536,21 +544,19 @@ version remain unchanged.
   reorder state or imply verification; an operator explicitly resubmits
   against the new state and version.
 
-TRANSFER is a consensual handoff. REASSIGNMENT is separately proposed below as
-a successor-binding recovery/replacement flow after revocation; it cannot
-bypass REVOKE. TARGET_CORRECTION means fixing
-erroneous target data, not a consensual handoff. It needs separate evidence
-and an immutable audit event and must not become a silent history bypass for a
-legitimate transfer; its detailed semantics remain unfrozen. Neither is
-implemented here.
+TRANSFER is a consensual handoff. REASSIGNMENT is the canonical, implemented
+successor-binding recovery flow after revocation; it cannot bypass REVOKE.
+TARGET_CORRECTION is separately designed for evidence-backed inception errors
+and remains unimplemented. Its canonical contract requires distinct evidence
+and immutable history, and prevents it from becoming a silent bypass for a
+legitimate transfer.
 
 No resolver, ingress, or progression-execution behavior changes. ACTIVE does
-not thereby mean executable; C2 remains separate and unimplemented. Existing
-canonical lifecycle semantics remain unchanged. TRANSFER is canonical and
-implemented; REASSIGNMENT is proposed but unimplemented, TARGET_CORRECTION
-remains undesigned and unimplemented, and C2 remains unimplemented.
+not thereby mean executable; C2 remains separate and unimplemented. Existing canonical lifecycle semantics remain unchanged. TRANSFER and
+REASSIGNMENT are canonical and implemented; TARGET_CORRECTION has a canonical
+design and remains unimplemented; C2 remains unimplemented.
 
-## REASSIGNMENT design — proposed, unimplemented
+## Historical REASSIGNMENT design snapshot — superseded by canonical R2
 
 This section proposes a successor-binding recovery operation. It does not
 implement or authorize the operation. The design chooses a successor binding
@@ -570,14 +576,10 @@ separately reviewed reassignment request be considered. This gate prevents
 unilateral REASSIGNMENT from bypassing transfer consent or converting an
 ordinary valid relationship into an administrative remap.
 
-TARGET_CORRECTION is reserved for data that was wrong from the start, such as
-a clerical provisioning error where target A was never the correct target.
-If A was the valid owner and intentionally hands off to B, use TRANSFER. If A
-was valid but is unavailable, inaccessible, compromised, or the binding has
-already been revoked and recovery is authorized, the proposed path is REVOKE
-then REASSIGNMENT. TARGET_CORRECTION must not erase a valid historical
-relationship or bypass transfer/reassignment audit; its own design remains
-out of scope.
+The earlier boundary rationale correctly distinguishes an inception error
+from a valid handoff or revoked-binding recovery. Its correction details are
+superseded by the canonical TARGET_CORRECTION design linked above; its
+reassignment proposal is superseded by the canonical R2 design.
 
 | Current binding | Reassignment eligibility | Result |
 | --- | --- | --- |
@@ -777,9 +779,10 @@ this proposal. Exact predecessor UUID/version and authorization-before-lookup
 block stale-command disclosure or action. Native identities and C2 behavior
 are unchanged.
 
-REASSIGNMENT is proposed and unimplemented. This section does not design
-TARGET_CORRECTION, change TRANSFER/REVOKE semantics, change resolver
-implementation, or authorize implementation, ingress, or migration work.
-The implementation architecture is documented in
+This historical section does not change TRANSFER/REVOKE semantics, resolver
+implementation, or authorize further implementation, ingress, or migration
+work. REASSIGNMENT is canonical and implemented; TARGET_CORRECTION has a
+canonical design and remains unimplemented. Current implementation authority
+is documented in
 [EXTERNAL-SUBJECT-OWNERSHIP-REASSIGNMENT-IMPLEMENTATION-DESIGN.md](EXTERNAL-SUBJECT-OWNERSHIP-REASSIGNMENT-IMPLEMENTATION-DESIGN.md);
 that document is planning only and does not authorize implementation.
