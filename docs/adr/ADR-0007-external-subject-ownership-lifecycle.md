@@ -5,6 +5,16 @@
 Accepted and frozen — HARD-003, **Option B: stateful ownership registry**.
 Depends on HARD-001 and HARD-002.
 
+### Current C1B status
+
+VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, REVOKE, TRANSFER, and
+REASSIGNMENT are canonical and implemented. TARGET_CORRECTION has a canonical
+design and remains unimplemented. C2 enforcement remains unimplemented. The
+earlier proposal text below is historical where it describes REASSIGNMENT as
+unimplemented or TARGET_CORRECTION as undesigned. Current contracts are
+[REASSIGNMENT R2](../40-contracts/EXTERNAL-SUBJECT-OWNERSHIP-REASSIGNMENT-R2-DESIGN.md)
+and [TARGET_CORRECTION](../40-contracts/EXTERNAL-SUBJECT-OWNERSHIP-TARGET-CORRECTION-DESIGN.md).
+
 ## Boundary
 
 `(namespace, externalId)` is an external locator, not proof of ownership.

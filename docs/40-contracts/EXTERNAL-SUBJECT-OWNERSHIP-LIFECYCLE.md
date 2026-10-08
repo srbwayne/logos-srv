@@ -1,9 +1,18 @@
 # External Subject Ownership Lifecycle Authority
 
-Status: VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, REVOKE, and
-TRANSFER are canonical and implemented.
-REASSIGNMENT is proposed below and remains unimplemented. TARGET_CORRECTION
-remains undesigned and unimplemented; C2 enforcement remains unimplemented.
+Status: VERIFY, INVALIDATE, REVERIFY, DISABLE, REACTIVATE, REVOKE, TRANSFER,
+and REASSIGNMENT are canonical and implemented. TARGET_CORRECTION has a
+canonical design and remains unimplemented. C2 enforcement remains
+unimplemented.
+
+The REASSIGNMENT material below records earlier design stages and is superseded
+by the canonical [REASSIGNMENT R2 design](EXTERNAL-SUBJECT-OWNERSHIP-REASSIGNMENT-R2-DESIGN.md).
+TARGET_CORRECTION semantics are frozen in the separate
+[TARGET_CORRECTION design](EXTERNAL-SUBJECT-OWNERSHIP-TARGET-CORRECTION-DESIGN.md);
+its operation remains unimplemented. These designs do not change C2 or
+authorize runtime work beyond their separate implementation gates. Conflicting
+status statements in the historical sections below are superseded by this
+status and the linked contracts.
 
 ## Authority boundary
 
