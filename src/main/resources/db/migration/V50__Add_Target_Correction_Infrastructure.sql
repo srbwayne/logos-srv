@@ -70,8 +70,9 @@ BEGIN
         RAISE EXCEPTION 'V50 preflight failed: identity lineage is invalid';
     END IF;
 
-    -- Re-evaluate every historical reassignment against the V49 authorization
-    -- and current successor state before adding a second successor kind.
+    -- Re-evaluate historical reassignment snapshots against their immutable
+    -- authorization and lineage. Successor lifecycle fields and pointer
+    -- membership may legitimately change after reassignment creation.
     SELECT EXISTS (
         SELECT 1
         FROM progression_subject_ownership_history event
@@ -79,8 +80,6 @@ BEGIN
         LEFT JOIN progression_subject_identity predecessor ON predecessor.id = event.predecessor_identity_id
         LEFT JOIN progression_subject_reassignment_authorization approval
           ON approval.authorization_id = event.reassignment_authorization_id
-        LEFT JOIN progression_subject_current_binding pointer
-          ON pointer.namespace = successor.namespace AND pointer.external_id = successor.external_id
         WHERE event.event_type = 'OWNERSHIP_REASSIGNED'
           AND (successor.id IS NULL OR predecessor.id IS NULL OR approval.authorization_id IS NULL
                OR event.aggregate_version IS DISTINCT FROM 0
@@ -89,9 +88,7 @@ BEGIN
                OR event.previous_ownership_status IS DISTINCT FROM 'REVOKED'
                OR event.new_ownership_status IS DISTINCT FROM 'DISABLED'
                OR event.previous_verification_status IS DISTINCT FROM predecessor.verification_status
-               OR event.new_verification_status IS DISTINCT FROM successor.verification_status
                OR event.previous_target_jogador_id IS DISTINCT FROM predecessor.jogador_id
-               OR event.new_target_jogador_id IS DISTINCT FROM successor.jogador_id
                OR event.provenance IS DISTINCT FROM 'LOGOS_OPERATOR_ACTION'
                OR event.actor_type IS DISTINCT FROM 'WORKLOAD_OPERATOR'
                OR event.actor_id IS NULL OR btrim(event.actor_id) = ''
@@ -102,21 +99,18 @@ BEGIN
                OR successor.namespace IS DISTINCT FROM predecessor.namespace
                OR successor.external_id IS DISTINCT FROM predecessor.external_id
                OR successor.identity_class IS DISTINCT FROM 'EXTERNAL'
-               OR successor.ownership_status IS DISTINCT FROM 'DISABLED'
-               OR successor.ownership_version IS DISTINCT FROM 0
-               OR successor.jogador_id IS DISTINCT FROM event.new_target_jogador_id
                OR predecessor.identity_class IS DISTINCT FROM 'EXTERNAL'
                OR predecessor.ownership_status IS DISTINCT FROM 'REVOKED'
                OR predecessor.ownership_version IS DISTINCT FROM event.predecessor_ownership_version
                OR predecessor.jogador_id IS DISTINCT FROM event.previous_target_jogador_id
-               OR pointer.current_identity_id IS DISTINCT FROM successor.id
                OR approval.reassignment_request_id IS DISTINCT FROM event.reassignment_request_id
                OR approval.namespace IS DISTINCT FROM successor.namespace
                OR approval.external_id IS DISTINCT FROM successor.external_id
-               OR approval.predecessor_identity_id IS DISTINCT FROM predecessor.id
-               OR approval.predecessor_ownership_version IS DISTINCT FROM predecessor.ownership_version
-               OR approval.predecessor_target_jogador_id IS DISTINCT FROM predecessor.jogador_id
-               OR approval.proposed_successor_target_jogador_id IS DISTINCT FROM successor.jogador_id
+               OR approval.predecessor_identity_id IS DISTINCT FROM event.predecessor_identity_id
+               OR approval.predecessor_ownership_version IS DISTINCT FROM event.predecessor_ownership_version
+               OR approval.predecessor_target_jogador_id IS DISTINCT FROM event.previous_target_jogador_id
+               OR approval.proposed_successor_target_jogador_id IS DISTINCT FROM event.new_target_jogador_id
+               OR approval.authorization_id::text IS DISTINCT FROM event.evidence_reference
                OR approval.reviewer_principal_id IS NOT DISTINCT FROM event.actor_id)
     ) INTO invalid_reassignment;
 
