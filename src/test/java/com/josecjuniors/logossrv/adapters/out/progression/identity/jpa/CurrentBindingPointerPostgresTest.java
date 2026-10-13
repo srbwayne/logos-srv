@@ -34,12 +34,12 @@ class CurrentBindingPointerPostgresTest {
     @Autowired PlatformTransactionManager transactionManager;
 
     @Test
-    void freshBootstrapUsesV49AndInitialBindingHasPointer() {
+    void freshBootstrapUsesV50AndInitialBindingHasPointer() {
         assertThat(jdbc.queryForObject("""
                 SELECT version FROM flyway_schema_history
                 WHERE success = TRUE AND version IS NOT NULL
                 ORDER BY installed_rank DESC LIMIT 1
-                """, String.class)).isEqualTo("49");
+                """, String.class)).isEqualTo("50");
 
         var target = newTarget("pointer-first");
         var reference = new ExternalSubjectReference(NAMESPACE, "first-" + UUID.randomUUID());

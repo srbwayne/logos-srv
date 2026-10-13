@@ -107,6 +107,12 @@ public class ProgressionSubjectOwnershipHistoryEntry {
     @Column(name = "reassignment_authorization_id")
     private UUID reassignmentAuthorizationId;
 
+    @Column(name = "correction_request_id")
+    private UUID correctionRequestId;
+
+    @Column(name = "target_correction_authorization_id")
+    private UUID targetCorrectionAuthorizationId;
+
     protected ProgressionSubjectOwnershipHistoryEntry() {
     }
 
