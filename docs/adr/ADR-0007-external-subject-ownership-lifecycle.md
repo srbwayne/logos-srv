@@ -14,6 +14,9 @@ earlier proposal text below is historical where it describes REASSIGNMENT as
 unimplemented or TARGET_CORRECTION as undesigned. Current contracts are
 [REASSIGNMENT R2](../40-contracts/EXTERNAL-SUBJECT-OWNERSHIP-REASSIGNMENT-R2-DESIGN.md)
 and [TARGET_CORRECTION](../40-contracts/EXTERNAL-SUBJECT-OWNERSHIP-TARGET-CORRECTION-DESIGN.md).
+The C2 policy is frozen in the canonical
+[execution-enforcement design](../40-contracts/EXTERNAL-SUBJECT-OWNERSHIP-EXECUTION-ENFORCEMENT-DESIGN.md);
+runtime enforcement remains unimplemented.
 
 ## Boundary
 
@@ -262,9 +265,10 @@ locator, identity class, and history. REACTIVATE is canonical and implemented
 as documented in the following section. DISABLE is not REVOKE and must not be
 used as its substitute; REVOKE terminality is canonical and preserved. DISABLE
 does not change resolver behavior, progression execution authorization or
-ingress. A future C2 execution mutation must separately define the active/usable mapping
-requirement. At the time of the original REACTIVATE design, the migration head
-was V48; the current canonical migration head is V49.
+ingress. The active/usable mapping requirement is frozen by the canonical C2
+execution-enforcement design; runtime enforcement remains a separate,
+unimplemented slice. At the time of the original REACTIVATE design, the
+migration head was V48; the current canonical migration head is V49.
 
 
 ## C1B REACTIVATE — canonical implementation semantics
